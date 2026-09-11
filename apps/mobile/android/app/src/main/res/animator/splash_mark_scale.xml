@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The mark settling into place on the system splash.
+
+    Kept under half a second on purpose. Android gives a splash icon about a second before it starts
+    the app anyway, and an animation that outlasts the thing it is covering makes a fast phone feel
+    slow.
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android">
+    <objectAnimator
+        android:propertyName="scaleX"
+        android:valueFrom="0.72"
+        android:valueTo="1.0"
+        android:valueType="floatType"
+        android:duration="420"
+        android:interpolator="@android:interpolator/decelerate_quint" />
+    <objectAnimator
+        android:propertyName="scaleY"
+        android:valueFrom="0.72"
+        android:valueTo="1.0"
+        android:valueType="floatType"
+        android:duration="420"
+        android:interpolator="@android:interpolator/decelerate_quint" />
+</set>

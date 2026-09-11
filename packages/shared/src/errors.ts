@@ -1,0 +1,31 @@
+/**
+ * Error codes returned as `{ code, message, details? }` (spec §9).
+ * Clients branch on `code`, never on the message text.
+ */
+export const ERROR_CODES = {
+  UNAUTHENTICATED: 'UNAUTHENTICATED',
+  INVALID_TOKEN: 'INVALID_TOKEN',
+  TOKEN_EXPIRED: 'TOKEN_EXPIRED',
+  FORBIDDEN: 'FORBIDDEN',
+  MODULE_NOT_ENABLED: 'MODULE_NOT_ENABLED',
+  PROJECT_NOT_ASSIGNED: 'PROJECT_NOT_ASSIGNED',
+  NOT_FOUND: 'NOT_FOUND',
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  CONFLICT: 'CONFLICT',
+  PERIOD_FINALISED: 'PERIOD_FINALISED',
+  DUPLICATE_ATTENDANCE: 'DUPLICATE_ATTENDANCE',
+  WORKER_OVERBOOKED: 'WORKER_OVERBOOKED',
+  TENANT_SUSPENDED: 'TENANT_SUSPENDED',
+  USER_PENDING: 'USER_PENDING',
+  PHONE_ALREADY_REGISTERED: 'PHONE_ALREADY_REGISTERED',
+  RATE_LIMITED: 'RATE_LIMITED',
+  INTERNAL: 'INTERNAL',
+} as const;
+
+export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
+
+export interface ApiErrorBody {
+  code: ErrorCode;
+  message: string;
+  details?: unknown;
+}

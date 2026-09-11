@@ -1,0 +1,1263 @@
+// SiteBook data model — Phase 1 tables (spec §7).
+//
+// Conventions (spec §17):
+//   * Every tenant-scoped model carries `tenantId` and has an RLS policy created in
+//     the same migration. Child tables (dpr_*, wage_lines, indent_items) carry
+//     `tenantId` too, so RLS protects them directly rather than only via the parent.
+//   * Money is `BigInt` paise. Never Float, never Decimal.
+//   * Report/attendance dates are `@db.Date`; everything else is `@db.Timestamptz(6)`.
+//   * `clientId` is the device-generated UUID used as the sync idempotency key (§8).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Plan {
+  starter
+  pro
+
+  @@map("plan")
+}
+
+enum TenantStatus {
+  active
+  suspended
+  cancelled
+
+  @@map("tenant_status")
+}
+
+enum UserRole {
+  owner
+  project_manager
+  site_supervisor
+  accounts
+  client
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  pending
+  active
+  disabled
+
+  @@map("user_status")
+}
+
+enum ProjectStatus {
+  planning
+  active
+  on_hold
+  completed
+
+  @@map("project_status")
+}
+
+enum PaymentTerms {
+  weekly
+  fortnightly
+  monthly
+
+  @@map("payment_terms")
+}
+
+enum SkillLevel {
+  unskilled
+  semi
+  skilled
+
+  @@map("skill_level")
+}
+
+enum WorkerStatus {
+  active
+  inactive
+
+  @@map("worker_status")
+}
+
+enum DprStatus {
+  draft
+  submitted
+
+  @@map("dpr_status")
+}
+
+enum AttendanceStatus {
+  present
+  half_day
+  absent
+
+  @@map("attendance_status")
+}
+
+enum WagePeriodStatus {
+  open
+  finalised
+  paid
+
+  @@map("wage_period_status")
+}
+
+enum LabourPaymentType {
+  advance
+  wage
+  bonus
+  deduction
+
+  @@map("labour_payment_type")
+}
+
+enum PaymentMode {
+  cash
+  upi
+  bank
+
+  @@map("payment_mode")
+}
+
+enum IndentStatus {
+  requested
+  approved
+  rejected
+  ordered
+  received
+
+  @@map("indent_status")
+}
+
+enum Urgency {
+  low
+  normal
+  high
+
+  @@map("urgency")
+}
+
+enum ExpenseStatus {
+  pending
+  approved
+  rejected
+
+  @@map("expense_status")
+}
+
+enum SyncOp {
+  create
+  update
+
+  @@map("sync_op")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy and identity
+// ---------------------------------------------------------------------------
+
+/// The builder. Root of every tenant-scoped row; has no tenant_id of its own, so
+/// it is guarded by a policy matching on `id` instead.
+model Tenant {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  logoUrl            String?      @map("logo_url")
+  plan               Plan         @default(starter)
+  enabledModules     String[]     @default([]) @map("enabled_modules")
+  razorpayCustomerId String?      @map("razorpay_customer_id")
+  status             TenantStatus @default(active)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users           User[]
+  refreshTokens   RefreshToken[]
+  projects        Project[]
+  projectMembers  ProjectMember[]
+  milestones      Milestone[]
+  contractors     Contractor[]
+  workers         Worker[]
+  workerProjects  WorkerProject[]
+  dailyReports    DailyReport[]
+  dprActivities   DprActivity[]
+  dprPhotos       DprPhoto[]
+  dprManpower     DprManpower[]
+  attendance      Attendance[]
+  wagePeriods     WagePeriod[]
+  wageLines       WageLine[]
+  labourPayments  LabourPayment[]
+  materials       Material[]
+  materialIndents MaterialIndent[]
+  indentItems     IndentItem[]
+  expenses        Expense[]
+  notifications   Notification[]
+  syncLogs        SyncLog[]
+  auditLogs       AuditLog[]
+
+  roles Role[]
+
+  materialEstimates  MaterialEstimate[]
+  stockMovements     StockMovement[]
+  subscription       Subscription?
+  invoices           Invoice[]
+  projectMedia       ProjectMedia[]
+  billingIdentities  BillingIdentity[]
+  siteMessages       SiteMessage[]
+  messageAttachments SiteMessageAttachment[]
+  messageReads       SiteMessageRead[]
+  documents          Document[]
+  @@map("tenants")
+}
+
+/// A role within one tenant: a name, a permission set, and how much it can see.
+///
+/// The five built-in roles are rows here too (`isSystem`), seeded for every tenant, so the
+/// permission check has one code path rather than "is it a preset or a custom one". System
+/// rows cannot be edited or deleted — an owner who could strip `roles.manage` from the
+/// owner role would lock the account's last administrator out of fixing it.
+model Role {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  name            String
+  /// The built-in role this one is based on, which still drives `project_members` and the
+  /// wage-sheet semantics that are not expressible as permissions.
+  baseRole        UserRole @map("base_role")
+  permissions     String[] @default([])
+  /// Tenant-wide visibility rather than only assigned projects.
+  seesAllProjects Boolean  @default(false) @map("sees_all_projects")
+  isSystem        Boolean  @default(false) @map("is_system")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@unique([tenantId, name], map: "roles_tenant_id_name_key")
+  @@index([tenantId])
+  @@map("roles")
+}
+
+model User {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String     @map("tenant_id") @db.Uuid
+  phone     String
+  name      String
+  role      UserRole
+  status    UserStatus @default(pending)
+  /// Which role row applies. Backfilled from `role` for every existing user.
+  roleId    String?    @map("role_id") @db.Uuid
+  roleRef   Role?      @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  fcmTokens String[]   @default([]) @map("fcm_tokens")
+  lastLogin DateTime?  @map("last_login") @db.Timestamptz(6)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  refreshTokens      RefreshToken[]
+  projectMemberships ProjectMember[]
+  submittedReports   DailyReport[]    @relation("dpr_submitted_by")
+  recordedAttendance Attendance[]     @relation("attendance_recorded_by")
+  finalisedPeriods   WagePeriod[]     @relation("wage_period_finalised_by")
+  recordedPayments   LabourPayment[]  @relation("labour_payment_recorded_by")
+  requestedIndents   MaterialIndent[] @relation("indent_requested_by")
+  approvedIndents    MaterialIndent[] @relation("indent_approved_by")
+  submittedExpenses  Expense[]        @relation("expense_submitted_by")
+  approvedExpenses   Expense[]        @relation("expense_approved_by")
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+  workers            Worker[]         @relation("worker_portal_user")
+
+  /// Phone is unique within a tenant, not globally — the same person can be a
+  /// supervisor at one builder and an owner at another.
+  @@unique([tenantId, phone], map: "users_tenant_id_phone_key")
+  @@index([tenantId, role])
+  @@index([tenantId, updatedAt])
+  @@index([roleId])
+  stockRecorded StockMovement[] @relation("stock_recorded_by")
+  mediaUploaded ProjectMedia[] @relation("media_uploaded_by")
+  messagesWritten   SiteMessage[] @relation("message_author")
+  messagesReceived  SiteMessage[] @relation("message_recipient")
+  messageReads      SiteMessageRead[]
+  documentsUploaded Document[]    @relation("document_uploader")
+  @@map("users")
+}
+
+/// Refresh tokens are stored hashed and rotated on use (spec §6.2, §15).
+model RefreshToken {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  deviceId     String?   @map("device_id")
+  userAgent    String?   @map("user_agent")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  /// Set when this token was rotated, so a replayed token reveals the whole chain.
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+model Project {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  name          String
+  clientName    String?       @map("client_name")
+  address       String?
+  lat           Float?
+  lng           Float?
+  startDate     DateTime?     @map("start_date") @db.Date
+  targetEndDate DateTime?     @map("target_end_date") @db.Date
+  budgetAmount  BigInt?       @map("budget_amount")
+  status        ProjectStatus @default(planning)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  members        ProjectMember[]
+  milestones     Milestone[]
+  dailyReports   DailyReport[]
+  attendance     Attendance[]
+  workerProjects WorkerProject[]
+  labourPayments LabourPayment[]
+  indents        MaterialIndent[]
+  expenses       Expense[]
+  messages       SiteMessage[]
+  messageReads   SiteMessageRead[]
+  documents      Document[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, updatedAt])
+  materialEstimates MaterialEstimate[]
+  stockMovements    StockMovement[]
+  media             ProjectMedia[]
+  @@map("projects")
+}
+
+/// Project-level assignment: controls which projects a supervisor, PM or client sees.
+model ProjectMember {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  projectId     String   @map("project_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  roleOnProject UserRole @map("role_on_project")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId], map: "project_members_project_id_user_id_key")
+  @@index([tenantId, userId])
+  @@map("project_members")
+}
+
+model Milestone {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  name        String
+  plannedDate DateTime? @map("planned_date") @db.Date
+  actualDate  DateTime? @map("actual_date") @db.Date
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sortOrder])
+  @@map("milestones")
+}
+
+// ---------------------------------------------------------------------------
+// Labour registry
+// ---------------------------------------------------------------------------
+
+model Contractor {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String       @map("tenant_id") @db.Uuid
+  name         String
+  trade        String?
+  phone        String?
+  paymentTerms PaymentTerms @default(weekly) @map("payment_terms")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  workers        Worker[]
+  wagePeriods    WagePeriod[]
+  labourPayments LabourPayment[]
+
+  @@index([tenantId, updatedAt])
+  @@map("contractors")
+}
+
+model Worker {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String       @map("tenant_id") @db.Uuid
+  /// Null means direct labour rather than a subcontracted gang.
+  contractorId        String?      @map("contractor_id") @db.Uuid
+  name                String
+  phone               String?
+  trade               String?
+  skillLevel          SkillLevel   @default(unskilled) @map("skill_level")
+  /// Paise per day. Changing this never alters past attendance — see wage_snapshot.
+  dailyWage           BigInt       @map("daily_wage")
+  overtimeRatePerHour BigInt       @default(0) @map("overtime_rate_per_hour")
+  idProofS3Key        String?      @map("id_proof_s3_key")
+  photoS3Key          String?      @map("photo_s3_key")
+  status              WorkerStatus @default(active)
+  /// Device-generated UUID when the supervisor added this worker offline.
+  clientId            String?      @map("client_id") @db.Uuid
+  /// Optional link to a `client`-role user for Phase 3 worker self-service.
+  portalUserId        String?      @map("portal_user_id") @db.Uuid
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contractor Contractor? @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  portalUser User?       @relation("worker_portal_user", fields: [portalUserId], references: [id], onDelete: SetNull)
+
+  workerProjects WorkerProject[]
+  attendance     Attendance[]
+  wageLines      WageLine[]
+  labourPayments LabourPayment[]
+
+  @@unique([tenantId, clientId], map: "workers_tenant_id_client_id_key")
+  @@index([tenantId, contractorId])
+  @@index([tenantId, status])
+  @@index([tenantId, updatedAt])
+  @@map("workers")
+}
+
+/// Which sites a worker is on, over time. The roll call lists only workers whose
+/// assignment window covers the attendance date.
+model WorkerProject {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  workerId  String    @map("worker_id") @db.Uuid
+  projectId String    @map("project_id") @db.Uuid
+  fromDate  DateTime  @map("from_date") @db.Date
+  toDate    DateTime? @map("to_date") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  worker  Worker  @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([workerId, projectId, fromDate], map: "worker_projects_worker_project_from_key")
+  @@index([projectId, fromDate, toDate])
+  @@index([tenantId, updatedAt])
+  @@map("worker_projects")
+}
+
+// ---------------------------------------------------------------------------
+// Daily progress reports
+// ---------------------------------------------------------------------------
+
+model DailyReport {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  reportDate  DateTime  @map("report_date") @db.Date
+  submittedBy String    @map("submitted_by") @db.Uuid
+  weather     String?
+  workDone    String?   @map("work_done")
+  issues      String?
+  status      DprStatus @default(draft)
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
+  clientId    String?   @map("client_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submitter User    @relation("dpr_submitted_by", fields: [submittedBy], references: [id], onDelete: Restrict)
+
+  activities DprActivity[]
+  photos     DprPhoto[]
+  manpower   DprManpower[]
+
+  @@unique([projectId, reportDate], map: "daily_reports_project_id_report_date_key")
+  @@unique([tenantId, clientId], map: "daily_reports_tenant_id_client_id_key")
+  @@index([tenantId, reportDate])
+  @@index([tenantId, updatedAt])
+  @@map("daily_reports")
+}
+
+model DprActivity {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  dailyReportId String   @map("daily_report_id") @db.Uuid
+  activity      String
+  quantity      Decimal? @db.Decimal(14, 3)
+  unit          String?
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+
+  @@index([dailyReportId])
+  @@map("dpr_activities")
+}
+
+enum MediaKind {
+  photo
+  video
+
+  @@map("media_kind")
+}
+
+/// Photos and videos of a site, attached to the project rather than to one day's report.
+///
+/// Separate from `dpr_photos`, which are evidence of what happened on a particular day and belong to
+/// that report forever. These are the site itself — what it looked like at handover, the approach
+/// road, the finished elevation — and they outlive any single report.
+model ProjectMedia {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  kind        MediaKind
+  s3Key       String    @map("s3_key")
+  /// Generated by the media worker. Null until then, so the UI falls back to the original.
+  thumbS3Key  String?   @map("thumb_s3_key")
+  caption     String?
+  /// Display order within the site, ascending. The first photo is the one the card leads with.
+  /// Not unique — a reorder rewrites a whole site's rows, and `created_at` breaks any tie.
+  position    Int       @default(0)
+  contentType String    @map("content_type")
+  sizeBytes   Int       @map("size_bytes")
+  /// When the photo was taken, not when it was uploaded — they differ by days on a site.
+  takenAt     DateTime? @map("taken_at") @db.Timestamptz(6)
+  uploadedBy  String    @map("uploaded_by") @db.Uuid
+  clientId    String?   @map("client_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User    @relation("media_uploaded_by", fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, clientId], map: "project_media_tenant_id_client_id_key")
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([projectId, position])
+  @@map("project_media")
+}
+
+model DprPhoto {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  dailyReportId String    @map("daily_report_id") @db.Uuid
+  s3Key         String    @map("s3_key")
+  thumbS3Key    String?   @map("thumb_s3_key")
+  caption       String?
+  takenAt       DateTime? @map("taken_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+
+  @@index([dailyReportId])
+  @@map("dpr_photos")
+}
+
+/// Headcount by trade as reported on the DPR. Independent of per-worker attendance:
+/// the DPR is a narrative of the day, attendance is the payroll record.
+model DprManpower {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String @map("tenant_id") @db.Uuid
+  dailyReportId String @map("daily_report_id") @db.Uuid
+  trade         String
+  count         Int
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+
+  @@unique([dailyReportId, trade], map: "dpr_manpower_daily_report_id_trade_key")
+  @@map("dpr_manpower")
+}
+
+// ---------------------------------------------------------------------------
+// Attendance and wages
+// ---------------------------------------------------------------------------
+
+model Attendance {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String           @map("tenant_id") @db.Uuid
+  projectId            String           @map("project_id") @db.Uuid
+  attendanceDate       DateTime         @map("attendance_date") @db.Date
+  workerId             String           @map("worker_id") @db.Uuid
+  status               AttendanceStatus
+  overtimeHours        Decimal          @default(0) @map("overtime_hours") @db.Decimal(4, 1)
+  /// Daily wage frozen at record time, in paise (spec §8A).
+  wageSnapshot         BigInt           @map("wage_snapshot")
+  /// Overtime rate frozen at record time. Kept alongside wage_snapshot so a later
+  /// rate change cannot retroactively alter overtime already earned.
+  overtimeRateSnapshot BigInt           @default(0) @map("overtime_rate_snapshot")
+  recordedBy           String           @map("recorded_by") @db.Uuid
+  recordedAt           DateTime         @default(now()) @map("recorded_at") @db.Timestamptz(6)
+  lat                  Float?
+  lng                  Float?
+  clientId             String?          @map("client_id") @db.Uuid
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  worker   Worker  @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  recorder User    @relation("attendance_recorded_by", fields: [recordedBy], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, attendanceDate, workerId], map: "attendance_project_date_worker_key")
+  @@unique([tenantId, clientId], map: "attendance_tenant_id_client_id_key")
+  @@index([tenantId, attendanceDate])
+  @@index([workerId, attendanceDate])
+  @@index([tenantId, updatedAt])
+  @@map("attendance")
+}
+
+/// How a wage period came to exist.
+///
+/// Worth recording because the scheduler drafts them unattended: an owner opening a sheet
+/// they do not remember asking for should be told it was drafted for them, not left
+/// wondering who created it.
+enum WagePeriodSource {
+  manual
+  scheduled
+
+  @@map("wage_period_source")
+}
+
+model WagePeriod {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  /// Null for direct labour.
+  contractorId  String?          @map("contractor_id") @db.Uuid
+  periodStart   DateTime         @map("period_start") @db.Date
+  periodEnd     DateTime         @map("period_end") @db.Date
+  status        WagePeriodStatus @default(open)
+  source        WagePeriodSource @default(manual)
+  totalEarned   BigInt           @default(0) @map("total_earned")
+  totalAdvances BigInt           @default(0) @map("total_advances")
+  totalPaid     BigInt           @default(0) @map("total_paid")
+  finalisedBy   String?          @map("finalised_by") @db.Uuid
+  finalisedAt   DateTime?        @map("finalised_at") @db.Timestamptz(6)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contractor Contractor? @relation(fields: [contractorId], references: [id], onDelete: Restrict)
+  finaliser  User?       @relation("wage_period_finalised_by", fields: [finalisedBy], references: [id], onDelete: SetNull)
+
+  lines    WageLine[]
+  payments LabourPayment[]
+
+  @@index([tenantId, periodStart, periodEnd])
+  @@index([tenantId, status])
+  @@map("wage_periods")
+}
+
+model WageLine {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  wagePeriodId     String  @map("wage_period_id") @db.Uuid
+  workerId         String  @map("worker_id") @db.Uuid
+  daysPresent      Decimal @default(0) @map("days_present") @db.Decimal(4, 1)
+  overtimeHours    Decimal @default(0) @map("overtime_hours") @db.Decimal(4, 1)
+  grossAmount      BigInt  @default(0) @map("gross_amount")
+  advancesDeducted BigInt  @default(0) @map("advances_deducted")
+  netPayable       BigInt  @default(0) @map("net_payable")
+  paidAmount       BigInt  @default(0) @map("paid_amount")
+  note             String?
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  wagePeriod WagePeriod @relation(fields: [wagePeriodId], references: [id], onDelete: Cascade)
+  worker     Worker     @relation(fields: [workerId], references: [id], onDelete: Restrict)
+
+  @@unique([wagePeriodId, workerId], map: "wage_lines_wage_period_id_worker_id_key")
+  @@index([tenantId, workerId])
+  @@map("wage_lines")
+}
+
+/// Advances, wage payments and adjustments. `workerId` null means the payment sits
+/// at the contractor level.
+model LabourPayment {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String            @map("tenant_id") @db.Uuid
+  projectId    String?           @map("project_id") @db.Uuid
+  workerId     String?           @map("worker_id") @db.Uuid
+  contractorId String?           @map("contractor_id") @db.Uuid
+  wagePeriodId String?           @map("wage_period_id") @db.Uuid
+  type         LabourPaymentType
+  amount       BigInt
+  paidOn       DateTime          @map("paid_on") @db.Date
+  mode         PaymentMode       @default(cash)
+  reference    String?
+  note         String?
+  recordedBy   String            @map("recorded_by") @db.Uuid
+  clientId     String?           @map("client_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project    Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  worker     Worker?     @relation(fields: [workerId], references: [id], onDelete: SetNull)
+  contractor Contractor? @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  wagePeriod WagePeriod? @relation(fields: [wagePeriodId], references: [id], onDelete: SetNull)
+  recorder   User        @relation("labour_payment_recorded_by", fields: [recordedBy], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, clientId], map: "labour_payments_tenant_id_client_id_key")
+  @@index([tenantId, workerId, paidOn])
+  @@index([tenantId, contractorId, paidOn])
+  @@index([tenantId, updatedAt])
+  @@map("labour_payments")
+}
+
+// ---------------------------------------------------------------------------
+// Materials
+// ---------------------------------------------------------------------------
+
+model Material {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  name      String
+  unit      String
+  category  String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  indentItems IndentItem[]
+
+  @@unique([tenantId, name], map: "materials_tenant_id_name_key")
+  @@index([tenantId, updatedAt])
+  estimates      MaterialEstimate[]
+  stockMovements StockMovement[]
+  @@map("materials")
+}
+
+model MaterialIndent {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String       @map("tenant_id") @db.Uuid
+  projectId   String       @map("project_id") @db.Uuid
+  requestedBy String       @map("requested_by") @db.Uuid
+  status      IndentStatus @default(requested)
+  urgency     Urgency      @default(normal)
+  notes       String?
+  requiredBy  DateTime?    @map("required_by") @db.Date
+  approvedBy  String?      @map("approved_by") @db.Uuid
+  approvedAt  DateTime?    @map("approved_at") @db.Timestamptz(6)
+  clientId    String?      @map("client_id") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requester User    @relation("indent_requested_by", fields: [requestedBy], references: [id], onDelete: Restrict)
+  approver  User?   @relation("indent_approved_by", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  items IndentItem[]
+
+  @@unique([tenantId, clientId], map: "material_indents_tenant_id_client_id_key")
+  @@index([tenantId, status])
+  @@index([projectId, createdAt])
+  @@index([tenantId, updatedAt])
+  stockMovements StockMovement[]
+  @@map("material_indents")
+}
+
+model IndentItem {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  indentId         String  @map("indent_id") @db.Uuid
+  materialId       String  @map("material_id") @db.Uuid
+  quantity         Decimal @db.Decimal(14, 3)
+  receivedQuantity Decimal @default(0) @map("received_quantity") @db.Decimal(14, 3)
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  indent   MaterialIndent @relation(fields: [indentId], references: [id], onDelete: Cascade)
+  material Material       @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([indentId, materialId], map: "indent_items_indent_id_material_id_key")
+  @@map("indent_items")
+}
+
+enum StockMovementType {
+  in
+  out
+
+  @@map("stock_movement_type")
+}
+
+/// What a site is expected to consume of a material (spec §7, Phase 2).
+///
+/// One row per project and material, which is what makes the overrun report possible: without
+/// an expected figure, "you have used 180 bags" is a number nobody can act on.
+model MaterialEstimate {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  projectId         String   @map("project_id") @db.Uuid
+  materialId        String   @map("material_id") @db.Uuid
+  estimatedQuantity Decimal  @map("estimated_quantity") @db.Decimal(14, 3)
+  note              String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, materialId], map: "material_estimates_project_id_material_id_key")
+  @@index([tenantId, projectId])
+  @@map("material_estimates")
+}
+
+/// Every movement of material on or off a site (spec §7, Phase 2).
+///
+/// An append-only ledger rather than a running `stock_on_hand` column. Stock is the sum of its
+/// movements, so "why do we have 12 bags" is always answerable — a single balance column would
+/// give the number and lose the reason, and the first disagreement with the site would have
+/// nothing to check against.
+model StockMovement {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String            @map("tenant_id") @db.Uuid
+  projectId  String            @map("project_id") @db.Uuid
+  materialId String            @map("material_id") @db.Uuid
+  type       StockMovementType
+  quantity   Decimal           @db.Decimal(14, 3)
+  /// The day the material moved, which is not the day it was typed in.
+  movedOn    DateTime          @map("moved_on") @db.Date
+  /// Set when this row came from receiving an indent, so a GRN can be traced back.
+  indentId   String?           @map("indent_id") @db.Uuid
+  /// Challan or bill number for an inward movement; free text because every supplier differs.
+  ref        String?
+  note       String?
+  recordedBy String            @map("recorded_by") @db.Uuid
+  clientId   String?           @map("client_id") @db.Uuid
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt  DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  material Material        @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  indent   MaterialIndent? @relation(fields: [indentId], references: [id], onDelete: SetNull)
+  recorder User            @relation("stock_recorded_by", fields: [recordedBy], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, clientId], map: "stock_movements_tenant_id_client_id_key")
+  @@index([tenantId, projectId, materialId])
+  @@index([projectId, movedOn])
+  @@map("stock_movements")
+}
+
+/// Site expenses and petty cash (spec §3 item 9, §7).
+///
+/// `spentOn` is the day the money left, which is not the day it was entered — a
+/// supervisor photographs a bill on Tuesday for a Saturday purchase, and the cost
+/// belongs to Saturday. Reports group on `spentOn` for that reason.
+model Expense {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String        @map("tenant_id") @db.Uuid
+  projectId   String        @map("project_id") @db.Uuid
+  /// Paise. Never a float (ADR 0003).
+  amount      BigInt
+  category    String
+  spentOn     DateTime      @map("spent_on") @db.Date
+  billS3Key   String?       @map("bill_s3_key")
+  note        String?
+  status      ExpenseStatus @default(pending)
+  submittedBy String        @map("submitted_by") @db.Uuid
+  approvedBy  String?       @map("approved_by") @db.Uuid
+  approvedAt  DateTime?     @map("approved_at") @db.Timestamptz(6)
+  /// Device-generated id when recorded offline; the sync idempotency key.
+  clientId    String?       @map("client_id") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submitter User    @relation("expense_submitted_by", fields: [submittedBy], references: [id], onDelete: Restrict)
+  approver  User?   @relation("expense_approved_by", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, clientId], map: "expenses_tenant_id_client_id_key")
+  @@index([tenantId, status])
+  @@index([tenantId, spentOn])
+  @@index([projectId, spentOn])
+  @@index([tenantId, updatedAt])
+  @@map("expenses")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications, sync, audit
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String
+  payload   Json      @db.JsonB
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+/// Append-only record of what each device pushed, including conflicts, so a
+/// supervisor's "but I entered it" can be answered (spec §8).
+model SyncLog {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  deviceId String   @map("device_id")
+  entity   String
+  entityId String?  @map("entity_id") @db.Uuid
+  clientId String?  @map("client_id") @db.Uuid
+  op       SyncOp
+  status   String
+  detail   Json?    @db.JsonB
+  serverTs DateTime @default(now()) @map("server_ts") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deviceId, serverTs])
+  @@index([tenantId, entity, serverTs])
+  @@map("sync_log")
+}
+
+/// Phone → (tenant, user) directory. Deliberately has NO row-level security and no
+/// foreign keys: `/auth/exchange` has to resolve a phone to a tenant *before* any
+/// tenant context exists, and that is the only lookup allowed to run untenanted.
+/// Maintained by the `users_sync_auth_identity` trigger — never written from
+/// application code.
+model AuthIdentity {
+  userId   String @id @map("user_id") @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  phone    String
+
+  @@unique([phone, tenantId], map: "auth_identities_phone_tenant_id_key")
+  @@index([phone])
+  @@map("auth_identities")
+}
+
+/// Audit trail for approvals and money movements (spec §15).
+enum BillingStatus {
+  none
+  trialing
+  active
+  past_due
+  cancelled
+
+  @@map("billing_status")
+}
+
+/// One tenant's subscription (spec §3 item 12).
+///
+/// The Razorpay subscription is the authority on what is being charged; this row is the local
+/// projection of it, updated only from a signature-verified webhook or an explicit fetch. Nothing
+/// a browser sends ever sets `status` or `plan` here.
+model Subscription {
+  id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String        @unique @map("tenant_id") @db.Uuid
+  plan                   Plan
+  status                 BillingStatus @default(none)
+  razorpaySubscriptionId String?       @unique @map("razorpay_subscription_id")
+  razorpayPlanId         String?       @map("razorpay_plan_id")
+  /// Paise per cycle, copied at subscribe time so a later price change cannot rewrite history.
+  amount                 BigInt        @default(0)
+  /// Access runs to here. A past-due tenant keeps working until it passes.
+  currentPeriodEnd       DateTime?     @map("current_period_end") @db.Timestamptz(6)
+  /// Set when cancellation was requested but the paid period has not run out yet.
+  cancelAt               DateTime?     @map("cancel_at") @db.Timestamptz(6)
+  cancelledAt            DateTime?     @map("cancelled_at") @db.Timestamptz(6)
+  /// Why the last charge failed, for the banner the owner sees.
+  lastFailureReason      String?       @map("last_failure_reason")
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+/// Which tenant a Razorpay subscription belongs to. One of the few tables with no RLS.
+///
+/// A webhook arrives with no tenant context — it is authenticated by signature, and the tenant has to
+/// be worked out before any tenant-scoped query can run. `subscriptions` is RLS protected, so reading
+/// it without that context returns nothing, which is correct and useless here.
+///
+/// So this directory holds the mapping and nothing else: a Razorpay id and a tenant id. Exactly the
+/// reasoning behind `auth_identities`, which exists so `/auth/exchange` can find a tenant from a phone
+/// number. Kept in step by a trigger so application code never writes it and cannot let it drift.
+model BillingIdentity {
+  razorpaySubscriptionId String   @id @map("razorpay_subscription_id")
+  tenantId               String   @map("tenant_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("billing_identities")
+}
+
+/// A charge Razorpay raised, successful or not.
+///
+/// Kept locally so an owner can see what they have been billed without this app needing to call
+/// Razorpay to render a page, and so the history survives a subscription being cancelled.
+model Invoice {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  subscriptionId    String    @map("subscription_id") @db.Uuid
+  razorpayInvoiceId String    @unique @map("razorpay_invoice_id")
+  razorpayPaymentId String?   @map("razorpay_payment_id")
+  amount            BigInt
+  /// `paid`, `issued`, `failed` — Razorpay's own words, not translated.
+  status            String
+  /// Razorpay's hosted invoice, for the owner who needs it for their accountant.
+  invoiceUrl        String?   @map("invoice_url")
+  issuedAt          DateTime? @map("issued_at") @db.Timestamptz(6)
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, issuedAt(sort: Desc)])
+  @@map("invoices")
+}
+
+/// Every webhook Razorpay has delivered, by its own event id.
+///
+/// Razorpay retries until it gets a 2xx, so the same event arrives more than once as a matter of
+/// course. Without this table a retried `subscription.charged` would raise a second invoice and
+/// extend the period twice. No tenant_id and no RLS: the webhook is verified by signature before any
+/// tenant is known, so there is no tenant context in which to read it.
+model WebhookEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Razorpay's `x-razorpay-event-id` header. Unique, which is what makes replay a no-op.
+  eventId   String   @unique @map("event_id")
+  eventType String   @map("event_type")
+  payload   Json
+  /// Null until handled, so a crash mid-processing leaves a row to retry rather than a silent gap.
+  handledAt DateTime? @map("handled_at") @db.Timestamptz(6)
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([eventType, createdAt(sort: Desc)])
+  @@map("webhook_events")
+}
+
+/// Platform console actions, outside every tenant.
+///
+/// Its own table rather than rows in `audit_log`: that table is tenant-scoped and RLS
+/// protected, and an owner reading their own audit trail should not see the platform
+/// operator's notes about them. This one has no tenant_id and no policy, and is only
+/// ever written through the BYPASSRLS connection.
+model PlatformAuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// The operator's phone in stored form. Not a user id: platform admins are an env
+  /// allowlist, not rows in `users`.
+  actorPhone String   @map("actor_phone")
+  action     String
+  /// Which tenant was acted on, when the action was about one.
+  tenantId   String?  @map("tenant_id") @db.Uuid
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("platform_audit_log")
+}
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id") @db.Uuid
+  before    Json?    @db.JsonB
+  after     Json?    @db.JsonB
+  requestId String?  @map("request_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+/// Who a message in the site conversation is for.
+enum MessageAudience {
+  /// The client sees it. This is what the portal is for.
+  everyone
+
+  /// The team only. A supervisor's note about a client is a normal part of running a job, and a
+  /// portal with nowhere to put it sends those conversations back to WhatsApp.
+  team
+
+  /// One named person, and nobody else — whichever side of the client/team line they are on. The
+  /// row carries a `recipientId`, and the database enforces that it always does.
+  direct
+
+  @@map("message_audience")
+}
+
+/// One message in a site's conversation.
+///
+/// Soft deleted, like everything else that is a record of something somebody said. A client asking
+/// a question and a builder answering it is evidence about the job, and "who agreed to the granite"
+/// is exactly the question this exists to answer six months later.
+model SiteMessage {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String          @map("tenant_id") @db.Uuid
+  projectId String          @map("project_id") @db.Uuid
+  authorId  String          @map("author_id") @db.Uuid
+  /// Set only for `direct`, and always set for it — the database holds both halves of that.
+  recipientId String?       @map("recipient_id") @db.Uuid
+  body      String
+  audience  MessageAudience @default(everyone)
+  /// Idempotency for a phone that sent and lost the answer.
+  clientId  String?         @map("client_id") @db.Uuid
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt DateTime?       @map("deleted_at") @db.Timestamptz(6)
+
+  tenant      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author      User                    @relation("message_author", fields: [authorId], references: [id], onDelete: Restrict)
+  recipient   User?                   @relation("message_recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  attachments SiteMessageAttachment[]
+
+  @@unique([tenantId, clientId], map: "site_messages_tenant_id_client_id_key")
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([recipientId, createdAt(sort: Desc)])
+  @@map("site_messages")
+}
+
+/// A photo or file hanging off a message. Half of what a client asks is "is this right?" about
+/// something they can point at.
+model SiteMessageAttachment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  messageId   String   @map("message_id") @db.Uuid
+  s3Key       String   @map("s3_key")
+  thumbS3Key  String?  @map("thumb_s3_key")
+  contentType String   @map("content_type")
+  sizeBytes   Int      @map("size_bytes")
+  /// What the file was called. Null for a photograph, where the picture is the name.
+  filename    String?
+  caption     String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  message SiteMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("site_message_attachments")
+}
+
+/// How far one person has read one site's conversation.
+///
+/// A watermark rather than a row per message: "seen" is a question about a point in time, and
+/// storing it that way means the table is the size of the team rather than the size of the thread.
+model SiteMessageRead {
+  tenantId   String   @map("tenant_id") @db.Uuid
+  projectId  String   @map("project_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  lastReadAt DateTime @default(now()) @map("last_read_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([tenantId, userId])
+  @@map("site_message_reads")
+}
+
+enum DocumentCategory {
+  drawing
+  contract
+  approval
+  permit
+  invoice
+  other
+
+  @@map("document_category")
+}
+
+/// A drawing, contract or approval, with its revisions.
+///
+/// Revisions share a `familyId` and count up. The point is the client: somebody looking at revision
+/// 3 of a slab drawing must not be able to reach revision 1 by accident, and the builder must be
+/// able to prove which one was current when the slab was poured.
+///
+/// `visibleToClient` defaults to false everywhere — schema, API and UI. A contract or an internal
+/// costing becoming visible because somebody forgot to untick a box is not a mistake you can take
+/// back.
+model Document {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  /// Null for something that belongs to the company rather than one job.
+  projectId       String?          @map("project_id") @db.Uuid
+  /// Groups every revision of the same document.
+  familyId        String           @map("family_id") @db.Uuid
+  version         Int              @default(1)
+  title           String
+  category        DocumentCategory @default(other)
+  s3Key           String           @map("s3_key")
+  contentType     String           @map("content_type")
+  sizeBytes       Int              @map("size_bytes")
+  visibleToClient Boolean          @default(false) @map("visible_to_client")
+  uploadedBy      String           @map("uploaded_by") @db.Uuid
+  clientId        String?          @map("client_id") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User     @relation("document_uploader", fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, clientId], map: "documents_tenant_id_client_id_key")
+  @@unique([familyId, version], map: "documents_family_id_version_key")
+  @@index([tenantId, projectId, createdAt(sort: Desc)])
+  @@map("documents")
+}

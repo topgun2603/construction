@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The animated splash icon for Android 12 and later.
+
+    `windowSplashScreenAnimatedIcon` accepts an AnimatedVectorDrawable and plays it while the process
+    starts, which is the only moving app icon either platform allows: the launcher icon itself is
+    static on Android and on iOS, and nothing can change that.
+
+    The in-app splash picks up where this leaves off with the same mark at the same size, so the
+    handover from the system to Flutter reads as one continuous thing.
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/splash_logo">
+    <target
+        android:name="mark"
+        android:animation="@animator/splash_mark_scale" />
+    <target
+        android:name="glyph"
+        android:animation="@animator/splash_glyph_fade" />
+</animated-vector>

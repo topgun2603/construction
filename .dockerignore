@@ -1,0 +1,65 @@
+# What must never reach the build context.
+#
+# Two jobs, and the second one matters more than it looks.
+#
+# 1. Keeping the build correct. The images install dependencies themselves, for Linux. Copying the
+#    host's `node_modules` in on top of that replaces a working install with one built for another
+#    platform — and under pnpm on Windows, with symlinks that point at paths the container has never
+#    heard of. That is what made the first build of these images fail.
+#
+# 2. Keeping secrets out of the image. Every file in the context can end up in a layer, and layers
+#    are kept even when a later step deletes the file. A Firebase Admin service account key is a
+#    private key for the whole project; an image that carries one is a credential leak the moment it
+#    is pushed to any registry. Credentials reach a running container as environment variables, and
+#    never as a file in the build.
+#
+# Mirrors .gitignore where the two agree; the secrets block below is deliberately identical to it,
+# because anything unsafe to commit is unsafe to ship in an image.
+
+# --- dependencies and build output ------------------------------------------
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.next/
+**/.next/
+out/
+coverage/
+.turbo/
+**/.turbo/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# --- secrets -----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*service-account*.json
+*serviceaccount*.json
+*-firebase-adminsdk-*.json
+secrets/
+google-credentials.json
+**/google-services.json
+**/GoogleService-Info.plist
+
+# --- the mobile app ----------------------------------------------------------
+# Neither server image serves Flutter, and its build output is the largest thing in the repo.
+apps/mobile/
+
+# --- local-only infrastructure ----------------------------------------------
+infra/.data/
+infra/docker-compose.yml
+
+# --- everything else that only slows the context down ------------------------
+.git/
+.github/
+.vscode/
+.idea/
+docs/
+*.md
+!apps/*/README.md
+*.log
+.DS_Store
+Thumbs.db

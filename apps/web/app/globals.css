@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * SiteBook UI System.
+ *
+ * The palette, type scale and radii live in the Tailwind preset
+ * (packages/config/tailwind/preset.js) so components reference them by semantic
+ * name. This file only sets the page ground and a few base rules the design
+ * states explicitly.
+ *
+ * The system is light-only by design — status colour carries meaning here, and a
+ * second palette would need every status pair re-derived to stay legible.
+ */
+
+@layer base {
+  html {
+    /* Numbers are tabular everywhere: wage sheets and cost columns must align. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  /* Site staff work one-handed, often with gloves: 48px targets, 6px apart. */
+  button,
+  [role='button'] {
+    min-height: 2.75rem;
+  }
+
+  ::selection {
+    background: theme('colors.accent.soft');
+    color: theme('colors.ink.DEFAULT');
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.accent.DEFAULT');
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * The wage sheet is printed and carried to site for cash disbursement, so it has
+ * to survive leaving the screen: drop the app chrome, force black on white, and
+ * keep a row from splitting across a page — a worker whose name is on one page and
+ * signature line on the next cannot sign for their money.
+ */
+@media print {
+  nav,
+  header {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  tr,
+  tfoot {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+}

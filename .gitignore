@@ -1,0 +1,33 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+# Secrets. Firebase Admin service account keys are private keys — never commit one.
+*service-account*.json
+*serviceaccount*.json
+*-firebase-adminsdk-*.json
+secrets/
+google-credentials.json
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/build/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/ios/Pods/
+
+# local infra volumes
+infra/.data/
+
+.DS_Store
+Thumbs.db
+*.log

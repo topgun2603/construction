@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sitebook
+          POSTGRES_PASSWORD: sitebook
+          POSTGRES_DB: sitebook
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sitebook"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # sitebook_app, not sitebook: the latter is the cluster superuser and bypasses
+      # RLS, which would make the tenancy isolation suite pass while testing nothing.
+      DATABASE_URL: postgresql://sitebook_app:sitebook@localhost:5432/sitebook?schema=public
+      SHADOW_DATABASE_URL: postgresql://sitebook_app:sitebook@localhost:5432/sitebook_shadow?schema=public
+      JWT_SECRET: ci-access-secret-that-is-definitely-long-enough
+      JWT_REFRESH_SECRET: ci-refresh-secret-that-is-definitely-long-enough
+      DEV_AUTH_BYPASS: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @sitebook/shared build
+
+      - run: pnpm --filter @sitebook/api prisma:generate
+
+      # The compose file does this from /docker-entrypoint-initdb.d; a GitHub
+      # service container has no such hook, so run it explicitly.
+      - name: Create the non-superuser application role
+        env:
+          PGPASSWORD: sitebook
+        run: |
+          psql -h localhost -U sitebook -d sitebook -v ON_ERROR_STOP=1 \
+            -f infra/postgres/init/01-app-role.sql
+
+      - name: Apply migrations
+        run: pnpm --filter @sitebook/api prisma:deploy
+
+      # The hand-written migration SQL and schema.prisma must describe the same
+      # database; a mismatch means the next `prisma migrate dev` would reset.
+      - name: Check for schema drift
+        env:
+          PGPASSWORD: sitebook
+        run: |
+          psql -h localhost -U sitebook -d postgres \
+            -c 'CREATE DATABASE sitebook_shadow OWNER sitebook_app' || true
+          pnpm --filter @sitebook/api prisma:drift
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      - run: pnpm --filter @sitebook/api test:e2e
+
+      - run: pnpm build

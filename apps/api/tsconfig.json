@@ -1,0 +1,17 @@
+{
+  "extends": "@sitebook/config/tsconfig/node.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "rootDir": ".",
+    "outDir": "./dist",
+    "declaration": false,
+    "declarationMap": false,
+    // The shared node preset pins `types` to ["node"], which switches off automatic
+    // @types inclusion — so jest's globals have to be named explicitly here.
+    "types": ["node", "jest"]
+  },
+  // `@sitebook/shared` resolves through the workspace symlink to its built dist,
+  // not through a path alias — that keeps `nest build` emitting only apps/api.
+  "include": ["src/**/*.ts", "test/**/*.ts", "prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

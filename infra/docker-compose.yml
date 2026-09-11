@@ -1,0 +1,74 @@
+name: sitebook
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sitebook
+      POSTGRES_PASSWORD: sitebook
+      POSTGRES_DB: sitebook
+      # Keep container time in step with the app (spec §17).
+      TZ: Asia/Kolkata
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Creates the non-superuser role the app connects as. Without it the app would
+      # run as the cluster superuser and bypass every RLS policy — see the file.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sitebook -d sitebook']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: sitebook
+      MINIO_ROOT_PASSWORD: sitebook123
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Creates the photo bucket once MinIO is up, then exits.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 sitebook sitebook123 &&
+      mc mb --ignore-existing local/sitebook-media &&
+      mc anonymous set none local/sitebook-media
+      "
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
