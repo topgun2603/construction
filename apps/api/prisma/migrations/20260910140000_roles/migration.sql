@@ -119,4 +119,16 @@ WHERE r.tenant_id = u.tenant_id
   AND r.is_system = true
   AND u.role_id IS NULL;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON "roles" TO sitebook_admin;
+-- Guarded, like every other migration that grants to this role.
+--
+-- `sitebook_admin` is the BYPASSRLS role the platform console connects as, and it is optional by
+-- design: ADMIN_DATABASE_URL is optional in the env schema, and any deployment that is not the one
+-- the platform team operates should not have such a role at all. An unguarded GRANT made that
+-- choice fatal — a fresh database without the role failed here, at migration 4 of 17, with
+-- `role "sitebook_admin" does not exist` and no way forward.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'sitebook_admin') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON "roles" TO sitebook_admin;
+  END IF;
+END $$;
