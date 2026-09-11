@@ -36,6 +36,26 @@ jobs:
       JWT_REFRESH_SECRET: ci-refresh-secret-that-is-definitely-long-enough
       DEV_AUTH_BYPASS: 'true'
 
+      # Object storage. Without it every presigned-upload route answers 500, which took out the
+      # portal and media suites the first time e2e ever ran here — the photo and document tests are
+      # precisely the ones that exercise storage, so stubbing it would test nothing.
+      S3_ENDPOINT: http://localhost:9000
+      S3_REGION: ap-south-1
+      S3_BUCKET: sitebook-media
+      S3_ACCESS_KEY_ID: sitebook
+      S3_SECRET_ACCESS_KEY: sitebook123
+      S3_FORCE_PATH_STYLE: 'true'
+
+      # The platform console. Both halves or neither — the env schema refuses a half-configured
+      # console, because one wired to the app's own connection would find every RLS policy matching
+      # zero rows and quietly show an empty database.
+      ADMIN_DATABASE_URL: postgresql://sitebook_admin:sitebook@localhost:5432/sitebook?schema=public
+      PLATFORM_ADMIN_PHONES: '919000000001'
+
+      # Queues off. The worker is a separate process and no suite asserts on a job running; leaving
+      # them on would make every test wait on a Redis that is not there.
+      JOBS_ENABLED: 'false'
+
     steps:
       - uses: actions/checkout@v4
 
@@ -63,6 +83,33 @@ jobs:
         run: |
           psql -h localhost -U sitebook -d sitebook -v ON_ERROR_STOP=1 \
             -f infra/postgres/init/01-app-role.sql
+
+      # The BYPASSRLS role the platform console connects as. Optional in a real deployment — which
+      # is why every migration guards its GRANT — but the console suite cannot run without it.
+      - name: Create the platform console role
+        env:
+          PGPASSWORD: sitebook
+        run: |
+          psql -h localhost -U sitebook -d sitebook -v ON_ERROR_STOP=1 \
+            -f infra/postgres/init/02-admin-role.sql
+          psql -h localhost -U sitebook -d sitebook -v ON_ERROR_STOP=1 \
+            -c "ALTER ROLE sitebook_admin WITH PASSWORD 'sitebook'"
+
+      # MinIO as a step rather than a service container: `services:` cannot override a command, and
+      # minio/minio does nothing without `server /data`.
+      - name: Start object storage
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=sitebook -e MINIO_ROOT_PASSWORD=sitebook123 \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/ready && break
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint sh minio/mc:latest -c "
+            mc alias set ci http://localhost:9000 sitebook sitebook123 &&
+            mc mb --ignore-existing ci/sitebook-media
+          "
 
       - name: Apply migrations
         run: pnpm --filter @sitebook/api prisma:deploy
