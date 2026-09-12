@@ -37,7 +37,9 @@ CREATE TABLE "payment_stages" (
   "raised_at" TIMESTAMPTZ(6),
   "client_id" UUID,
   "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- No database default, matching every other `updated_at` here: Prisma's `@updatedAt` writes it
+  -- on insert as well as update, and a default the datamodel does not declare is drift.
+  "updated_at" TIMESTAMPTZ(6) NOT NULL,
   "deleted_at" TIMESTAMPTZ(6),
 
   CONSTRAINT "payment_stages_pkey" PRIMARY KEY ("id"),
