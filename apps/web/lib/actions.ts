@@ -6,9 +6,12 @@ import { redirect } from 'next/navigation';
 import { runAction, serverFetch, type ActionResult } from './server-api';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from './session';
 import type {
+  Approval,
   AttendanceDay,
   Billing,
+  ClientPayment,
   DailyReport,
+  PaymentStage,
   SiteDocument,
   SiteMessage,
   Indent,
@@ -23,7 +26,7 @@ import type {
 } from './api-types';
 
 /**
- * Sign out. Revokes every session server-side *and* clears the cookies — dropping
+ * Sign out. Revokes every session server-side *and* clears the cookies â€” dropping
  * only the cookies would leave a stolen refresh token usable for 30 days.
  */
 export async function signOut(): Promise<never> {
@@ -41,7 +44,7 @@ export async function signOut(): Promise<never> {
  *
  * They run on the server with the session cookie, so no API token is ever shipped
  * to the browser, and each one revalidates the paths whose data it changed rather
- * than the whole app — a roll call save should not re-fetch the settings page.
+ * than the whole app â€” a roll call save should not re-fetch the settings page.
  */
 
 // --- labour ---------------------------------------------------------------
@@ -417,7 +420,7 @@ export async function assignRole(input: {
  * One action per deletable record. They are grouped here rather than scattered
  * through the module sections above because they share a contract: the API decides
  * whether the delete is allowed, and the message it returns is the one the user reads.
- * None of them pre-check the rule client-side — the server is the only place that can
+ * None of them pre-check the rule client-side â€” the server is the only place that can
  * know whether a worker is on an unpaid sheet.
  */
 
@@ -490,7 +493,7 @@ export async function deleteDailyReport(input: {
  *
  * Takes the already-computed patch rather than a full object, so the caller can send only what
  * changed. A PATCH carrying every field would overwrite whatever a colleague edited while the dialog
- * sat open — on a site several people manage, that is a real loss rather than a theoretical one.
+ * sat open â€” on a site several people manage, that is a real loss rather than a theoretical one.
  */
 export async function updateProject(input: {
   projectId: string;
@@ -547,14 +550,14 @@ export async function fileDailyReport(input: {
  * Say something on a site.
  *
  * `audience: 'team'` is refused by the API for anybody without `messages.internal` rather than
- * quietly downgraded — so the UI only offers the choice to people who have it, and a mismatch
+ * quietly downgraded â€” so the UI only offers the choice to people who have it, and a mismatch
  * surfaces as an error instead of publishing something written in confidence.
  */
 export async function postSiteMessage(input: {
   projectId: string;
   body: string;
   audience: 'everyone' | 'team' | 'direct';
-  /** Required for `direct`, refused otherwise — the API enforces both halves. */
+  /** Required for `direct`, refused otherwise â€” the API enforces both halves. */
   recipientId?: string;
   attachments?: Array<{
     s3_key: string;
@@ -579,11 +582,136 @@ export async function postSiteMessage(input: {
 }
 
 /**
+ * The client's payment schedule.
+ *
+ * Amounts cross the wire as decimal strings of paise, the same as every other money field â€” a JSON
+ * number is a double in the browser and loses paise above 2^53.
+ */
+export async function createPaymentStage(input: {
+  projectId: string;
+  label: string;
+  amount: string;
+  milestone_id?: string | null;
+  due_date?: string | null;
+}): Promise<ActionResult<PaymentStage>> {
+  const { projectId, ...body } = input;
+  const result = await runAction(() =>
+    serverFetch<PaymentStage>(`/projects/${projectId}/payment-schedule`, {
+      method: 'POST',
+      body,
+    }),
+  );
+  if (result.ok) revalidatePath(`/projects/${projectId}`);
+  return result;
+}
+
+export async function updatePaymentStage(input: {
+  id: string;
+  projectId: string;
+  label?: string;
+  amount?: string;
+  milestone_id?: string | null;
+  due_date?: string | null;
+  /** Marks it asked-for; the server stamps when, and re-raising does not move that. */
+  raised?: boolean;
+}): Promise<ActionResult<PaymentStage>> {
+  const { id, projectId, ...body } = input;
+  const result = await runAction(() =>
+    serverFetch<PaymentStage>(`/payment-stages/${id}`, { method: 'PATCH', body }),
+  );
+  if (result.ok) revalidatePath(`/projects/${projectId}`);
+  return result;
+}
+
+export async function deletePaymentStage(
+  id: string,
+  projectId: string,
+): Promise<ActionResult> {
+  const result = await runAction(() =>
+    serverFetch(`/payment-stages/${id}`, { method: 'DELETE' }),
+  );
+  if (result.ok) revalidatePath(`/projects/${projectId}`);
+  return result;
+}
+
+export async function recordClientPayment(input: {
+  projectId: string;
+  amount: string;
+  received_on: string;
+  mode: 'cash' | 'upi' | 'bank';
+  stage_id?: string | null;
+  reference?: string;
+  note?: string;
+}): Promise<ActionResult<ClientPayment>> {
+  const { projectId, ...body } = input;
+  const result = await runAction(() =>
+    serverFetch<ClientPayment>(`/projects/${projectId}/payment-schedule/receipts`, {
+      method: 'POST',
+      body,
+    }),
+  );
+  if (result.ok) revalidatePath(`/projects/${projectId}`);
+  return result;
+}
+
+export async function deleteClientPayment(
+  id: string,
+  projectId: string,
+): Promise<ActionResult> {
+  const result = await runAction(() =>
+    serverFetch(`/client-payments/${id}`, { method: 'DELETE' }),
+  );
+  if (result.ok) revalidatePath(`/projects/${projectId}`);
+  return result;
+}
+
+/** Ask the client to sign something off. */
+export async function createApproval(input: {
+  projectId: string;
+  title: string;
+  body?: string;
+  document_id?: string | null;
+}): Promise<ActionResult<Approval>> {
+  const { projectId, ...body } = input;
+  const result = await runAction(() =>
+    serverFetch<Approval>(`/projects/${projectId}/approvals`, { method: 'POST', body }),
+  );
+  if (result.ok) revalidatePath(`/projects/${projectId}`);
+  return result;
+}
+
+/**
+ * Answer one, on the record.
+ *
+ * There is no way back to pending and no editing the note afterwards â€” the API refuses both. An
+ * approval somebody can quietly revise is evidence of nothing.
+ */
+export async function decideApproval(input: {
+  id: string;
+  projectId: string;
+  status: 'approved' | 'rejected';
+  note?: string;
+}): Promise<ActionResult<Approval>> {
+  const { id, projectId, ...body } = input;
+  const result = await runAction(() =>
+    serverFetch<Approval>(`/approvals/${id}`, { method: 'PATCH', body }),
+  );
+  if (result.ok) revalidatePath(`/projects/${projectId}`);
+  return result;
+}
+
+export async function deleteApproval(id: string, projectId: string): Promise<ActionResult> {
+  const result = await runAction(() => serverFetch(`/approvals/${id}`, { method: 'DELETE' }));
+  if (result.ok) revalidatePath(`/projects/${projectId}`);
+  return result;
+}
+
+/**
  * Marks the conversation read up to now.
  *
  * Deliberately does not revalidate the page. This fires when somebody opens the thread, and
  * re-rendering the server component underneath them would replace the messages they are reading
- * with an identical set — a visible flicker, to record something they cannot see anyway.
+ * with an identical set â€” a visible flicker, to record something they cannot see anyway.
  */
 export async function markMessagesRead(projectId: string): Promise<ActionResult> {
   return runAction(() =>
@@ -606,7 +734,7 @@ export async function deleteSiteMessage(
  * Record an uploaded document.
  *
  * `supersedes_id` files it as the next revision of an existing document, taking that document's
- * title, category and visibility with it — a revision must not be able to rename a drawing into a
+ * title, category and visibility with it â€” a revision must not be able to rename a drawing into a
  * contract, or quietly stop being shared with the client who is building to it.
  */
 export async function createDocument(input: {
@@ -814,7 +942,7 @@ export async function reorderMilestones(input: {
 /**
  * Start a subscription and get Razorpay's checkout link.
  *
- * The plan is not applied here and this action cannot apply it — only a signature-verified webhook
+ * The plan is not applied here and this action cannot apply it â€” only a signature-verified webhook
  * can. Revalidating is still right: the subscription row moves to `trialing`, and the screen should
  * say so rather than look untouched after the owner clicked upgrade.
  */
@@ -921,7 +1049,7 @@ export async function createProject(input: {
   start_date?: string;
   target_end_date?: string;
   budget_amount?: string;
-  /** Sent together or not at all — half a coordinate is a point in the sea, not a partial answer. */
+  /** Sent together or not at all â€” half a coordinate is a point in the sea, not a partial answer. */
   lat?: number;
   lng?: number;
 }): Promise<ActionResult<{ id: string }>> {

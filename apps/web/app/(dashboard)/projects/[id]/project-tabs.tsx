@@ -10,7 +10,10 @@ export function ProjectTabs({
   showMaterials = false,
   showConversation = false,
   showDocuments = false,
+  showPayments = false,
+  showApprovals = false,
   unreadCount = 0,
+  pendingApprovals = 0,
 }: {
   projectId: string;
   active: string;
@@ -20,7 +23,15 @@ export function ProjectTabs({
   /** The conversation is behind `client_portal`, documents behind `documents`. Same reasoning. */
   showConversation?: boolean;
   showDocuments?: boolean;
+  /**
+   * Payments needs `client_payments.view`, which a supervisor does not have — what the client owes
+   * is not site information. Approvals needs only to be able to see the site, because both sides
+   * have to read what is waiting.
+   */
+  showPayments?: boolean;
+  showApprovals?: boolean;
   unreadCount?: number;
+  pendingApprovals?: number;
 }) {
   const tabs = [
     { key: 'timeline', label: 'Timeline' },
@@ -29,6 +40,10 @@ export function ProjectTabs({
       ? [{ key: 'conversation', label: 'Conversation', count: unreadCount }]
       : []),
     ...(showDocuments ? [{ key: 'documents', label: 'Documents' }] : []),
+    ...(showApprovals
+      ? [{ key: 'approvals', label: 'Approvals', count: pendingApprovals }]
+      : []),
+    ...(showPayments ? [{ key: 'payments', label: 'Payments' }] : []),
     { key: 'people', label: 'People' },
     ...(showMaterials ? [{ key: 'materials', label: 'Materials' }] : []),
   ];

@@ -1,12 +1,12 @@
-// SiteBook data model — Phase 1 tables (spec §7).
+// SiteBook data model â€” Phase 1 tables (spec Â§7).
 //
-// Conventions (spec §17):
+// Conventions (spec Â§17):
 //   * Every tenant-scoped model carries `tenantId` and has an RLS policy created in
 //     the same migration. Child tables (dpr_*, wage_lines, indent_items) carry
 //     `tenantId` too, so RLS protects them directly rather than only via the parent.
 //   * Money is `BigInt` paise. Never Float, never Decimal.
 //   * Report/attendance dates are `@db.Date`; everything else is `@db.Timestamptz(6)`.
-//   * `clientId` is the device-generated UUID used as the sync idempotency key (§8).
+//   * `clientId` is the device-generated UUID used as the sync idempotency key (Â§8).
 
 generator client {
   provider        = "prisma-client-js"
@@ -213,6 +213,10 @@ model Tenant {
   messageAttachments SiteMessageAttachment[]
   messageReads       SiteMessageRead[]
   documents          Document[]
+  paymentStages      PaymentStage[]
+  clientPayments     ClientPayment[]
+  approvals          Approval[]
+
   @@map("tenants")
 }
 
@@ -220,7 +224,7 @@ model Tenant {
 ///
 /// The five built-in roles are rows here too (`isSystem`), seeded for every tenant, so the
 /// permission check has one code path rather than "is it a preset or a custom one". System
-/// rows cannot be edited or deleted — an owner who could strip `roles.manage` from the
+/// rows cannot be edited or deleted â€” an owner who could strip `roles.manage` from the
 /// owner role would lock the account's last administrator out of fixing it.
 model Role {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -264,34 +268,37 @@ model User {
 
   refreshTokens      RefreshToken[]
   projectMemberships ProjectMember[]
-  submittedReports   DailyReport[]    @relation("dpr_submitted_by")
-  recordedAttendance Attendance[]     @relation("attendance_recorded_by")
-  finalisedPeriods   WagePeriod[]     @relation("wage_period_finalised_by")
-  recordedPayments   LabourPayment[]  @relation("labour_payment_recorded_by")
-  requestedIndents   MaterialIndent[] @relation("indent_requested_by")
-  approvedIndents    MaterialIndent[] @relation("indent_approved_by")
-  submittedExpenses  Expense[]        @relation("expense_submitted_by")
-  approvedExpenses   Expense[]        @relation("expense_approved_by")
+  submittedReports   DailyReport[]     @relation("dpr_submitted_by")
+  recordedAttendance Attendance[]      @relation("attendance_recorded_by")
+  finalisedPeriods   WagePeriod[]      @relation("wage_period_finalised_by")
+  recordedPayments   LabourPayment[]   @relation("labour_payment_recorded_by")
+  requestedIndents   MaterialIndent[]  @relation("indent_requested_by")
+  approvedIndents    MaterialIndent[]  @relation("indent_approved_by")
+  submittedExpenses  Expense[]         @relation("expense_submitted_by")
+  approvedExpenses   Expense[]         @relation("expense_approved_by")
   notifications      Notification[]
   auditLogs          AuditLog[]
-  workers            Worker[]         @relation("worker_portal_user")
+  workers            Worker[]          @relation("worker_portal_user")
+  stockRecorded      StockMovement[]   @relation("stock_recorded_by")
+  mediaUploaded      ProjectMedia[]    @relation("media_uploaded_by")
+  messagesWritten    SiteMessage[]     @relation("message_author")
+  messagesReceived   SiteMessage[]     @relation("message_recipient")
+  paymentsRecorded   ClientPayment[]   @relation("client_payment_recorder")
+  approvalsRaised    Approval[]        @relation("approval_requester")
+  approvalsDecided   Approval[]        @relation("approval_decider")
+  messageReads       SiteMessageRead[]
+  documentsUploaded  Document[]        @relation("document_uploader")
 
-  /// Phone is unique within a tenant, not globally — the same person can be a
+  /// Phone is unique within a tenant, not globally â€” the same person can be a
   /// supervisor at one builder and an owner at another.
   @@unique([tenantId, phone], map: "users_tenant_id_phone_key")
   @@index([tenantId, role])
   @@index([tenantId, updatedAt])
   @@index([roleId])
-  stockRecorded StockMovement[] @relation("stock_recorded_by")
-  mediaUploaded ProjectMedia[] @relation("media_uploaded_by")
-  messagesWritten   SiteMessage[] @relation("message_author")
-  messagesReceived  SiteMessage[] @relation("message_recipient")
-  messageReads      SiteMessageRead[]
-  documentsUploaded Document[]    @relation("document_uploader")
   @@map("users")
 }
 
-/// Refresh tokens are stored hashed and rotated on use (spec §6.2, §15).
+/// Refresh tokens are stored hashed and rotated on use (spec Â§6.2, Â§15).
 model RefreshToken {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId     String    @map("tenant_id") @db.Uuid
@@ -334,23 +341,26 @@ model Project {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  members        ProjectMember[]
-  milestones     Milestone[]
-  dailyReports   DailyReport[]
-  attendance     Attendance[]
-  workerProjects WorkerProject[]
-  labourPayments LabourPayment[]
-  indents        MaterialIndent[]
-  expenses       Expense[]
-  messages       SiteMessage[]
-  messageReads   SiteMessageRead[]
-  documents      Document[]
-
-  @@index([tenantId, status])
-  @@index([tenantId, updatedAt])
+  members           ProjectMember[]
+  milestones        Milestone[]
+  dailyReports      DailyReport[]
+  attendance        Attendance[]
+  workerProjects    WorkerProject[]
+  labourPayments    LabourPayment[]
+  indents           MaterialIndent[]
+  expenses          Expense[]
+  messages          SiteMessage[]
+  messageReads      SiteMessageRead[]
+  documents         Document[]
+  paymentStages     PaymentStage[]
+  clientPayments    ClientPayment[]
+  approvals         Approval[]
   materialEstimates MaterialEstimate[]
   stockMovements    StockMovement[]
   media             ProjectMedia[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, updatedAt])
   @@map("projects")
 }
 
@@ -384,8 +394,9 @@ model Milestone {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  PaymentStage PaymentStage[]
 
   @@index([projectId, sortOrder])
   @@map("milestones")
@@ -425,7 +436,7 @@ model Worker {
   phone               String?
   trade               String?
   skillLevel          SkillLevel   @default(unskilled) @map("skill_level")
-  /// Paise per day. Changing this never alters past attendance — see wage_snapshot.
+  /// Paise per day. Changing this never alters past attendance â€” see wage_snapshot.
   dailyWage           BigInt       @map("daily_wage")
   overtimeRatePerHour BigInt       @default(0) @map("overtime_rate_per_hour")
   idProofS3Key        String?      @map("id_proof_s3_key")
@@ -537,8 +548,8 @@ enum MediaKind {
 /// Photos and videos of a site, attached to the project rather than to one day's report.
 ///
 /// Separate from `dpr_photos`, which are evidence of what happened on a particular day and belong to
-/// that report forever. These are the site itself — what it looked like at handover, the approach
-/// road, the finished elevation — and they outlive any single report.
+/// that report forever. These are the site itself â€” what it looked like at handover, the approach
+/// road, the finished elevation â€” and they outlive any single report.
 model ProjectMedia {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId    String    @map("tenant_id") @db.Uuid
@@ -549,11 +560,11 @@ model ProjectMedia {
   thumbS3Key  String?   @map("thumb_s3_key")
   caption     String?
   /// Display order within the site, ascending. The first photo is the one the card leads with.
-  /// Not unique — a reorder rewrites a whole site's rows, and `created_at` breaks any tie.
+  /// Not unique â€” a reorder rewrites a whole site's rows, and `created_at` breaks any tie.
   position    Int       @default(0)
   contentType String    @map("content_type")
   sizeBytes   Int       @map("size_bytes")
-  /// When the photo was taken, not when it was uploaded — they differ by days on a site.
+  /// When the photo was taken, not when it was uploaded â€” they differ by days on a site.
   takenAt     DateTime? @map("taken_at") @db.Timestamptz(6)
   uploadedBy  String    @map("uploaded_by") @db.Uuid
   clientId    String?   @map("client_id") @db.Uuid
@@ -615,7 +626,7 @@ model Attendance {
   workerId             String           @map("worker_id") @db.Uuid
   status               AttendanceStatus
   overtimeHours        Decimal          @default(0) @map("overtime_hours") @db.Decimal(4, 1)
-  /// Daily wage frozen at record time, in paise (spec §8A).
+  /// Daily wage frozen at record time, in paise (spec Â§8A).
   wageSnapshot         BigInt           @map("wage_snapshot")
   /// Overtime rate frozen at record time. Kept alongside wage_snapshot so a later
   /// rate change cannot retroactively alter overtime already earned.
@@ -755,12 +766,12 @@ model Material {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  indentItems IndentItem[]
+  indentItems    IndentItem[]
+  estimates      MaterialEstimate[]
+  stockMovements StockMovement[]
 
   @@unique([tenantId, name], map: "materials_tenant_id_name_key")
   @@index([tenantId, updatedAt])
-  estimates      MaterialEstimate[]
-  stockMovements StockMovement[]
   @@map("materials")
 }
 
@@ -785,13 +796,13 @@ model MaterialIndent {
   requester User    @relation("indent_requested_by", fields: [requestedBy], references: [id], onDelete: Restrict)
   approver  User?   @relation("indent_approved_by", fields: [approvedBy], references: [id], onDelete: SetNull)
 
-  items IndentItem[]
+  items          IndentItem[]
+  stockMovements StockMovement[]
 
   @@unique([tenantId, clientId], map: "material_indents_tenant_id_client_id_key")
   @@index([tenantId, status])
   @@index([projectId, createdAt])
   @@index([tenantId, updatedAt])
-  stockMovements StockMovement[]
   @@map("material_indents")
 }
 
@@ -818,7 +829,7 @@ enum StockMovementType {
   @@map("stock_movement_type")
 }
 
-/// What a site is expected to consume of a material (spec §7, Phase 2).
+/// What a site is expected to consume of a material (spec Â§7, Phase 2).
 ///
 /// One row per project and material, which is what makes the overrun report possible: without
 /// an expected figure, "you have used 180 bags" is a number nobody can act on.
@@ -841,10 +852,10 @@ model MaterialEstimate {
   @@map("material_estimates")
 }
 
-/// Every movement of material on or off a site (spec §7, Phase 2).
+/// Every movement of material on or off a site (spec Â§7, Phase 2).
 ///
 /// An append-only ledger rather than a running `stock_on_hand` column. Stock is the sum of its
-/// movements, so "why do we have 12 bags" is always answerable — a single balance column would
+/// movements, so "why do we have 12 bags" is always answerable â€” a single balance column would
 /// give the number and lose the reason, and the first disagreement with the site would have
 /// nothing to check against.
 model StockMovement {
@@ -878,9 +889,9 @@ model StockMovement {
   @@map("stock_movements")
 }
 
-/// Site expenses and petty cash (spec §3 item 9, §7).
+/// Site expenses and petty cash (spec Â§3 item 9, Â§7).
 ///
-/// `spentOn` is the day the money left, which is not the day it was entered — a
+/// `spentOn` is the day the money left, which is not the day it was entered â€” a
 /// supervisor photographs a bill on Tuesday for a Saturday purchase, and the cost
 /// belongs to Saturday. Reports group on `spentOn` for that reason.
 model Expense {
@@ -937,7 +948,7 @@ model Notification {
 }
 
 /// Append-only record of what each device pushed, including conflicts, so a
-/// supervisor's "but I entered it" can be answered (spec §8).
+/// supervisor's "but I entered it" can be answered (spec Â§8).
 model SyncLog {
   id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId String   @map("tenant_id") @db.Uuid
@@ -957,10 +968,10 @@ model SyncLog {
   @@map("sync_log")
 }
 
-/// Phone → (tenant, user) directory. Deliberately has NO row-level security and no
+/// Phone â†’ (tenant, user) directory. Deliberately has NO row-level security and no
 /// foreign keys: `/auth/exchange` has to resolve a phone to a tenant *before* any
 /// tenant context exists, and that is the only lookup allowed to run untenanted.
-/// Maintained by the `users_sync_auth_identity` trigger — never written from
+/// Maintained by the `users_sync_auth_identity` trigger â€” never written from
 /// application code.
 model AuthIdentity {
   userId   String @id @map("user_id") @db.Uuid
@@ -972,7 +983,7 @@ model AuthIdentity {
   @@map("auth_identities")
 }
 
-/// Audit trail for approvals and money movements (spec §15).
+/// Audit trail for approvals and money movements (spec Â§15).
 enum BillingStatus {
   none
   trialing
@@ -983,7 +994,7 @@ enum BillingStatus {
   @@map("billing_status")
 }
 
-/// One tenant's subscription (spec §3 item 12).
+/// One tenant's subscription (spec Â§3 item 12).
 ///
 /// The Razorpay subscription is the authority on what is being charged; this row is the local
 /// projection of it, updated only from a signature-verified webhook or an explicit fetch. Nothing
@@ -1016,7 +1027,7 @@ model Subscription {
 
 /// Which tenant a Razorpay subscription belongs to. One of the few tables with no RLS.
 ///
-/// A webhook arrives with no tenant context — it is authenticated by signature, and the tenant has to
+/// A webhook arrives with no tenant context â€” it is authenticated by signature, and the tenant has to
 /// be worked out before any tenant-scoped query can run. `subscriptions` is RLS protected, so reading
 /// it without that context returns nothing, which is correct and useless here.
 ///
@@ -1045,7 +1056,7 @@ model Invoice {
   razorpayInvoiceId String    @unique @map("razorpay_invoice_id")
   razorpayPaymentId String?   @map("razorpay_payment_id")
   amount            BigInt
-  /// `paid`, `issued`, `failed` — Razorpay's own words, not translated.
+  /// `paid`, `issued`, `failed` â€” Razorpay's own words, not translated.
   status            String
   /// Razorpay's hosted invoice, for the owner who needs it for their accountant.
   invoiceUrl        String?   @map("invoice_url")
@@ -1067,15 +1078,15 @@ model Invoice {
 /// extend the period twice. No tenant_id and no RLS: the webhook is verified by signature before any
 /// tenant is known, so there is no tenant context in which to read it.
 model WebhookEvent {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// Razorpay's `x-razorpay-event-id` header. Unique, which is what makes replay a no-op.
-  eventId   String   @unique @map("event_id")
-  eventType String   @map("event_type")
+  eventId   String    @unique @map("event_id")
+  eventType String    @map("event_type")
   payload   Json
   /// Null until handled, so a crash mid-processing leaves a row to retry rather than a silent gap.
   handledAt DateTime? @map("handled_at") @db.Timestamptz(6)
   error     String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([eventType, createdAt(sort: Desc)])
   @@map("webhook_events")
@@ -1133,7 +1144,7 @@ enum MessageAudience {
   /// portal with nowhere to put it sends those conversations back to WhatsApp.
   team
 
-  /// One named person, and nobody else — whichever side of the client/team line they are on. The
+  /// One named person, and nobody else â€” whichever side of the client/team line they are on. The
   /// row carries a `recipientId`, and the database enforces that it always does.
   direct
 
@@ -1146,18 +1157,18 @@ enum MessageAudience {
 /// a question and a builder answering it is evidence about the job, and "who agreed to the granite"
 /// is exactly the question this exists to answer six months later.
 model SiteMessage {
-  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String          @map("tenant_id") @db.Uuid
-  projectId String          @map("project_id") @db.Uuid
-  authorId  String          @map("author_id") @db.Uuid
-  /// Set only for `direct`, and always set for it — the database holds both halves of that.
-  recipientId String?       @map("recipient_id") @db.Uuid
-  body      String
-  audience  MessageAudience @default(everyone)
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  projectId   String          @map("project_id") @db.Uuid
+  authorId    String          @map("author_id") @db.Uuid
+  /// Set only for `direct`, and always set for it â€” the database holds both halves of that.
+  recipientId String?         @map("recipient_id") @db.Uuid
+  body        String
+  audience    MessageAudience @default(everyone)
   /// Idempotency for a phone that sent and lost the answer.
-  clientId  String?         @map("client_id") @db.Uuid
-  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  clientId    String?         @map("client_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime?       @map("deleted_at") @db.Timestamptz(6)
 
   tenant      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1230,7 +1241,7 @@ enum DocumentCategory {
 /// 3 of a slab drawing must not be able to reach revision 1 by accident, and the builder must be
 /// able to prove which one was current when the slab was poured.
 ///
-/// `visibleToClient` defaults to false everywhere — schema, API and UI. A contract or an internal
+/// `visibleToClient` defaults to false everywhere â€” schema, API and UI. A contract or an internal
 /// costing becoming visible because somebody forgot to untick a box is not a mistake you can take
 /// back.
 model Document {
@@ -1252,12 +1263,123 @@ model Document {
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  project  Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploader User     @relation("document_uploader", fields: [uploadedBy], references: [id], onDelete: Restrict)
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User       @relation("document_uploader", fields: [uploadedBy], references: [id], onDelete: Restrict)
+  Approval Approval[]
 
   @@unique([tenantId, clientId], map: "documents_tenant_id_client_id_key")
   @@unique([familyId, version], map: "documents_family_id_version_key")
   @@index([tenantId, projectId, createdAt(sort: Desc)])
   @@map("documents")
+}
+
+// ---------------------------------------------------------------------------
+// Client billing â€” money coming in
+// ---------------------------------------------------------------------------
+//
+// Deliberately not the same tables as `expenses` and `labour_payments`, which are money going out.
+// The difference between the two is the margin on the job, and a client must never be able to reach
+// the outgoing side. Two tables keep that a structural fact rather than a `WHERE` clause somebody
+// has to remember.
+
+/// One instalment of what the client owes.
+model PaymentStage {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  /// "On completion of the slab" is a milestone; "On signing" is not.
+  milestoneId String?   @map("milestone_id") @db.Uuid
+  label       String
+  /// Paise.
+  amount      BigInt
+  dueDate     DateTime? @map("due_date") @db.Date
+  sortOrder   Int       @default(0) @map("sort_order")
+  /// When the builder actually asked for it. Upcoming, due and paid are derived from this and the
+  /// receipts, so no status column can drift out of step with the money.
+  raisedAt    DateTime? @map("raised_at") @db.Timestamptz(6)
+  clientId    String?   @map("client_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone Milestone?      @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  receipts  ClientPayment[]
+
+  @@unique([tenantId, clientId], map: "payment_stages_tenant_id_client_id_key")
+  @@index([projectId, sortOrder])
+  @@map("payment_stages")
+}
+
+/// Money that actually arrived from the client.
+model ClientPayment {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String      @map("tenant_id") @db.Uuid
+  projectId  String      @map("project_id") @db.Uuid
+  /// Null for a round sum somebody reconciles later. It still counts against the total.
+  stageId    String?     @map("stage_id") @db.Uuid
+  amount     BigInt
+  receivedOn DateTime    @map("received_on") @db.Date
+  mode       PaymentMode @default(bank)
+  reference  String?
+  note       String?
+  recordedBy String      @map("recorded_by") @db.Uuid
+  clientId   String?     @map("client_id") @db.Uuid
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt  DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage    PaymentStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  recorder User          @relation("client_payment_recorder", fields: [recordedBy], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, clientId], map: "client_payments_tenant_id_client_id_key")
+  @@index([projectId, receivedOn(sort: Desc)])
+  @@index([stageId])
+  @@map("client_payments")
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+
+  @@map("approval_status")
+}
+
+/// Something the client has been asked to sign off â€” a drawing, a selection, a variation.
+///
+/// The decision names whoever gave it. That is the whole value of the row: six months later the
+/// argument is whether the client ever agreed to the granite, and an approval with nobody's name on
+/// it settles nothing. The database enforces that a decided row carries all three of status,
+/// decider and time, or none of them.
+model Approval {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  projectId    String         @map("project_id") @db.Uuid
+  /// Usually the drawing or quote in question, referenced so it always points at the revision that
+  /// was current when the question was asked.
+  documentId   String?        @map("document_id") @db.Uuid
+  title        String
+  body         String         @default("")
+  status       ApprovalStatus @default(pending)
+  requestedBy  String         @map("requested_by") @db.Uuid
+  decidedBy    String?        @map("decided_by") @db.Uuid
+  decidedAt    DateTime?      @map("decided_at") @db.Timestamptz(6)
+  decisionNote String?        @map("decision_note")
+  clientId     String?        @map("client_id") @db.Uuid
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt    DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  requester User      @relation("approval_requester", fields: [requestedBy], references: [id], onDelete: Restrict)
+  decider   User?     @relation("approval_decider", fields: [decidedBy], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, clientId], map: "approvals_tenant_id_client_id_key")
+  @@index([projectId, status, createdAt(sort: Desc)])
+  @@map("approvals")
 }

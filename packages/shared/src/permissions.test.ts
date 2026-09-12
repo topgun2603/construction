@@ -19,7 +19,7 @@ describe('permission catalogue', () => {
   });
 
   it('shows every permission in the role editor', () => {
-    // A permission missing from the groups is one an owner can never grant — it would be
+    // A permission missing from the groups is one an owner can never grant â€” it would be
     // enforced by the API and invisible in the UI.
     const shown = new Set(PERMISSION_GROUPS.flatMap((g) => g.items.map((i) => i.permission)));
     for (const permission of PERMISSIONS) {
@@ -44,7 +44,7 @@ describe('permission catalogue', () => {
   it('matches the access each role is meant to have', () => {
     /*
      * Started as a transcription of the `@Roles` decorators at the time of conversion, and is
-     * now the record of every deliberate decision since — the stock permissions below were new
+     * now the record of every deliberate decision since â€” the stock permissions below were new
      * capabilities, not a conversion of anything.
      *
      * The point is unchanged: a role gaining access has to be a decision somebody made here,
@@ -69,6 +69,8 @@ describe('permission catalogue', () => {
         'milestones.manage',
         'documents.manage',
         'documents.view',
+        'client_payments.view',
+        'approvals.request',
         'payments.record',
         'payments.view',
         'projects.manage',
@@ -92,6 +94,7 @@ describe('permission catalogue', () => {
         'messages.internal',
         'messages.post',
         'documents.view',
+        'approvals.request',
         'payments.record',
         'projects.view',
         'stock.record',
@@ -108,6 +111,8 @@ describe('permission catalogue', () => {
         'messages.internal',
         'messages.post',
         'documents.view',
+        'client_payments.view',
+        'client_payments.manage',
         'payments.reconcile',
         'payments.record',
         'payments.view',
@@ -122,7 +127,14 @@ describe('permission catalogue', () => {
         'workers.manage',
         'workers.view',
       ],
-      client: ['documents.view', 'dpr.view', 'messages.post', 'projects.view'],
+      client: [
+        'documents.view',
+        'dpr.view',
+        'messages.post',
+        'projects.view',
+        'client_payments.view',
+        'approvals.decide',
+      ],
     };
 
     for (const [role, permissions] of Object.entries(expected)) {

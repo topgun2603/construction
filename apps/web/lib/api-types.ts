@@ -613,6 +613,81 @@ export type DocumentCategory =
   | 'invoice'
   | 'other';
 
+/**
+ * One instalment of what the client owes.
+ *
+ * `paid`, `outstanding` and `status` are worked out by the server from the receipts, never stored.
+ * A stored status is a second opinion about the money, and the day it disagrees is the day a
+ * builder asks a client for something they already paid.
+ */
+export interface PaymentStage {
+  id: string;
+  project_id: string;
+  label: string;
+  /** Paise, as decimal strings. Parse with BigInt, never Number. */
+  amount: string;
+  paid: string;
+  outstanding: string;
+  due_date: string | null;
+  sort_order: number;
+  /** When the builder actually asked for it; null while it is still only planned. */
+  raised_at: string | null;
+  milestone: { id: string; name: string; reached: boolean } | null;
+  status: 'paid' | 'part_paid' | 'overdue' | 'due' | 'upcoming';
+  created_at: string;
+}
+
+export interface PaymentSchedule {
+  items: PaymentStage[];
+  project_name: string | null;
+  totals: {
+    scheduled: string;
+    received: string;
+    /** Never negative — an overpayment is money in hand, not a debt back. */
+    outstanding: string;
+    /** Receipts nobody has filed against an instalment yet. */
+    unallocated: string;
+    /** The contract figure, so a schedule that does not add up to it is visible. */
+    budget: string | null;
+  };
+}
+
+/** Money that actually arrived from the client. */
+export interface ClientPayment {
+  id: string;
+  project_id: string;
+  stage_id: string | null;
+  stage_label: string | null;
+  amount: string;
+  received_on: string;
+  mode: 'cash' | 'upi' | 'bank';
+  reference: string | null;
+  note: string | null;
+  recorded_by: { id: string; name: string };
+  created_at: string;
+}
+
+/**
+ * Something the client has been asked to sign off.
+ *
+ * `decided_by` carries the role as well as the name, so a decision an owner recorded on the
+ * client's behalf can never be read as the client having given it themselves.
+ */
+export interface Approval {
+  id: string;
+  project_id: string;
+  project_name: string | null;
+  title: string;
+  body: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requested_by: { id: string; name: string; role: string };
+  created_at: string;
+  decided_by: { id: string; name: string; role: string } | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  document: { id: string; title: string; version: number; url: string | null } | null;
+}
+
 /** A drawing, contract or approval — one revision of it. */
 export interface SiteDocument {
   id: string;

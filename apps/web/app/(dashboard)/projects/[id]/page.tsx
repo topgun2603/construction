@@ -6,8 +6,11 @@ import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type {
+  Approval,
+  ClientPayment,
   DailyReport,
   Material,
+  PaymentSchedule,
   MaterialEstimate,
   Milestone,
   ProjectMedia,
@@ -41,6 +44,8 @@ import { removeProjectMember } from '@/lib/actions';
 import { SiteGallery } from './site-gallery';
 import { ProjectTimeline } from './project-timeline';
 import { SiteConversation } from './site-conversation';
+import { PaymentScheduleTab } from './payment-schedule';
+import { SiteApprovals } from './site-approvals';
 import { DocumentsList } from '@/components/documents-list';
 
 const TABS = [
@@ -48,6 +53,8 @@ const TABS = [
   'reports',
   'conversation',
   'documents',
+  'approvals',
+  'payments',
   'people',
   'materials',
 ] as const;
@@ -152,6 +159,63 @@ export default async function ProjectPage({
               } as SiteMessagePage),
           { items: [] as MessagePerson[] },
         ];
+
+  /*
+   * The client's money, and what they have been asked to sign off.
+   *
+   * `client_payments.view` is not the same gate as seeing the site: a supervisor is on this job and
+   * records petty cash against it, and what the client owes is still none of their business. The
+   * two money features in this product point in opposite directions, and the difference between
+   * them is the builder's margin.
+   */
+  const canSeePayments =
+    me.enabled_modules.includes('client_portal') &&
+    me.permissions.includes('client_payments.view');
+  const canManagePayments = me.permissions.includes('client_payments.manage');
+  const canSeeApprovals = me.enabled_modules.includes('client_portal') && canTalk;
+
+  // `paymentSchedule`, not `schedule`: that name is already the timeline helper from lib/projects.
+  const [paymentSchedule, receipts] =
+    active === 'payments' && canSeePayments
+      ? await Promise.all([
+          serverFetch<PaymentSchedule>(`/projects/${id}/payment-schedule`),
+          serverFetch<{ items: ClientPayment[] }>(`/projects/${id}/payment-schedule/receipts`),
+        ])
+      : [
+          {
+            items: [],
+            project_name: null,
+            totals: {
+              scheduled: '0',
+              received: '0',
+              outstanding: '0',
+              unallocated: '0',
+              budget: null,
+            },
+          } as PaymentSchedule,
+          { items: [] as ClientPayment[] },
+        ];
+
+  /*
+   * Approvals are fetched on every load, not just their own tab.
+   *
+   * The count is the point: somebody waiting on the client, or a client being waited on, should see
+   * that from any tab. It is one small query against one project.
+   */
+  const approvals = canSeeApprovals
+    ? (await serverFetch<{ items: Approval[] }>(`/approvals?project_id=${id}`)).items
+    : [];
+
+  /*
+   * Only documents the client can already open may be attached to an approval — the API refuses
+   * the rest rather than sharing them as a side effect, so the picker must not offer them either.
+   */
+  const shareable =
+    active === 'approvals' && hasDocuments
+      ? (
+          await serverFetch<{ items: SiteDocument[] }>(`/documents?project_id=${id}`)
+        ).items.filter((document) => document.visible_to_client)
+      : [];
   const documents =
     active === 'documents' && hasDocuments
       ? (await serverFetch<{ items: SiteDocument[] }>(`/documents?project_id=${id}`)).items
@@ -206,7 +270,10 @@ export default async function ProjectPage({
         showMaterials={hasStock}
         showConversation={canTalk}
         showDocuments={hasDocuments}
+        showPayments={canSeePayments}
+        showApprovals={canSeeApprovals}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
+        pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
 
       {active === 'timeline' && (
@@ -287,6 +354,26 @@ export default async function ProjectPage({
           projectId={id}
           documents={documents}
           canManage={me.permissions.includes('documents.manage')}
+        />
+      )}
+
+      {active === 'payments' && canSeePayments && (
+        <PaymentScheduleTab
+          projectId={id}
+          schedule={paymentSchedule}
+          receipts={receipts.items}
+          milestones={milestones}
+          canManage={canManagePayments}
+        />
+      )}
+
+      {active === 'approvals' && canSeeApprovals && (
+        <SiteApprovals
+          projectId={id}
+          approvals={approvals}
+          sharedDocuments={shareable}
+          canRequest={me.permissions.includes('approvals.request')}
+          canDecide={me.permissions.includes('approvals.decide')}
         />
       )}
 

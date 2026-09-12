@@ -62,6 +62,27 @@ export const PERMISSIONS = [
   'documents.view',
   'documents.manage',
 
+  /*
+   * What the client owes, and what they have paid.
+   *
+   * Separate from `expenses.*` and `payments.*`, which are money going *out* — to labour and to
+   * suppliers. This is the money coming in, and the two lists must never be gated together: a
+   * supervisor who records petty cash has no business knowing what the client still owes, and a
+   * client must never reach the outgoing side at all.
+   */
+  'client_payments.view',
+  'client_payments.manage',
+
+  /*
+   * Asking the client to sign off, and the signing off itself.
+   *
+   * Split deliberately. Requesting is a site action — a supervisor holds up a tile sample and asks.
+   * Deciding is the answer, and the record names whoever gave it, which is the only thing that
+   * makes an approval worth anything when somebody disputes it six months later.
+   */
+  'approvals.request',
+  'approvals.decide',
+
   // Reporting
   'reports.view',
   'reports.people',
@@ -192,6 +213,36 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Client billing',
+    items: [
+      {
+        permission: 'client_payments.view',
+        label: 'See what the client owes and has paid',
+        note: 'Money coming in. Nothing to do with petty cash or wages, which go out.',
+      },
+      {
+        permission: 'client_payments.manage',
+        label: 'Set the payment schedule and record receipts',
+      },
+    ],
+  },
+  {
+    group: 'Client approvals',
+    items: [
+      {
+        permission: 'approvals.request',
+        label: 'Ask the client to approve something',
+        note: 'A drawing, a selection, a variation',
+      },
+      {
+        permission: 'approvals.decide',
+        label: 'Approve or reject on the record',
+        note: 'The decision names whoever gave it. Give this to somebody standing in for the '
+          + 'client only if a decision recorded in their name is meant to be yours.',
+      },
+    ],
+  },
+  {
     group: 'Reports',
     items: [
       { permission: 'reports.view', label: 'Labour cost and attendance reports' },
@@ -258,6 +309,10 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'messages.internal',
     'documents.view',
     'documents.manage',
+    // Sees what the client owes, because chasing it is part of running the job. Setting the
+    // schedule and receipting the money is accounts' work, not theirs.
+    'client_payments.view',
+    'approvals.request',
     'reports.view',
   ],
 
@@ -282,6 +337,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.
     'documents.view',
+    // Holding up a tile sample and asking "this one?" is the most ordinary thing on a site. What
+    // the client owes is none of their business, so no `client_payments.view` comes with it.
+    'approvals.request',
   ],
 
   // The money roles: everything about paying people, nothing about running a site.
@@ -308,6 +366,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'messages.post',
     'messages.internal',
     'documents.view',
+    // The money coming in is accounts' half of the ledger, the same as the money going out.
+    'client_payments.view',
+    'client_payments.manage',
     'reports.view',
     'reports.people',
   ],
@@ -327,7 +388,21 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
    * not part of what a client bought. The one-way portal this replaced sent every real question to
    * WhatsApp, where it left no record against the site.
    */
-  client: ['projects.view', 'dpr.view', 'messages.post', 'documents.view'],
+  /*
+   * `client_payments.view` is what they owe, never what the job costs to build. The two are
+   * different tables for exactly this reason — the margin is the difference between them, and it is
+   * not the client's to read.
+   *
+   * `approvals.decide` is the one thing on this list only they should really be doing.
+   */
+  client: [
+    'projects.view',
+    'dpr.view',
+    'messages.post',
+    'documents.view',
+    'client_payments.view',
+    'approvals.decide',
+  ],
 };
 
 export function permissionsForSystemRole(role: UserRole): readonly Permission[] {
