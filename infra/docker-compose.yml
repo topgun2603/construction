@@ -8,14 +8,14 @@ services:
       POSTGRES_USER: sitebook
       POSTGRES_PASSWORD: sitebook
       POSTGRES_DB: sitebook
-      # Keep container time in step with the app (spec §17).
+      # Keep container time in step with the app (spec Â§17).
       TZ: Asia/Kolkata
     ports:
       - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Creates the non-superuser role the app connects as. Without it the app would
-      # run as the cluster superuser and bypass every RLS policy — see the file.
+      # run as the cluster superuser and bypass every RLS policy â€” see the file.
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U sitebook -d sitebook']
@@ -37,8 +37,13 @@ services:
       timeout: 3s
       retries: 20
 
+  # quay.io, not Docker Hub.
+  #
+  # MinIO stopped publishing `minio/minio` and `minio/mc` to Docker Hub — pulling either now fails
+  # with "repository does not exist or may require 'docker login'", which reads like an auth problem
+  # and is not one. quay.io is their own registry and serves the same images anonymously.
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -57,7 +62,7 @@ services:
 
   # Creates the photo bucket once MinIO is up, then exits.
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     depends_on:
       minio:
         condition: service_healthy

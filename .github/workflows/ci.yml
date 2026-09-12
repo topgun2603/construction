@@ -37,7 +37,7 @@ jobs:
       DEV_AUTH_BYPASS: 'true'
 
       # Object storage. Without it every presigned-upload route answers 500, which took out the
-      # portal and media suites the first time e2e ever ran here — the photo and document tests are
+      # portal and media suites the first time e2e ever ran here â€” the photo and document tests are
       # precisely the ones that exercise storage, so stubbing it would test nothing.
       S3_ENDPOINT: http://localhost:9000
       S3_REGION: ap-south-1
@@ -46,7 +46,7 @@ jobs:
       S3_SECRET_ACCESS_KEY: sitebook123
       S3_FORCE_PATH_STYLE: 'true'
 
-      # The platform console. Both halves or neither — the env schema refuses a half-configured
+      # The platform console. Both halves or neither â€” the env schema refuses a half-configured
       # console, because one wired to the app's own connection would find every RLS policy matching
       # zero rows and quietly show an empty database.
       ADMIN_DATABASE_URL: postgresql://sitebook_admin:sitebook@localhost:5432/sitebook?schema=public
@@ -60,7 +60,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # No `version:` here on purpose. package.json declares `packageManager: pnpm@9.12.0`, and the
-      # action refuses outright when it is told twice — naming it in both places is how the two
+      # action refuses outright when it is told twice â€” naming it in both places is how the two
       # drift apart and CI ends up installing with a pnpm the lockfile was not written by.
       - uses: pnpm/action-setup@v4
 
@@ -84,8 +84,8 @@ jobs:
           psql -h localhost -U sitebook -d sitebook -v ON_ERROR_STOP=1 \
             -f infra/postgres/init/01-app-role.sql
 
-      # The BYPASSRLS role the platform console connects as. Optional in a real deployment — which
-      # is why every migration guards its GRANT — but the console suite cannot run without it.
+      # The BYPASSRLS role the platform console connects as. Optional in a real deployment â€” which
+      # is why every migration guards its GRANT â€” but the console suite cannot run without it.
       - name: Create the platform console role
         env:
           PGPASSWORD: sitebook
@@ -96,17 +96,17 @@ jobs:
             -c "ALTER ROLE sitebook_admin WITH PASSWORD 'sitebook'"
 
       # MinIO as a step rather than a service container: `services:` cannot override a command, and
-      # minio/minio does nothing without `server /data`.
+      # quay.io/minio/minio does nothing without `server /data`.
       - name: Start object storage
         run: |
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=sitebook -e MINIO_ROOT_PASSWORD=sitebook123 \
-            minio/minio:latest server /data
+            quay.io/minio/minio:latest server /data
           for i in $(seq 1 30); do
             curl -sf http://localhost:9000/minio/health/ready && break
             sleep 1
           done
-          docker run --rm --network host --entrypoint sh minio/mc:latest -c "
+          docker run --rm --network host --entrypoint sh quay.io/minio/mc:latest -c "
             mc alias set ci http://localhost:9000 sitebook sitebook123 &&
             mc mb --ignore-existing ci/sitebook-media
           "
