@@ -1,5 +1,6 @@
-node_modules/
+﻿node_modules/
 dist/
+dist-worker/
 build/
 .next/
 out/
@@ -11,7 +12,7 @@ coverage/
 .env.*
 !.env.example
 
-# Secrets. Firebase Admin service account keys are private keys — never commit one.
+# Secrets. Firebase Admin service account keys are private keys â€” never commit one.
 *service-account*.json
 *serviceaccount*.json
 *-firebase-adminsdk-*.json

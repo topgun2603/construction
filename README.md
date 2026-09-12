@@ -29,7 +29,13 @@ Build order per spec §16:
 | 9 | Stock: ledger, GRN on receipt, estimates, material overrun report | **done** |
 | 9b | Site photos and videos, location capture and map | **done** |
 | 12 | Razorpay subscriptions, webhook, plan downgrade, MRR in the console | **done** |
-| 7 | Flutter supervisor app | **in progress** — sign-in, offline sync, sites, DPR, roll call, workers, indents, expenses, stock, push. Recording an advance is outstanding; see `apps/mobile/README.md` |
+| 13 | Client portal: the site conversation, read receipts, direct messages | **partly** — payment schedule and approvals are not built |
+| 14 | Documents: drawings, contracts and approvals with revisions | **done** |
+| 7 | Flutter supervisor app | **done** — sign-in, offline sync, sites, DPR, roll call, workers, advances, indents, expenses, stock, documents, the conversation, push |
+
+Remaining from spec §3: the client **payment schedule** and **approvals** (the last two
+of item 13), and **worker self-service** (item 15) — a worker checking their own
+attendance and dues from a link, with no account.
 
 `apps/web` ships the full dashboard flow — login and onboarding, overview, projects
 with an editable milestone timeline, the labour section (workers, roll call, a

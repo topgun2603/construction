@@ -1,0 +1,15 @@
+{
+  // The worker's dev watcher, compiling to its own directory.
+  //
+  // `pnpm dev` runs two Nest watchers over this one package — the API and the worker — because they
+  // are separate processes by design: the API enqueues, only the worker attaches processors. Both
+  // defaulted to `dist`, and with `deleteOutDir: true` each one wiped the other's output on every
+  // rebuild, so they raced and died on `EPERM: operation not permitted, unlink`.
+  //
+  // Dev only. `nest build` still emits the single `dist` that the production image and
+  // `node dist/worker.js` expect.
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "outDir": "./dist-worker"
+  }
+}

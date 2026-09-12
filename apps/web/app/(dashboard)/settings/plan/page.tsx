@@ -1,5 +1,5 @@
 import { AlertTriangle, Check, Minus } from 'lucide-react';
-import { MODULES, PLAN_MODULES, planPricePaise, type ModuleName } from '@sitebook/shared';
+import { MODULES, PLAN_MODULES, planPricePaise } from '@sitebook/shared';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { Billing, BillingInvoice, Tenant } from '@/lib/api-types';
@@ -11,11 +11,6 @@ import { PlanPicker } from './plan-picker';
 import { SubscriptionActions } from './subscription-actions';
 
 export const metadata = { title: 'Plan · BUILDR' };
-
-const PHASE_LABEL: Partial<Record<ModuleName, string>> = {
-  client_portal: 'Coming soon',
-  documents: 'Coming soon',
-};
 
 const STATUS_TONE: Record<Billing['status'], Tone> = {
   none: 'neutral',
@@ -151,9 +146,6 @@ export default async function PlanPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {PHASE_LABEL[moduleName] && (
-                    <span className="text-[12px] text-ink-faint">{PHASE_LABEL[moduleName]}</span>
-                  )}
                   {proOnly.has(moduleName) && !on && (
                     <Badge tone="accent" dot={false}>
                       Pro

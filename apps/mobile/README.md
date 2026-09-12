@@ -219,17 +219,16 @@ the same setup, so doing it once lights up both.
 
 ## What is next
 
-**Recording an advance.** Spec §16 step 7 asks for it and it is the one thing still missing: a
-supervisor can mark attendance but cannot record the cash he hands out, which is the other half of
-the same conversation on site.
-
-**A site's location, captured on the spot.** Starting a site from the phone takes a name, a client,
-an address, a budget and the two dates — but not coordinates, because there is no geolocation
-plugin in this app yet. The web app has a map picker; the phone, which is the one actually standing
-on the plot, does not. `geolocator` plus the existing `flutter_map` card would close that.
+**Indents and expenses, offline.** The roll call, the daily report and its photos all queue on a
+phone with no signal and send themselves when it returns. Raising an indent and recording a bill
+still need a connection — which is the wrong way round, because the basement a supervisor is
+standing in is exactly where they run out of both signal and patience.
 
 Then the rest of the admin the web app has and the phone does not: editing a site and its
 milestones, the people on it, and the settings lists — contractors, materials, team and roles.
+
+**iOS has never been configured.** There is a Flutter scaffold and no `GoogleService-Info.plist`,
+so sign-in and push do not work there at all.
 
 The wage and earnings arithmetic those screens preview offline must match the server exactly.
 `packages/shared/src/earnings.ts` is the reference implementation — port it with the same rounding

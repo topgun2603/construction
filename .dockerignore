@@ -1,10 +1,10 @@
-# What must never reach the build context.
+﻿# What must never reach the build context.
 #
 # Two jobs, and the second one matters more than it looks.
 #
 # 1. Keeping the build correct. The images install dependencies themselves, for Linux. Copying the
 #    host's `node_modules` in on top of that replaces a working install with one built for another
-#    platform — and under pnpm on Windows, with symlinks that point at paths the container has never
+#    platform â€” and under pnpm on Windows, with symlinks that point at paths the container has never
 #    heard of. That is what made the first build of these images fail.
 #
 # 2. Keeping secrets out of the image. Every file in the context can end up in a layer, and layers
@@ -21,6 +21,8 @@ node_modules/
 **/node_modules/
 dist/
 **/dist/
+dist-worker/
+**/dist-worker/
 build/
 **/build/
 .next/
