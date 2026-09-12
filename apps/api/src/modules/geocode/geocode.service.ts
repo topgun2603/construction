@@ -42,20 +42,93 @@ export class GeocodeService {
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.results;
 
+    const results = this.config.MAPTILER_KEY
+      ? await this.viaMapTiler(query)
+      : await this.viaNominatim(query);
+
+    if (results.length > 0) this.remember(key, results);
+    return results;
+  }
+
+  /**
+   * MapTiler, when a key is configured.
+   *
+   * Preferred over Nominatim for the same reason the tiles moved: Nominatim is volunteer-run, its
+   * usage policy is enforced by blocking, and a commercial product leaning on it is outside what
+   * that policy allows. Using one provider for both also means the search results and the map
+   * underneath them come from the same data, so a place found is a place drawn.
+   */
+  private async viaMapTiler(query: string): Promise<GeocodeResult[]> {
+    const url = new URL(
+      `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json`,
+    );
+    url.searchParams.set('key', this.config.MAPTILER_KEY!);
+    url.searchParams.set('limit', '6');
+    // Biased to India rather than restricted, the same as before.
+    url.searchParams.set('country', 'in');
+
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!response.ok) {
+        this.logger.warn(`MapTiler geocoding returned ${response.status}`);
+        return [];
+      }
+
+      const body = (await response.json()) as {
+        features?: Array<{
+          place_name?: string;
+          text?: string;
+          center?: [number, number];
+          bbox?: [number, number, number, number];
+        }>;
+      };
+
+      return (body.features ?? [])
+        .map((feature) => {
+          // GeoJSON is [lng, lat]; everything downstream of here is {lat, lng}.
+          const [lng, lat] = feature.center ?? [];
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          return {
+            label: feature.place_name ?? feature.text ?? `${lat}, ${lng}`,
+            lat: lat as number,
+            lng: lng as number,
+            // MapTiler's bbox is [west, south, east, north]; ours is [south, north, west, east],
+            // matching what Nominatim returned before it.
+            bounds: feature.bbox
+              ? ([feature.bbox[1], feature.bbox[3], feature.bbox[0], feature.bbox[2]] as [
+                  number,
+                  number,
+                  number,
+                  number,
+                ])
+              : null,
+          };
+        })
+        .filter((row): row is GeocodeResult => row !== null);
+    } catch (cause) {
+      this.logger.warn({ err: cause }, 'MapTiler geocoding failed');
+      return [];
+    }
+  }
+
+  /**
+   * Nominatim, the fallback when no MapTiler key is set.
+   *
+   * Kept so a checkout with no key still has a working search. It is not what a deployment should
+   * run on: the User-Agent below is what their policy asks for, and without `GEOCODER_CONTACT` it
+   * says so out loud rather than pretending.
+   */
+  private async viaNominatim(query: string): Promise<GeocodeResult[]> {
     const url = new URL(NOMINATIM);
     url.searchParams.set('q', query);
     url.searchParams.set('format', 'jsonv2');
     url.searchParams.set('limit', '6');
     url.searchParams.set('addressdetails', '0');
-    // Biased to India rather than restricted: a builder here is looking for a plot here, but a hard
-    // filter would break the day somebody has a site across a border.
     url.searchParams.set('countrycodes', 'in');
 
     try {
       const response = await fetch(url, {
         headers: {
-          // Required by Nominatim's policy. A contact address is what stops them blocking the app
-          // rather than guessing who it is.
           'User-Agent': `BUILDR/1.0 (${this.config.GEOCODER_CONTACT ?? 'no contact configured'})`,
           'Accept-Language': 'en',
         },
@@ -92,7 +165,6 @@ export class GeocodeService {
         })
         .filter((row): row is GeocodeResult => row !== null);
 
-      this.remember(key, results);
       return results;
     } catch (error) {
       // A geocoder being slow or down must not break the page. The map still takes a dropped pin,

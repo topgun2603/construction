@@ -3,11 +3,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/map_tiles.dart';
 import '../core/theme.dart';
 
 /// Where the site is.
 ///
-/// OpenStreetMap raster tiles, the same source the web app uses, so the two show the same map and
+/// MapTiler raster tiles, the same source the web app uses, so the two show the same map and
 /// neither needs an API key or a billing account. The tile server is somebody else's charity: the
 /// user agent below identifies this app, as their usage policy requires.
 ///
@@ -82,7 +83,7 @@ class SiteMap extends StatelessWidget {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate: MapTiles.urlTemplate,
                       userAgentPackageName: 'com.buildr.buildr_mobile',
                       maxNativeZoom: 19,
                     ),
@@ -113,7 +114,7 @@ class SiteMap extends StatelessWidget {
                     color: const Color(0xCCFFFFFF),
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     child: const Text(
-                      '© OpenStreetMap',
+                      'Ãƒâ€šÃ‚Â© OpenStreetMap',
                       style: TextStyle(fontSize: 9.5, color: Palette.inkMuted),
                     ),
                   ),
@@ -157,7 +158,7 @@ class SiteMap extends StatelessWidget {
   Future<void> _open(BuildContext context, LatLng point) async {
     final label = Uri.encodeComponent(name ?? 'Site');
     // `geo:` hands it to whatever map app is installed and carries the pin label. Where nothing
-    // handles it — an emulator with no map app — the browser URL is the fallback.
+    // handles it ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â an emulator with no map app ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the browser URL is the fallback.
     final geo = Uri.parse(
       'geo:${point.latitude},${point.longitude}?q='
       '${point.latitude},${point.longitude}($label)',

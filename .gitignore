@@ -10,7 +10,11 @@ coverage/
 
 .env
 .env.*
+# Templates only. `!.env.example` un-ignores that exact name and nothing else, so
+# `.env.prod.example` stayed invisible to git — it had to be named here too.
 !.env.example
+!.env.prod.example
+!*.env.example
 
 # Secrets. Firebase Admin service account keys are private keys â€” never commit one.
 *service-account*.json

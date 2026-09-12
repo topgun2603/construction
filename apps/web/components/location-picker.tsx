@@ -6,12 +6,19 @@ import { Crosshair, Loader2, MapPin, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+
 /*
  * Leaflet's stylesheet, imported for its side effect. Top level rather than inside the dynamic
- * import because a CSS module has no type to await — and it costs nothing here, since this whole
+ * import because a CSS module has no type to await â€” and it costs nothing here, since this whole
  * component is itself loaded lazily, so the CSS travels in that same chunk.
  */
 import 'leaflet/dist/leaflet.css';
+
+/**
+ * Public by design: a tile key travels to the browser with every request for a tile, so hiding it
+ * is not a thing that can be done. Restrict it by domain in the MapTiler console instead.
+ */
+const MAPTILER_KEY = process.env['NEXT_PUBLIC_MAPTILER_KEY'] ?? '';
 
 export interface PickedLocation {
   lat: number;
@@ -73,10 +80,23 @@ export function LocationPicker({
         attributionControl: true,
       });
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors',
-      }).addTo(instance);
+      /*
+       * MapTiler, not OpenStreetMap's own tile servers.
+       *
+       * Theirs are volunteer-run and their usage policy is enforced by blocking â€” it blocked this
+       * app, and a blocked client gets a striped "Access blocked" image in place of every tile, for
+       * every customer at once. Panning a picker is exactly the pattern that trips it.
+       *
+       * The key is public by design and belongs in the browser; restrict it by domain in the
+       * MapTiler console rather than trying to hide it.
+       */
+      L.tileLayer(
+        `https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`,
+        {
+          maxZoom: 19,
+          attribution: 'Â© MapTiler Â© OpenStreetMap contributors',
+        },
+      ).addTo(instance);
 
       /*
        * Leaflet's default marker points at image files resolved relative to the CSS, which a bundler
@@ -120,7 +140,7 @@ export function LocationPicker({
     // moved. `latest` holds the current `onChange` so the stale closure never matters.
   }, []);
 
-  /** Follow the value when it changes from outside — a search hit, or "use my location". */
+  /** Follow the value when it changes from outside â€” a search hit, or "use my location". */
   useEffect(() => {
     if (!ready || !value || !map.current) return;
     map.current.setView([value.lat, value.lng], Math.max(map.current.getZoom(), 16));
@@ -182,7 +202,7 @@ export function LocationPicker({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search a locality — Whitefield, Bengaluru"
+              placeholder="Search a locality â€” Whitefield, Bengaluru"
               className="pl-9"
               aria-label="Search for a place"
             />

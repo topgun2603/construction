@@ -1,5 +1,5 @@
 // Loads apps/api/.env before anything reads process.env. The Prisma CLI does this
-// for itself, but `nest start` and ts-node do not — without it the app starts with
+// for itself, but `nest start` and ts-node do not â€” without it the app starts with
 // an empty environment and fails validation for the wrong reason.
 // Values already in the environment win, so a container's real config is never
 // overwritten by a stray .env.
@@ -39,7 +39,7 @@ const envSchema = z
 
     /**
      * Eight hours. Longer than a tenant access token because there is no refresh flow
-     * here — re-authenticating means another SMS — and short enough that a forgotten
+     * here â€” re-authenticating means another SMS â€” and short enough that a forgotten
      * open tab is not a standing credential. Revocation does not wait for expiry: the
      * guard re-reads the allowlist on every request.
      */
@@ -53,7 +53,7 @@ const envSchema = z
      * the process that is also serving requests.
      */
     SITEBOOK_ROLE: z.enum(['api', 'worker']).default('api'),
-    /** Turn the queues off entirely — useful in tests and when Redis is absent. */
+    /** Turn the queues off entirely â€” useful in tests and when Redis is absent. */
     JOBS_ENABLED: z
       .enum(['true', 'false'])
       .default('true')
@@ -78,12 +78,12 @@ const envSchema = z
       .positive()
       .default(30 * 24 * 60 * 60),
 
-    /** Firebase project id — must match the web client's `projectId`. */
+    /** Firebase project id â€” must match the web client's `projectId`. */
     FIREBASE_PROJECT_ID: z.string().optional(),
     /** Admin SDK credential as inline JSON. */
     FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
     /**
-     * Path to the Admin SDK credential file — preferred over inline JSON, because a
+     * Path to the Admin SDK credential file â€” preferred over inline JSON, because a
      * multi-line private key survives a file far better than a shell variable.
      */
     FIREBASE_SERVICE_ACCOUNT_FILE: z.string().optional(),
@@ -115,7 +115,7 @@ const envSchema = z
     RAZORPAY_SECRET: z.string().optional(),
     /**
      * Separate from RAZORPAY_SECRET. Razorpay signs webhooks with a secret you choose when adding
-     * the endpoint, not with your API secret — using the wrong one means every webhook is rejected
+     * the endpoint, not with your API secret â€” using the wrong one means every webhook is rejected
      * as forged, which looks exactly like an attack.
      */
     RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
@@ -124,7 +124,7 @@ const envSchema = z
     RAZORPAY_PLAN_ID_PRO: z.string().optional(),
     /**
      * How long a tenant keeps working after a charge fails. Access ends when the period they already
-     * paid for runs out plus this — dropping someone's site staff mid-shift over a failed card is
+     * paid for runs out plus this â€” dropping someone's site staff mid-shift over a failed card is
      * not a collections strategy.
      */
     BILLING_GRACE_DAYS: z.coerce.number().int().min(0).max(60).default(7),
@@ -134,6 +134,13 @@ const envSchema = z
      * one the traffic is anonymous and they are entitled to block it.
      */
     GEOCODER_CONTACT: z.string().optional(),
+
+    /**
+     * Map tiles and geocoding. Without it the geocoder falls back to Nominatim's volunteer
+     * service, which is fine for a checkout and not fine for a deployment - their usage policy is
+     * enforced by blocking, and being blocked takes site search down for every tenant at once.
+     */
+    MAPTILER_KEY: z.string().optional(),
 
     CORS_ORIGINS: z.string().default('http://localhost:3001'),
   })

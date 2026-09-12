@@ -8,20 +8,21 @@ import 'package:latlong2/latlong.dart';
 import '../core/api_client.dart';
 import '../core/api_providers.dart';
 import '../core/device_location.dart';
+import '../core/map_tiles.dart';
 import '../core/theme.dart';
 
 /// Where a site is, chosen on a map.
 ///
 /// Dropping a pin is the primary path, not typing coordinates. A plot on the edge of a town has no
 /// postal address, often no road name, and the person entering it is either standing on it or
-/// looking at it on a map — both of which are a tap, and neither of which is a decimal degree.
+/// looking at it on a map Ã¢â‚¬â€ both of which are a tap, and neither of which is a decimal degree.
 ///
 /// Searching gets you to the right kilometre; the pin does the rest. The search runs through the
 /// API rather than straight to the tile provider, because the free geocoder asks for at most one
 /// request a second and the server is where that limit is enforced for everybody.
 ///
 /// A screen of its own rather than a sheet. It used to open as a bottom sheet from inside the
-/// new-site sheet, which left a map in a draggable panel inside another draggable panel — three
+/// new-site sheet, which left a map in a draggable panel inside another draggable panel Ã¢â‚¬â€ three
 /// things competing for the same vertical drag, on the one screen where dragging *is* the
 /// interaction. A map wants the whole display and one obvious way back.
 class LocationPickerSheet extends ConsumerStatefulWidget {
@@ -51,7 +52,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
   /// Set when the tile server refuses or the phone has no route to it.
   ///
   /// Without this a failed tile is an empty grey rectangle, which reads as "the map did not open"
-  /// — and sends somebody looking for a bug in the app rather than at their signal.
+  /// Ã¢â‚¬â€ and sends somebody looking for a bug in the app rather than at their signal.
   bool _tilesFailed = false;
   String? _error;
   List<Map<String, dynamic>> _results = const [];
@@ -99,7 +100,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
   /// Drops the pin where the phone is.
   ///
   /// The fastest correct answer when somebody is standing on the plot, and on a site with no road
-  /// name the only accurate one — searching finds the village, not the survey number.
+  /// name the only accurate one Ã¢â‚¬â€ searching finds the village, not the survey number.
   Future<void> _useMyLocation() async {
     setState(() {
       _locating = true;
@@ -178,7 +179,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
                       initialCenter: _point,
                       initialZoom: _placed ? 16 : 11,
                       // Tapping the map is the whole interaction. Long-press does nothing extra on
-                      // purpose — one gesture, no discovery required.
+                      // purpose Ã¢â‚¬â€ one gesture, no discovery required.
                       onTap: (_, point) => setState(() {
                         _point = point;
                         _placed = true;
@@ -187,7 +188,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
                     ),
                     children: [
                       TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        urlTemplate: MapTiles.urlTemplate,
                         userAgentPackageName: 'com.buildr.buildr_mobile',
                         maxNativeZoom: 19,
                         errorTileCallback: (_, _, _) {
@@ -222,7 +223,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
                       right: 16,
                       top: 16,
                       child: _Hint(
-                        'The map images are not loading. The pin still works — '
+                        'The map images are not loading. The pin still works Ã¢â‚¬â€ '
                         'search or tap where the site is.',
                       ),
                     ),
@@ -289,7 +290,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
                       child: Padding(
                         padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         child: Text(
-                          '© OpenStreetMap',
+                          'Ã‚Â© OpenStreetMap',
                           style: TextStyle(fontSize: 9.5, color: Palette.inkMuted),
                         ),
                       ),
