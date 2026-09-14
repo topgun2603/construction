@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -149,9 +151,54 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    await ref.read(authControllerProvider.notifier).signOut();
-    // The shell swaps itself for the login screen; this closes the profile page behind it.
-    if (context.mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+    if (!context.mounted) return;
+
+    /*
+     * A curtain while it happens.
+     *
+     * Signing out withdraws the push token and revokes the session on the server — two round
+     * trips, and on a site with one bar of signal they are not quick. Until they finish the app
+     * still looks signed in, so the button gets tapped again, and the second sign-out lands on a
+     * session that is already going. The barrier is what stops that; the spinner is what explains
+     * why nothing is happening.
+     *
+     * `barrierDismissible: false` and `canPop: false` together: no tap outside, no back gesture.
+     * There is nothing to decide here and no way to cancel a sign-out halfway.
+     */
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    final pageNavigator = Navigator.of(context);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                ),
+                SizedBox(width: 16),
+                Text('Signing out…'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await ref.read(authControllerProvider.notifier).signOut();
+    } finally {
+      // Both come down even if the revoke failed: `signOut` clears the session locally whatever
+      // the server said, so leaving the curtain up would strand somebody who is already out.
+      rootNavigator.pop();
+      pageNavigator.popUntil((route) => route.isFirst);
+    }
   }
 }
 

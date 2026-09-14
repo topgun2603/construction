@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useTransition } from 'react';
 import { usePathname } from 'next/navigation';
 import { BarChart3, Building2, LogOut, ShieldCheck, Tag } from 'lucide-react';
 import { platformSignOut } from '@/lib/platform-actions';
+import { BlockingOverlay } from '@/components/ui/blocking-overlay';
 import { cn } from '@/lib/utils';
 
 /**
@@ -21,9 +23,14 @@ const TABS = [
 
 export function PlatformNav() {
   const pathname = usePathname();
+  const [signingOut, startSignOut] = useTransition();
 
   return (
     <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
+      {/* Cheaper than the dashboard's sign-out — there is no token to revoke — but the
+          round trip and the redirect still take a moment on a bad connection, and the
+          curtain is what says so rather than a nav bar that looks ignored. */}
+      <BlockingOverlay open={signingOut} label="Signing out…" />
       <nav className="flex items-center gap-1" aria-label="Console">
         {TABS.map((tab) => {
           const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
@@ -47,15 +54,19 @@ export function PlatformNav() {
         })}
       </nav>
 
-      <form action={platformSignOut}>
-        <button
-          type="submit"
-          className="flex min-h-0 items-center gap-2 rounded-control px-3 py-2 text-[13px] font-medium text-ink-faint transition hover:bg-nav-active/60 hover:text-[#CFCCE2]"
-        >
-          <LogOut className="size-4" />
-          Sign out
-        </button>
-      </form>
+      <button
+        type="button"
+        disabled={signingOut}
+        onClick={() =>
+          startSignOut(() => {
+            void platformSignOut();
+          })
+        }
+        className="flex min-h-0 items-center gap-2 rounded-control px-3 py-2 text-[13px] font-medium text-ink-faint transition hover:bg-nav-active/60 hover:text-[#CFCCE2] disabled:opacity-60"
+      >
+        <LogOut className="size-4" />
+        {signingOut ? 'Signing out…' : 'Sign out'}
+      </button>
     </div>
   );
 }
