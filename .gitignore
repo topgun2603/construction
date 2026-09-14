@@ -36,3 +36,4 @@ infra/.data/
 .DS_Store
 Thumbs.db
 *.log
+.claude/settings.json
