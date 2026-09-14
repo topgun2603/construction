@@ -461,11 +461,19 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
       return;
     }
 
+    String? siteName;
+    for (final site in ref.read(sitesProvider).value ?? const <Map<String, dynamic>>[]) {
+      if (site['id'] == projectId) siteName = site['name'] as String?;
+    }
+
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
+      // True when it went to the outbox instead of the server. An amendment is never queued: it
+      // edits a row only the server knows the current state of.
+      bool queued;
       final api = ref.read(apiProvider);
       if (_editing) {
         await api.updateExpense(widget.existing!['id'] as String, {
@@ -474,18 +482,25 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
           'spent_on': _spentOn,
           'note': _note.text.trim(),
         });
+        queued = false;
       } else {
-        await api.recordExpense(
+        queued = !await api.recordExpense(
           projectId: projectId,
           amountPaise: total,
           category: _category,
           spentOn: _spentOn,
           note: _note.text.trim(),
+          siteName: siteName,
         );
       }
       if (!mounted) return;
       Navigator.of(context).pop();
-      notify(context, _editing ? 'Saved' : 'Recorded');
+      notify(
+        context,
+        queued
+            ? 'Saved — it will send when you have signal'
+            : (_editing ? 'Saved' : 'Recorded'),
+      );
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _error = error.message);

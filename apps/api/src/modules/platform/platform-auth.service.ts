@@ -4,6 +4,7 @@ import { TokenService } from '../../common/auth/token.service';
 import { ApiError } from '../../common/errors/api-error';
 import { PhoneAuthService } from '../auth/phone-auth.service';
 import { PlatformAdmins } from './platform-admins.service';
+import { PlatformOperators } from './platform-operators.service';
 import { PlatformService } from './platform.service';
 
 /**
@@ -26,6 +27,7 @@ export class PlatformAuthService {
     private readonly phoneAuth: PhoneAuthService,
     private readonly tokens: TokenService,
     private readonly admins: PlatformAdmins,
+    private readonly operators: PlatformOperators,
     private readonly platform: PlatformService,
   ) {}
 
@@ -36,7 +38,7 @@ export class PlatformAuthService {
 
     const phone = await this.phoneAuth.verify(input.firebase_token);
 
-    if (!this.admins.allows(phone)) {
+    if (!(await this.operators.allows(phone))) {
       // Logged, because a stranger reaching a verified OTP at the console door is worth
       // knowing about. The caller is told nothing beyond "no".
       this.logger.warn('Platform console login refused for a number not on the allowlist');

@@ -296,14 +296,34 @@ class KpiStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (tiles.isEmpty) return const SizedBox.shrink();
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: tiles.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, index) => SizedBox(width: 168, child: tiles[index]),
+
+    /*
+     * Sized to the tallest tile rather than to a number.
+     *
+     * It was a fixed 96, which held until a tile needed two lines for its label *and* two for its
+     * note — "Approved, not delivered / Ordered or awaiting delivery" — and then overflowed by
+     * twelve pixels on a real phone. Any fixed height is the same bug waiting for a longer word or
+     * a larger text scale, and somebody reading at 1.3x is exactly who cannot afford a clipped
+     * number.
+     *
+     * `IntrinsicHeight` costs an extra layout pass over four tiles, which is nothing, and buys a
+     * strip that cannot clip whatever is put in it.
+     */
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: IntrinsicHeight(
+        child: Row(
+          // Every tile takes the height of the tallest, so the row reads as one band rather than a
+          // skyline.
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var index = 0; index < tiles.length; index++) ...[
+              if (index > 0) const SizedBox(width: 10),
+              SizedBox(width: 168, child: tiles[index]),
+            ],
+          ],
+        ),
       ),
     );
   }

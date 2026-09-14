@@ -6,6 +6,7 @@ import { PlatformAuthService } from './platform-auth.service';
 import { PlatformController } from './platform.controller';
 import { PlatformDb } from './platform-db.service';
 import { PlatformGuard } from './platform.guard';
+import { PlatformOperators } from './platform-operators.service';
 import { PlatformService } from './platform.service';
 
 /**
@@ -21,6 +22,7 @@ import { PlatformService } from './platform.service';
   providers: [
     PlatformDb,
     PlatformAdmins,
+    PlatformOperators,
     PlatformService,
     PlatformAnalytics,
     PlatformAuthService,

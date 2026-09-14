@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { WorkersController } from './workers.controller';
 import { WorkersService } from './workers.service';
 
 @Module({
+  // For `TokenService`, which signs the worker self-service link.
+  imports: [AuthModule],
   controllers: [WorkersController],
   providers: [WorkersService],
   exports: [WorkersService],

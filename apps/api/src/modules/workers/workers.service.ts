@@ -13,6 +13,8 @@ import {
 import type { Prisma } from '@prisma/client';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
+import { TokenService } from '../../common/auth/token.service';
+import { env } from '../../config/env';
 import { oneDecimal } from '../../common/decimal';
 import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
@@ -53,6 +55,7 @@ export class WorkersService {
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
+    private readonly tokens: TokenService,
   ) {}
 
   async list(actor: RequestUser, query: ListWorkersQuery): Promise<Page<WorkerView>> {
@@ -281,6 +284,35 @@ export class WorkersService {
    * Worker ledger (spec §8A): attendance and payments in one chronological list with
    * a running balance, which is the answer to "what do I owe this person today".
    */
+  /**
+   * A signed link for one worker, plus when it stops working.
+   *
+   * The worker is looked up first so that an id belonging to another tenant, or to somebody
+   * already removed, cannot be turned into a working link — the token is only as careful as what
+   * is put in it.
+   *
+   * `WEB_BASE_URL` is where the page lives. Left unset the API returns the path alone, which is
+   * still usable: the site office pastes it after their own domain, and a half-built deployment
+   * fails visibly rather than minting links to nowhere.
+   */
+  async selfServiceLink(actor: RequestUser, workerId: string) {
+    const db = this.tenantDb.clientFor(actor.tenantId);
+    const worker = await db.worker.findFirst({
+      where: { id: workerId, deletedAt: null },
+      select: { id: true, name: true, phone: true },
+    });
+    if (!worker) throw ApiError.notFound('Worker');
+
+    const token = this.tokens.signWorkerLink({ tenantId: actor.tenantId, workerId: worker.id });
+    const base = env().WEB_BASE_URL?.replace(/\/$/, '') ?? '';
+
+    return {
+      worker: { id: worker.id, name: worker.name, phone: worker.phone },
+      url: `${base}/w/${token}`,
+      expires_in: this.tokens.workerLinkTtlSeconds,
+    };
+  }
+
   async ledger(actor: RequestUser, workerId: string, range?: { from?: string; to?: string }) {
     const db = this.tenantDb.clientFor(actor.tenantId);
 

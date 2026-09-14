@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Building2, LogOut } from 'lucide-react';
+import { BarChart3, Building2, LogOut, ShieldCheck } from 'lucide-react';
 import { platformSignOut } from '@/lib/platform-actions';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 const TABS = [
   { href: '/admin', label: 'Overview', icon: BarChart3, exact: true },
   { href: '/admin/tenants', label: 'Tenants', icon: Building2, exact: false },
+  { href: '/admin/operators', label: 'Operators', icon: ShieldCheck, exact: false },
 ];
 
 export function PlatformNav() {

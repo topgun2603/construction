@@ -1115,6 +1115,32 @@ model PlatformAuditLog {
   @@map("platform_audit_log")
 }
 
+/// An operator the console itself granted access to.
+///
+/// `PLATFORM_ADMIN_PHONES` stays the root of trust and is unaffected by this table: those
+/// numbers are always allowed in, can never be revoked from inside the console, and are the
+/// only ones permitted to grant access to anybody else. This table exists so that adding a
+/// second support person is not a redeploy — not so that the console can rewrite who owns it.
+///
+/// No `tenant_id` and no RLS, like `platform_audit_log`: it is read before any tenant context
+/// exists, by the BYPASSRLS connection the console uses for everything.
+model PlatformOperator {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Stored form, `91XXXXXXXXXX`, matching how a verified phone arrives from Firebase.
+  phone      String    @unique
+  name       String?
+  /// The root operator who granted this. Kept as a phone, not a foreign key, because the
+  /// grantor is usually an env entry with no row here at all.
+  grantedBy  String    @map("granted_by")
+  grantedAt  DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  /// Revoked rather than deleted, so the trail of who had access when survives.
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedBy  String?   @map("revoked_by")
+
+  @@index([revokedAt])
+  @@map("platform_operators")
+}
+
 model AuditLog {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid

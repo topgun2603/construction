@@ -38,6 +38,7 @@ import { TenantsModule } from './modules/tenants/tenants.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { UsersModule } from './modules/users/users.module';
 import { WagePeriodsModule } from './modules/wage-periods/wage-periods.module';
+import { WorkerPortalModule } from './modules/worker-portal/worker-portal.module';
 import { WorkersModule } from './modules/workers/workers.module';
 
 @Module({
@@ -87,6 +88,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     ProjectsModule,
     ContractorsModule,
     MaterialsModule,
+    WorkerPortalModule,
     WorkersModule,
     AttendanceModule,
     WagePeriodsModule,

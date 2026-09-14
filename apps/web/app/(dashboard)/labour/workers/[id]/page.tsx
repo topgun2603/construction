@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { LedgerRange } from './ledger-range';
+import { SelfServiceLink } from './self-service-link';
 
 export const metadata = { title: 'Worker · BUILDR' };
 
@@ -83,6 +84,12 @@ export default async function WorkerPage({
         </div>
         <LedgerRange from={from ?? null} to={to ?? null} workerId={id} />
       </div>
+
+      <SelfServiceLink
+        workerId={id}
+        workerName={worker.name}
+        phone={worker.phone ?? null}
+      />
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile

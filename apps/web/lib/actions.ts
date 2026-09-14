@@ -1073,3 +1073,28 @@ export async function updateTenant(input: {
   if (result.ok) revalidatePath('/settings/plan');
   return result;
 }
+
+/**
+ * Mints a worker's self-service link and returns the path to it.
+ *
+ * The path, not the whole URL: the API knows the token but not what address this app is being
+ * served on, and the button that sends it resolves the path against the browser's own origin. One
+ * fewer thing to configure, and no risk of sending somebody a link to a hostname that only
+ * resolves inside the deployment.
+ */
+export async function workerSelfServiceLink(
+  workerId: string,
+): Promise<ActionResult<{ path: string }>> {
+  const result = await runAction(() =>
+    serverFetch<{ url: string }>(`/workers/${workerId}/self-service-link`, { method: 'POST' }),
+  );
+  // The failure carries no data, so nothing is being reinterpreted here — only the shape of the
+  // success case differs between what the API returns and what the caller wants.
+  if (!result.ok || !result.data) {
+    return { ok: result.ok, ...(result.error ? { error: result.error } : {}) };
+  }
+
+  const { url } = result.data;
+  const path = url.startsWith('http') ? new URL(url).pathname : url;
+  return { ok: true, data: { path } };
+}

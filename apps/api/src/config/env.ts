@@ -143,6 +143,13 @@ const envSchema = z
     MAPTILER_KEY: z.string().optional(),
 
     CORS_ORIGINS: z.string().default('http://localhost:3001'),
+
+    /**
+     * Where the web app lives, for links the API mints but does not serve — a worker's
+     * self-service page, for one. Optional: left unset the API returns the path alone, which a
+     * half-configured deployment shows up as a visibly wrong link rather than a silently dead one.
+     */
+    WEB_BASE_URL: z.string().url().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

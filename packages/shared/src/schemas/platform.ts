@@ -35,3 +35,27 @@ export const updateTenantPlatformSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'nothing to update' });
 export type UpdateTenantPlatformInput = z.infer<typeof updateTenantPlatformSchema>;
+
+/**
+ * Deleting a tenant asks for its name back.
+ *
+ * Not a checkbox: an operator working down a list of accounts can tick one without reading which
+ * row they are on, and typing "Green Acres LLP" cannot be done without looking.
+ */
+export const deleteTenantSchema = z.object({
+  confirm_name: z.string().trim().min(1).max(200),
+});
+export type DeleteTenantInput = z.infer<typeof deleteTenantSchema>;
+
+/**
+ * Granting console access to somebody who is not named in the deployment config.
+ *
+ * The phone is normalised server-side against the same rule every other number in the product
+ * goes through, so an operator typing +91 98765 43210 and the OTP that later arrives for
+ * 9876543210 are the same person.
+ */
+export const grantOperatorSchema = z.object({
+  phone: z.string().trim().min(6).max(20),
+  name: z.string().trim().max(120).optional(),
+});
+export type GrantOperatorInput = z.infer<typeof grantOperatorSchema>;

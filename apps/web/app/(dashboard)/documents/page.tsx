@@ -11,9 +11,11 @@ export const metadata = { title: 'Documents · BUILDR' };
 /**
  * Every document across the sites this person is on.
  *
- * The per-site tab is where documents are uploaded, because a drawing without a site is a drawing
- * nobody can find. This page is the other half of that: a client on two flats, or a project manager
- * running six, should not have to remember which site the contract was filed against.
+ * Uploading works here as well as on the per-site tab, and asks which site. It used to be
+ * per-site only, on the reasoning that a drawing without a site is a drawing nobody can find —
+ * but this is the page the navigation points at, so somebody looking for "how do I add a
+ * document" arrived at an empty list with no way forward. Asking one more question is cheaper
+ * than that.
  *
  * The API does the filtering. A client gets only what somebody deliberately shared, and only from
  * their own sites — this page passes no scope of its own and must not, or the day somebody adds a
@@ -32,7 +34,16 @@ export default async function DocumentsPage() {
     );
   }
 
-  const { items } = await serverFetch<{ items: SiteDocument[] }>('/documents');
+  const canManage = me.permissions.includes('documents.manage');
+
+  // Only fetched for somebody who can actually file one — the picker is the only thing that
+  // needs it, and a client has no business holding the site list for a dialog they never see.
+  const [{ items }, sites] = await Promise.all([
+    serverFetch<{ items: SiteDocument[] }>('/documents'),
+    canManage
+      ? serverFetch<{ items: { id: string; name: string }[] }>('/projects?limit=200')
+      : Promise.resolve({ items: [] }),
+  ]);
 
   return (
     <FadeIn className="flex flex-col gap-5">
@@ -43,11 +54,7 @@ export default async function DocumentsPage() {
         </span>
       </div>
 
-      <DocumentsList
-        documents={items}
-        canManage={me.permissions.includes('documents.manage')}
-        showProject
-      />
+      <DocumentsList documents={items} canManage={canManage} showProject sites={sites.items} />
     </FadeIn>
   );
 }

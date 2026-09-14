@@ -1,0 +1,58 @@
+# BUILDR dashboard and platform console.
+#
+# A Node server, not a static export: every mutation goes through a server action so the session
+# token never reaches the browser, and `/admin` is server-rendered behind its own cookie.
+#
+#   fly deploy -c fly.web.toml
+#
+# See docs/deploy-fly.md before the first one.
+
+app = "buildr-web"
+primary_region = "bom"
+
+[build]
+  dockerfile = "infra/Dockerfile.web"
+
+  # Compiled into the browser bundle — see the comment in the Dockerfile. Edit these and you must
+  # redeploy for the change to reach anybody; there is no runtime override.
+  #
+  # Fill in the Firebase values from the console (Project settings, Your apps, Web). They are public
+  # identifiers and belong in version control; the Admin SDK key does not.
+  [build.args]
+    NEXT_PUBLIC_API_URL = "https://buildr-api.fly.dev/v1"
+    NEXT_PUBLIC_FIREBASE_API_KEY = ""
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = ""
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID = ""
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = ""
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = ""
+    NEXT_PUBLIC_FIREBASE_APP_ID = ""
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID = ""
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3001"
+  # Read by server components and server actions, which call the API machine to machine. It is a
+  # separate variable from the public one on purpose: this one can point at Fly's private network
+  # once both apps are in the same organisation, and never crosses the internet.
+  API_URL = "https://buildr-api.fly.dev/v1"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+
+  # Allowed to sleep, unlike the API. This is an office screen — an owner opening the dashboard
+  # after lunch will wait a second for a cold start; a supervisor's report being posted will not.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/login"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

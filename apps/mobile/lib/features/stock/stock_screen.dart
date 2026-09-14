@@ -481,8 +481,13 @@ class _MovementFormState extends ConsumerState<_MovementForm> {
       _saving = true;
       _error = null;
     });
+    String? materialName;
+    for (final material in materials ?? const <Map<String, dynamic>>[]) {
+      if (material['id'] == materialId) materialName = material['name'] as String?;
+    }
+
     try {
-      await ref
+      final sent = await ref
           .read(apiProvider)
           .recordStockMovement(
             projectId: widget.projectId,
@@ -492,10 +497,16 @@ class _MovementFormState extends ConsumerState<_MovementForm> {
             movedOn: _movedOn,
             reference: _ref.text.trim(),
             note: _note.text.trim(),
+            materialName: materialName,
           );
       if (!mounted) return;
       Navigator.of(context).pop();
-      notify(context, _type == 'in' ? 'Booked in' : 'Booked out');
+      notify(
+        context,
+        sent
+            ? (_type == 'in' ? 'Booked in' : 'Booked out')
+            : 'Saved — it will book when you have signal',
+      );
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _error = error.message);

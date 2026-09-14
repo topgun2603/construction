@@ -58,3 +58,52 @@ export async function updateTenantPlan(input: {
   }
   return result;
 }
+
+/**
+ * Grants console access to a number that is not in the deployment config.
+ *
+ * Only an operator named in that config may do this, and the API enforces it — this action does
+ * not re-check, because a permission decided in two places is a permission that will eventually
+ * disagree with itself.
+ */
+export async function grantOperator(input: {
+  phone: string;
+  name?: string;
+}): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch('/operators', { method: 'POST', body: input }),
+  );
+  if (result.ok) revalidatePath('/admin/operators');
+  return result;
+}
+
+export async function revokeOperator(phone: string): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch(`/operators/${encodeURIComponent(phone)}`, { method: 'DELETE' }),
+  );
+  if (result.ok) revalidatePath('/admin/operators');
+  return result;
+}
+
+/**
+ * Removes an account and everything under it.
+ *
+ * `confirmName` is the tenant's own name, typed back. The API refuses anything else, so a
+ * misdirected click on the wrong row cannot destroy a customer.
+ */
+export async function deleteTenant(input: {
+  tenantId: string;
+  confirmName: string;
+}): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch(`/tenants/${input.tenantId}`, {
+      method: 'DELETE',
+      body: { confirm_name: input.confirmName },
+    }),
+  );
+  if (result.ok) {
+    revalidatePath('/admin');
+    revalidatePath('/admin/tenants');
+  }
+  return result;
+}

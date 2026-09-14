@@ -18,6 +18,8 @@ import '../indents/indents_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../portal/site_conversation_screen.dart';
 import '../profile/profile_screen.dart';
+import '../settings/settings_screen.dart';
+import '../wages/wage_periods_screen.dart';
 import '../sites/sites_screen.dart';
 import '../stock/stock_screen.dart';
 import '../workers/workers_screen.dart';
@@ -133,6 +135,21 @@ final _destinations = <Destination>[
     icon: Icons.receipt_long_outlined,
     builder: ExpensesScreen.new,
     permission: 'expenses.view',
+  ),
+  Destination(
+    id: 'wages',
+    label: 'Wages',
+    icon: Icons.receipt_long_outlined,
+    builder: WagePeriodsScreen.new,
+    permission: 'wages.view',
+  ),
+  Destination(
+    id: 'settings',
+    label: 'Set up',
+    icon: Icons.tune,
+    builder: SettingsScreen.new,
+    // Any one of these opens the hub; the hub itself decides which lists to show.
+    permission: 'contractors.manage',
   ),
   Destination(
     id: 'stock',

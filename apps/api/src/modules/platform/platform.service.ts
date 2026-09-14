@@ -393,6 +393,214 @@ export class PlatformService {
     };
   }
 
+
+  /**
+   * What an operator needs to answer "it is not showing on my screen", without asking the customer
+   * for screenshots or opening a psql session.
+   *
+   * Read-only, and deliberately not impersonation. Minting a tenant token for a support person
+   * would put a console operator inside a customer's account with their permissions and no
+   * distinguishing mark in the tenant's own audit log — every action they took would read as the
+   * customer having taken it. This returns the handful of facts that actually explain the usual
+   * support call instead: who can sign in, what the plan allows, which sites are live, and whether
+   * anything has been filed lately.
+   *
+   * Reading a customer's data is still an intrusion, so it is audited like any other console act.
+   */
+  async supportView(actorPhone: string, tenantId: string) {
+    const prisma = this.db.client;
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        name: true,
+        plan: true,
+        status: true,
+        enabledModules: true,
+        createdAt: true,
+      },
+    });
+    if (!tenant) throw ApiError.notFound('Tenant');
+
+    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+    const [users, projects, recentReports, recentAttendance, pendingIndents, pendingExpenses] =
+      await Promise.all([
+        prisma.user.findMany({
+          where: { tenantId, deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            role: true,
+            status: true,
+            lastLogin: true,
+            roleId: true,
+          },
+          orderBy: [{ role: 'asc' }, { name: 'asc' }],
+        }),
+        prisma.project.findMany({
+          where: { tenantId, deletedAt: null },
+          select: { id: true, name: true, status: true },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        prisma.dailyReport.count({ where: { tenantId, deletedAt: null, createdAt: { gte: since } } }),
+        prisma.attendance.count({ where: { tenantId, createdAt: { gte: since } } }),
+        prisma.materialIndent.count({ where: { tenantId, status: 'requested' } }),
+        prisma.expense.count({ where: { tenantId, deletedAt: null, status: 'pending' } }),
+      ]);
+
+    await prisma.platformAuditLog.create({
+      data: { actorPhone, action: 'tenant.support_viewed', tenantId },
+    });
+
+    return {
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        plan: tenant.plan,
+        status: tenant.status,
+        enabled_modules: tenant.enabledModules,
+        created_at: tenant.createdAt.toISOString(),
+      },
+      // The three things that explain most "I cannot see it" calls: the account is suspended, the
+      // module is off the plan, or the person asking has a role that was never given the screen.
+      users: users.map((user) => ({
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        custom_role_id: user.roleId,
+        status: user.status,
+        last_login: user.lastLogin?.toISOString() ?? null,
+      })),
+      projects,
+      activity: {
+        since: since.toISOString(),
+        reports: recentReports,
+        attendance_rows: recentAttendance,
+        indents_waiting: pendingIndents,
+        expenses_waiting: pendingExpenses,
+      },
+    };
+  }
+
+  /**
+   * Everything this tenant owns, as JSON, so a customer who asks to leave can be given their data.
+   *
+   * Deliberately a straight dump rather than a curated report: the point is that nothing of theirs
+   * is withheld, and a shape that tried to be readable would invite arguments about what was left
+   * out. Money stays a string of paise here as it does everywhere else.
+   *
+   * Photographs are referenced by key, not embedded. The objects are in storage behind presigned
+   * URLs, and a JSON file with a hundred megabytes of base64 in it is not something anybody can
+   * open.
+   */
+  async exportTenant(actorPhone: string, tenantId: string) {
+    const prisma = this.db.client;
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw ApiError.notFound('Tenant');
+
+    const where = { tenantId };
+    const [
+      users,
+      projects,
+      workers,
+      contractors,
+      attendance,
+      dailyReports,
+      indents,
+      expenses,
+      labourPayments,
+      wagePeriods,
+      materials,
+      stockMovements,
+      documents,
+    ] = await Promise.all([
+      prisma.user.findMany({ where }),
+      prisma.project.findMany({ where }),
+      prisma.worker.findMany({ where }),
+      prisma.contractor.findMany({ where }),
+      prisma.attendance.findMany({ where }),
+      prisma.dailyReport.findMany({ where }),
+      prisma.materialIndent.findMany({ where, include: { items: true } }),
+      prisma.expense.findMany({ where }),
+      prisma.labourPayment.findMany({ where }),
+      prisma.wagePeriod.findMany({ where, include: { lines: true } }),
+      prisma.material.findMany({ where }),
+      prisma.stockMovement.findMany({ where }),
+      prisma.document.findMany({ where }),
+    ]);
+
+    await prisma.platformAuditLog.create({
+      data: { actorPhone, action: 'tenant.exported', tenantId },
+    });
+
+    return {
+      exported_at: new Date().toISOString(),
+      exported_by: actorPhone,
+      tenant,
+      users,
+      projects,
+      workers,
+      contractors,
+      attendance,
+      daily_reports: dailyReports,
+      indents,
+      expenses,
+      labour_payments: labourPayments,
+      wage_periods: wagePeriods,
+      materials,
+      stock_movements: stockMovements,
+      documents,
+    };
+  }
+
+  /**
+   * Removes a tenant and everything under it, for good.
+   *
+   * Guarded by the tenant's own name rather than a checkbox. An operator working through a list of
+   * accounts can click "yes" without reading; typing "Green Acres LLP" requires having looked at
+   * which row they are on. The same reason `DROP DATABASE` asks in production tooling.
+   *
+   * Every foreign key to `tenants` is `ON DELETE CASCADE`, so this is one statement and leaves no
+   * orphans. What it does *not* remove is the audit trail: `platform_audit_log` holds no foreign
+   * key to the tenant precisely so the record of what was done to an account outlives the account.
+   *
+   * Suspension is the reversible option and stays the default; this is for a customer who has
+   * asked to be forgotten, and for clearing test accounts out of a shared database.
+   */
+  async deleteTenant(actorPhone: string, tenantId: string, confirmName: string) {
+    const prisma = this.db.client;
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, name: true, plan: true, status: true },
+    });
+    if (!tenant) throw ApiError.notFound('Tenant');
+
+    if (confirmName.trim() !== tenant.name.trim()) {
+      throw ApiError.conflict('The name typed does not match this account');
+    }
+
+    // Written before the delete, not after: if the delete succeeds and the process dies before the
+    // log is written, there is no tenant left to tell you what happened to it.
+    await prisma.platformAuditLog.create({
+      data: {
+        actorPhone,
+        action: 'tenant.deleted',
+        tenantId,
+        before: { name: tenant.name, plan: tenant.plan, status: tenant.status },
+      },
+    });
+
+    await prisma.tenant.delete({ where: { id: tenantId } });
+    return { deleted: tenant.name };
+  }
+
   /** Records a console sign-in, so the trail shows who was looking and when. */
   async recordLogin(actorPhone: string): Promise<void> {
     await this.db.client.platformAuditLog.create({

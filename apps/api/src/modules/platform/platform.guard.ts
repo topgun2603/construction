@@ -4,6 +4,7 @@ import { TokenService } from '../../common/auth/token.service';
 import { ApiError } from '../../common/errors/api-error';
 import { PlatformAdmins } from './platform-admins.service';
 import { PlatformDb } from './platform-db.service';
+import { PlatformOperators } from './platform-operators.service';
 
 export interface PlatformRequest extends Request {
   platformAdmin?: { phone: string };
@@ -16,8 +17,9 @@ export interface PlatformRequest extends Request {
  * 1. The token verifies with audience `platform`. A tenant access token has audience
  *    `api` and fails the signature check here — it is not a claim this code inspects
  *    and could forget.
- * 2. The phone inside it is *still* on the allowlist. Tokens last eight hours; removing
- *    an operator must not mean waiting for one to expire.
+ * 2. The phone inside it is *still* allowed — either named in the deployment config, or holding
+ *    an unrevoked grant. Tokens last eight hours; removing an operator must not mean waiting for
+ *    one to expire, which is why this is a lookup on every request rather than a token claim.
  * 3. The console is actually configured. An unconfigured deployment refuses everything,
  *    rather than falling through to a client that would read zero rows and look like an
  *    empty platform.
@@ -32,9 +34,10 @@ export class PlatformGuard implements CanActivate {
     private readonly tokens: TokenService,
     private readonly admins: PlatformAdmins,
     private readonly db: PlatformDb,
+    private readonly operators: PlatformOperators,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     if (!this.admins.configured || !this.db.enabled) {
       throw ApiError.forbidden('The platform console is not enabled on this deployment');
     }
@@ -45,7 +48,7 @@ export class PlatformGuard implements CanActivate {
     if (scheme?.toLowerCase() !== 'bearer' || !value) throw ApiError.unauthenticated();
 
     const claims = this.tokens.verifyPlatformToken(value);
-    if (!this.admins.allows(claims.phone)) {
+    if (!(await this.operators.allows(claims.phone))) {
       // Signed, unexpired, and no longer welcome.
       throw ApiError.forbidden('This number no longer has platform access');
     }

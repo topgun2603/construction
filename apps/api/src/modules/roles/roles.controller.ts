@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  PERMISSION_GROUPS,
+  SYSTEM_ROLE_NOTES,
   assignRoleSchema,
   createRoleSchema,
   updateRoleSchema,
@@ -41,6 +43,21 @@ export class RolesController {
   @ApiOperation({ summary: 'Roles in this tenant, built-in and custom' })
   list(@CurrentUser() user: RequestUser) {
     return this.roles.list(user);
+  }
+
+  /**
+   * The permissions a role can be given, grouped and in the words a builder would use.
+   *
+   * Served rather than duplicated in each client. The web app imports `PERMISSION_GROUPS` from the
+   * shared package directly, but the Flutter app cannot — and a second copy of sixty permission
+   * strings written out in Dart would drift from this one the first time a permission was added,
+   * leaving a role editor that silently cannot grant it.
+   */
+  @RequiresPermission('roles.manage')
+  @Get('catalogue')
+  @ApiOperation({ summary: 'Every permission, grouped, for a role editor' })
+  catalogue() {
+    return { groups: PERMISSION_GROUPS, base_role_notes: SYSTEM_ROLE_NOTES };
   }
 
   @RequiresPermission('roles.manage')

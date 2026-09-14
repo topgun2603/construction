@@ -503,7 +503,12 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
       _error = null;
     });
     try {
-      await ref
+    String? siteName;
+    for (final site in ref.read(sitesProvider).value ?? const <Map<String, dynamic>>[]) {
+      if (site['id'] == projectId) siteName = site['name'] as String?;
+    }
+
+      final sent = await ref
           .read(apiProvider)
           .raiseIndent(
             projectId: projectId,
@@ -512,10 +517,11 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
             items: [
               {'material_id': materialId, 'quantity': quantity},
             ],
+            siteName: siteName,
           );
       if (!mounted) return;
       Navigator.of(context).pop();
-      notify(context, 'Indent raised');
+      notify(context, sent ? 'Indent raised' : 'Saved — it will send when you have signal');
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _error = error.message);

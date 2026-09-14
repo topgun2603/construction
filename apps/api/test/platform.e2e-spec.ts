@@ -293,6 +293,183 @@ describe('platform console', () => {
     });
   });
 
+
+  describe('support access', () => {
+    it('answers the usual support call without becoming the customer', async () => {
+      const response = await test
+        .http()
+        .get(`/v1/admin/tenants/${tenantA.tenantId}/support`)
+        .set(adminAuth)
+        .expect(200);
+
+      // The three things that explain most "I cannot see it" calls.
+      expect(response.body.tenant.status).toBe('active');
+      expect(Array.isArray(response.body.tenant.enabled_modules)).toBe(true);
+      expect(response.body.users.length).toBeGreaterThan(0);
+      expect(response.body.activity).toHaveProperty('reports');
+
+      // No token for the tenant comes back. Support looks; it does not become anybody, because an
+      // action taken as the customer is indistinguishable from the customer in their own log.
+      expect(JSON.stringify(response.body)).not.toContain('access_token');
+    });
+
+    it('records that somebody looked', async () => {
+      await test
+        .http()
+        .get(`/v1/admin/tenants/${tenantB.tenantId}/support`)
+        .set(adminAuth)
+        .expect(200);
+
+      const audit = await test.http().get('/v1/admin/audit').set(adminAuth).expect(200);
+      const viewed = audit.body.entries.find(
+        (entry: { action: string; tenant_id: string }) =>
+          entry.action === 'tenant.support_viewed' && entry.tenant_id === tenantB.tenantId,
+      );
+      expect(viewed).toBeDefined();
+    });
+
+    it('is refused without a console token', async () => {
+      await test
+        .http()
+        .get(`/v1/admin/tenants/${tenantA.tenantId}/support`)
+        .set({ Authorization: `Bearer ${tenantA.accessToken}` })
+        .expect(401);
+    });
+  });
+
+  describe('export', () => {
+    it('hands back everything the tenant owns', async () => {
+      const response = await test
+        .http()
+        .get(`/v1/admin/tenants/${tenantA.tenantId}/export`)
+        .set(adminAuth)
+        .expect(200);
+
+      expect(response.body.tenant.id).toBe(tenantA.tenantId);
+      for (const section of ['users', 'projects', 'workers', 'attendance', 'expenses']) {
+        expect(Array.isArray(response.body[section])).toBe(true);
+      }
+      expect(response.body.exported_by).toBe(ADMIN_PHONE);
+    });
+
+    it('does not leak another tenant into the file', async () => {
+      const response = await test
+        .http()
+        .get(`/v1/admin/tenants/${tenantA.tenantId}/export`)
+        .set(adminAuth)
+        .expect(200);
+
+      // The export runs on the BYPASSRLS connection, which is exactly the connection that could
+      // return everybody's rows if a `where` were ever dropped.
+      const foreign = JSON.stringify(response.body).includes(tenantB.tenantId);
+      expect(foreign).toBe(false);
+    });
+  });
+
+  describe('operators', () => {
+    const GRANTED = '919000000077';
+
+    it('lists the deployment config as root, which cannot be revoked', async () => {
+      const response = await test.http().get('/v1/admin/operators').set(adminAuth).expect(200);
+
+      const root = response.body.items.find(
+        (item: { phone: string }) => item.phone === ADMIN_PHONE,
+      );
+      expect(root.root).toBe(true);
+
+      // Locking the owners out of their own console from inside it must not be possible.
+      await test.http().delete(`/v1/admin/operators/${ADMIN_PHONE}`).set(adminAuth).expect(409);
+    });
+
+    it('grants and revokes, and the grant is what lets them in', async () => {
+      // Before the grant, a verified OTP from that number is refused.
+      await test
+        .http()
+        .post('/v1/admin/auth/login')
+        .send({ firebase_token: `dev:${GRANTED}` })
+        .expect(401);
+
+      await test
+        .http()
+        .post('/v1/admin/operators')
+        .set(adminAuth)
+        .send({ phone: '9000000077', name: 'Support' })
+        .expect(201);
+
+      const login = await test
+        .http()
+        .post('/v1/admin/auth/login')
+        .send({ firebase_token: `dev:${GRANTED}` })
+        .expect(201);
+      const grantedAuth = { Authorization: `Bearer ${login.body.access_token}` };
+
+      // They can work, but they are not root and cannot widen the circle.
+      await test.http().get('/v1/admin/tenants').set(grantedAuth).expect(200);
+      await test
+        .http()
+        .post('/v1/admin/operators')
+        .set(grantedAuth)
+        .send({ phone: '9000000078' })
+        .expect(403);
+
+      await test.http().delete(`/v1/admin/operators/${GRANTED}`).set(adminAuth).expect(204);
+
+      // Revocation takes effect on the next request, not when the eight-hour token expires.
+      await test.http().get('/v1/admin/tenants').set(grantedAuth).expect(403);
+    });
+  });
+
+  describe('deleting a tenant', () => {
+    it('refuses unless the name is typed back', async () => {
+      const doomed = await onboardTenant(test, {
+        name: 'Doomed Builders',
+        phone: uniquePhone(),
+      });
+
+      await test
+        .http()
+        .delete(`/v1/admin/tenants/${doomed.tenantId}`)
+        .set(adminAuth)
+        .send({ confirm_name: 'Doomed Builder' })
+        .expect(409);
+
+      // Still there, because the name did not match.
+      await test.http().get(`/v1/admin/tenants/${doomed.tenantId}`).set(adminAuth).expect(200);
+
+      await test
+        .http()
+        .delete(`/v1/admin/tenants/${doomed.tenantId}`)
+        .set(adminAuth)
+        .send({ confirm_name: 'Doomed Builders' })
+        .expect(200);
+
+      await test.http().get(`/v1/admin/tenants/${doomed.tenantId}`).set(adminAuth).expect(404);
+    });
+
+    it('leaves the record of the deletion behind', async () => {
+      const doomed = await onboardTenant(test, {
+        name: 'Briefly Builders',
+        phone: uniquePhone(),
+      });
+      await test
+        .http()
+        .delete(`/v1/admin/tenants/${doomed.tenantId}`)
+        .set(adminAuth)
+        .send({ confirm_name: 'Briefly Builders' })
+        .expect(200);
+
+      // `platform_audit_log` holds no foreign key to the tenant precisely so that what was done to
+      // an account outlives the account.
+      const audit = await test.http().get('/v1/admin/audit').set(adminAuth).expect(200);
+      const entry = audit.body.entries.find(
+        (row: { action: string; tenant_id: string }) =>
+          row.action === 'tenant.deleted' && row.tenant_id === doomed.tenantId,
+      );
+      expect(entry).toBeDefined();
+      expect(entry.before.name).toBe('Briefly Builders');
+    });
+  });
+
   describe('acting on a tenant', () => {
     it('suspends a tenant and locks their sessions out immediately', async () => {
       // Their token works before.

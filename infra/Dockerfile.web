@@ -16,6 +16,37 @@ FROM deps AS build
 COPY packages ./packages
 COPY apps/web ./apps/web
 COPY turbo.json ./
+
+# Everything `NEXT_PUBLIC_` is inlined into the browser bundle at build time, not read at runtime.
+# Passing these as runtime environment variables does nothing: the strings are already compiled in,
+# and what ships is whatever they were when `next build` ran — `undefined`, if nothing was passed.
+#
+# The failure is quiet and late. The site renders, the server half works, and then sign-in throws
+# because the Firebase config is empty and every browser fetch goes to `undefined/v1`. So they are
+# build arguments, and `fly.web.toml` supplies them.
+#
+# None of these are secrets. The web API key is a public identifier — the real Firebase credential
+# is the Admin SDK service account, which belongs to the API and never comes near this image.
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+ARG NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+ARG NEXT_PUBLIC_FIREBASE_APP_ID
+ARG NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+# Deliberately not an ARG. The development sign-in must never be compiled into a deployed build,
+# and the surest way to guarantee that is to leave no lever for it here.
+
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY \
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN \
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID \
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET \
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID \
+    NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID \
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+
 # Opt in to Next's standalone output here only; see apps/web/next.config.mjs.
 ENV NEXT_OUTPUT_STANDALONE=true
 RUN pnpm --filter @sitebook/shared build && pnpm --filter @sitebook/web build

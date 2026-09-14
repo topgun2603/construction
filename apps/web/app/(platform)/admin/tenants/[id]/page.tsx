@@ -6,6 +6,7 @@ import { Badge, type Tone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
+import { DangerZone } from './danger-zone';
 import { TenantControls } from './tenant-controls';
 
 export const metadata = { title: 'Tenant · BUILDR platform' };
@@ -170,6 +171,8 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
           </ul>
         )}
       </Card>
+
+      <DangerZone tenantId={tenant.id} tenantName={tenant.name} />
     </FadeIn>
   );
 }

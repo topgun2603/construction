@@ -66,12 +66,100 @@ void main() {
     return ApiClient(store: _NoSession(), dio: dio);
   }
 
+  /// The API, refusing everything the way a validation error does.
+  ApiClient refusingApi() {
+    final dio = Dio();
+    dio.httpClientAdapter = _RefusingAdapter(422, 'That site is gone');
+    return ApiClient(store: _NoSession(), dio: dio);
+  }
+
   /// The API, accepting everything.
   ApiClient workingApi(List<String> seen) {
     final dio = Dio();
     dio.httpClientAdapter = _RecordingAdapter(seen);
     return ApiClient(store: _NoSession(), dio: dio);
   }
+
+  group('the writes that used to need signal', () {
+    /// Indents, expenses and stock movements had no queue at all: with no network they failed and
+    /// the work was simply lost, while the error message promised it would "send itself when you
+    /// are back on the network". These cover the three kinds now behind that promise.
+
+    test('an indent queued offline carries an id the server can deduplicate on', () async {
+      final repository = repositoryOn(offlineApi());
+
+      await repository.queueWrite(
+        kind: 'indent',
+        label: 'Indent - Lakeview Tower - 2 items',
+        payload: {
+          'project_id': 'site-1',
+          'urgency': 'urgent',
+          'items': [
+            {'material_id': 'm1', 'quantity': '150'},
+          ],
+        },
+      );
+
+      final queued = await db.select(db.outbox).get();
+      expect(queued, hasLength(1));
+      expect(queued.single.kind, 'indent');
+      expect(queued.single.blocked, isFalse);
+
+      // The whole point of the client id: a request that reached the server but whose answer was
+      // lost must be safe to send again, and the API keys its deduplication on this.
+      final payload = jsonDecode(queued.single.payload) as Map<String, dynamic>;
+      expect(payload['client_id'], isNotEmpty);
+      expect(payload['client_id'], queued.single.clientId);
+    });
+
+    test('the queue sends each kind to its own endpoint', () async {
+      final seen = <String>[];
+      final repository = repositoryOn(workingApi(seen));
+
+      await repository.queueWrite(
+        kind: 'indent',
+        label: 'Indent',
+        payload: {'project_id': 'site-1'},
+      );
+      await repository.queueWrite(
+        kind: 'expense',
+        label: 'Spend',
+        payload: {'project_id': 'site-1', 'amount': '320000'},
+      );
+      await repository.queueWrite(
+        kind: 'stock_movement',
+        label: 'Received',
+        payload: {'project_id': 'site-1', 'material_id': 'm1'},
+      );
+
+      final engine = SyncEngine(db: db, api: workingApi(seen));
+      await engine.drain();
+      await engine.settled;
+
+      expect(seen, containsAll(['/indents', '/expenses', '/stock/movements']));
+      expect(await db.select(db.outbox).get(), isEmpty);
+    });
+
+    test('a refusal is kept and shown, not retried forever', () async {
+      final repository = repositoryOn(refusingApi());
+
+      await repository.queueWrite(
+        kind: 'expense',
+        label: 'Spend',
+        payload: {'project_id': 'gone', 'amount': '320000'},
+      );
+      final engine = SyncEngine(db: db, api: refusingApi());
+      await engine.drain();
+      await engine.settled;
+
+      // A 4xx has an answer in it and will be refused again however many times it is sent. It stops
+      // being retried and starts being visible, rather than blocking the queue behind it forever.
+      final queued = await db.select(db.outbox).get();
+      expect(queued, hasLength(1));
+      expect(queued.single.blocked, isTrue);
+      expect(queued.single.lastError, isNotNull);
+    });
+  });
 
   group('the roll call is for one site', () {
     test('lists the crew assigned to it, not the whole firm', () async {

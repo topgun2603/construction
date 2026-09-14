@@ -45,6 +45,11 @@ export class PlatformAdmins {
     return this.allowed.size > 0;
   }
 
+  /// The root numbers, for showing an operator list that does not pretend they are absent.
+  get phones(): string[] {
+    return [...this.allowed];
+  }
+
   /** `phone` must already be in stored form (`91XXXXXXXXXX`). */
   allows(phone: string): boolean {
     return this.allowed.has(phone);

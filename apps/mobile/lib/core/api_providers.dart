@@ -152,6 +152,56 @@ final contractorsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>
 });
 
 /// Money paid to labour — advances, wages, bonuses — newest first.
+/// Everybody with a login, and what they may do.
+final teamProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  return _items(await api.get('/tenants/current/team'));
+});
+
+/// The roles a company has defined, on top of the built-in ones.
+final rolesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  return _items(await api.get('/roles'));
+});
+
+/// Every permission, grouped, in the words a builder would use.
+///
+/// Served by the API rather than written out here. The web app imports the same list from the
+/// shared package; a second copy in Dart would drift the first time a permission was added, and
+/// the symptom would be a role editor that silently cannot grant it.
+///
+/// Not `autoDispose`: it does not change while somebody is signed in, and refetching it every time
+/// the role sheet opens is a request for nothing.
+final permissionCatalogueProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final payload = _object(await api.get('/roles/catalogue'));
+  return (payload['groups'] as List<dynamic>? ?? const [])
+      .map((row) => Map<String, dynamic>.from(row as Map))
+      .toList(growable: false);
+});
+
+/// Wage runs, newest first.
+final wagePeriodsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  return _items(await api.get('/wage-periods', query: {'limit': 50}));
+});
+
+/// One wage run with its lines — what each worker earned and is owed.
+final wagePeriodProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((
+  ref,
+  id,
+) async {
+  final api = ref.watch(apiClientProvider);
+  return _object(await api.get('/wage-periods/$id'));
+});
+
+/// What the client owes on one site, stage by stage.
+final paymentScheduleProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, String>((ref, projectId) async {
+      final api = ref.watch(apiClientProvider);
+      return _object(await api.get('/projects/$projectId/payment-schedule'));
+    });
+
 final paymentsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final api = ref.watch(apiClientProvider);
   return _items(await api.get('/labour-payments', query: {'limit': 100}));
@@ -303,6 +353,38 @@ class Api {
   final Ref _ref;
 
   ApiClient get _client => _ref.read(apiClientProvider);
+
+  /// Sends a write, and queues it instead if the network is not there.
+  ///
+  /// Online-first rather than queue-always, which is the opposite of the roll call. The roll call
+  /// is marked in a basement and reconciled later by design; an indent or a bill is normally raised
+  /// with signal, and going through the queue would mean it did not appear in its own list until a
+  /// drain completed. So the request is tried, and only a *network* failure falls back.
+  ///
+  /// A refusal is not a network failure. A 4xx has an answer in it — the wrong site, a missing
+  /// permission, a quantity the server would not take — and queueing that would hide a mistake
+  /// behind a promise to send it later, then block the queue with something that can never succeed.
+  /// Those are rethrown for the form to show.
+  ///
+  /// `ApiClient` reports an unreachable network as an exception with no status, which is the
+  /// distinction this turns on.
+  Future<bool> _sendOrQueue({
+    required Future<void> Function() send,
+    required String kind,
+    required String label,
+    required Map<String, dynamic> payload,
+  }) async {
+    try {
+      await send();
+      return true;
+    } on ApiException catch (error) {
+      if (error.status != null) rethrow;
+      await _ref
+          .read(offlineRepositoryProvider)
+          .queueWrite(kind: kind, label: label, payload: payload);
+      return false;
+    }
+  }
 
   /// Starts a site. Returns its id, so the caller can open what it just made.
   ///
@@ -469,7 +551,8 @@ class Api {
   }
 
   /// Material in or out of a site store.
-  Future<void> recordStockMovement({
+  /// Returns false when it was queued rather than sent, so the screen can say so.
+  Future<bool> recordStockMovement({
     required String projectId,
     required String materialId,
     required String type,
@@ -477,21 +560,28 @@ class Api {
     required String movedOn,
     String? reference,
     String? note,
+    String? materialName,
   }) async {
-    await _client.post(
-      '/stock/movements',
-      body: {
-        'project_id': projectId,
-        'material_id': materialId,
-        'type': type,
-        'quantity': quantity,
-        'moved_on': movedOn,
-        if (reference != null && reference.isNotEmpty) 'ref': reference,
-        if (note != null && note.isNotEmpty) 'note': note,
-      },
+    final payload = <String, dynamic>{
+      'project_id': projectId,
+      'material_id': materialId,
+      'type': type,
+      'quantity': quantity,
+      'moved_on': movedOn,
+      if (reference != null && reference.isNotEmpty) 'ref': reference,
+      if (note != null && note.isNotEmpty) 'note': note,
+    };
+
+    final sent = await _sendOrQueue(
+      send: () => _client.post('/stock/movements', body: payload),
+      kind: 'stock_movement',
+      label:
+          '${type == 'in' ? 'Received' : 'Used'} · $quantity ${materialName ?? 'material'}',
+      payload: payload,
     );
     _ref.invalidate(stockProvider);
     _ref.invalidate(overviewProvider);
+    return sent;
   }
 
   /// Corrects a bill already recorded. Only what somebody can still change: the server refuses
@@ -574,6 +664,171 @@ class Api {
     _ref.invalidate(sitesProvider);
   }
 
+  // --- materials ------------------------------------------------------------------------------
+
+  /// Adds a material to the company's list, which is what indents and stock are chosen from.
+  Future<void> createMaterial({
+    required String name,
+    required String unit,
+    String? category,
+  }) async {
+    await _client.post(
+      '/materials',
+      body: {
+        'name': name,
+        'unit': unit,
+        if (category != null && category.isNotEmpty) 'category': category,
+      },
+    );
+    _ref.invalidate(materialsProvider);
+  }
+
+  /// Removes a material. The server soft-deletes, so stock already booked against it stands.
+  Future<void> removeMaterial(String id) async {
+    await _client.delete('/materials/$id');
+    _ref.invalidate(materialsProvider);
+    _ref.invalidate(stockProvider);
+  }
+
+  // --- the team -------------------------------------------------------------------------------
+
+  /// Invites somebody by number. They become real the first time they sign in with it.
+  Future<void> inviteTeamMember({
+    required String name,
+    required String phone,
+    required String role,
+    List<String>? projectIds,
+  }) async {
+    await _client.post(
+      '/tenants/current/invite',
+      body: {
+        'name': name,
+        'phone': phone,
+        'role': role,
+        if (projectIds != null && projectIds.isNotEmpty) 'project_ids': projectIds,
+      },
+    );
+    _ref.invalidate(teamProvider);
+  }
+
+  Future<void> removeTeamMember(String userId) async {
+    await _client.delete('/tenants/current/team/$userId');
+    _ref.invalidate(teamProvider);
+  }
+
+  /// Moves somebody onto a different role.
+  Future<void> setMemberRole(String userId, Map<String, dynamic> change) async {
+    await _client.patch('/roles/members/$userId', body: change);
+    _ref.invalidate(teamProvider);
+  }
+
+  // --- roles ----------------------------------------------------------------------------------
+
+  Future<void> createRole({
+    required String name,
+    required String basedOn,
+    required List<String> permissions,
+    bool seesAllProjects = false,
+  }) async {
+    await _client.post(
+      '/roles',
+      body: {
+        'name': name,
+        'base_role': basedOn,
+        'permissions': permissions,
+        'sees_all_projects': seesAllProjects,
+      },
+    );
+    _ref.invalidate(rolesProvider);
+  }
+
+  Future<void> updateRole(String id, Map<String, dynamic> changes) async {
+    await _client.patch('/roles/$id', body: changes);
+    _ref.invalidate(rolesProvider);
+    // Somebody's own permissions may have just changed, and the app decides what to draw from them.
+    unawaited(_ref.read(authControllerProvider.notifier).refreshMe());
+  }
+
+  Future<void> removeRole(String id) async {
+    await _client.delete('/roles/$id');
+    _ref.invalidate(rolesProvider);
+  }
+
+  // --- wage periods ---------------------------------------------------------------------------
+
+  /// Drafts a wage run for a contractor over a date range.
+  Future<String> generateWagePeriod({
+    required String contractorId,
+    required String from,
+    required String to,
+  }) async {
+    final payload = await _client.post(
+      '/wage-periods/generate',
+      body: {'contractor_id': contractorId, 'period_start': from, 'period_end': to},
+    );
+    _ref.invalidate(wagePeriodsProvider);
+    return _object(payload)['id'] as String;
+  }
+
+  /// Closes a run. After this the figures in it stop moving, whatever happens to attendance.
+  Future<void> finaliseWagePeriod(String id) async {
+    await _client.post('/wage-periods/$id/finalise');
+    _ref.invalidate(wagePeriodsProvider);
+    _ref.invalidate(wagePeriodProvider(id));
+  }
+
+  Future<void> reopenWagePeriod(String id) async {
+    await _client.post('/wage-periods/$id/reopen');
+    _ref.invalidate(wagePeriodsProvider);
+    _ref.invalidate(wagePeriodProvider(id));
+  }
+
+  // --- the client payment schedule --------------------------------------------------------------
+
+  Future<void> addPaymentStage({
+    required String projectId,
+    required String label,
+    required String amountPaise,
+    String? dueDate,
+  }) async {
+    await _client.post(
+      '/projects/$projectId/payment-schedule',
+      body: {'label': label, 'amount': amountPaise, 'due_date': ?dueDate},
+    );
+    _ref.invalidate(paymentScheduleProvider(projectId));
+  }
+
+  Future<void> updatePaymentStage(
+    String stageId, {
+    required String projectId,
+    required Map<String, dynamic> changes,
+  }) async {
+    await _client.patch('/payment-stages/$stageId', body: changes);
+    _ref.invalidate(paymentScheduleProvider(projectId));
+  }
+
+  /// Records money the client actually paid against the schedule.
+  Future<void> recordClientReceipt({
+    required String projectId,
+    required String amountPaise,
+    required String receivedOn,
+    String? stageId,
+    String? mode,
+    String? reference,
+  }) async {
+    await _client.post(
+      '/projects/$projectId/payment-schedule/receipts',
+      body: {
+        'amount': amountPaise,
+        'received_on': receivedOn,
+        'stage_id': ?stageId,
+        'mode': mode ?? 'bank',
+        if (reference != null && reference.isNotEmpty) 'reference': reference,
+      },
+    );
+    _ref.invalidate(paymentScheduleProvider(projectId));
+  }
+
   Future<void> saveRollCall({
     required String projectId,
     required String date,
@@ -621,25 +876,32 @@ class Api {
     _ref.invalidate(overviewProvider);
   }
 
-  Future<void> raiseIndent({
+  /// Returns false when it was queued rather than sent, so the screen can say so.
+  Future<bool> raiseIndent({
     required String projectId,
     required String urgency,
     String? notes,
     String? requiredBy,
     required List<Map<String, dynamic>> items,
+    String? siteName,
   }) async {
-    await _client.post(
-      '/indents',
-      body: {
-        'project_id': projectId,
-        'urgency': urgency,
-        if (notes != null && notes.isNotEmpty) 'notes': notes,
-        'required_by': ?requiredBy,
-        'items': items,
-      },
+    final payload = <String, dynamic>{
+      'project_id': projectId,
+      'urgency': urgency,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+      'required_by': ?requiredBy,
+      'items': items,
+    };
+
+    final sent = await _sendOrQueue(
+      send: () => _client.post('/indents', body: payload),
+      kind: 'indent',
+      label: 'Indent · ${siteName ?? 'site'} · ${items.length} item${items.length == 1 ? '' : 's'}',
+      payload: payload,
     );
     _ref.invalidate(indentsProvider);
     _ref.invalidate(overviewProvider);
+    return sent;
   }
 
   Future<void> decideIndent(String id, String status, {String? note}) async {
@@ -652,25 +914,32 @@ class Api {
     _ref.invalidate(todayProvider);
   }
 
-  Future<void> recordExpense({
+  /// Returns false when it was queued rather than sent, so the screen can say so.
+  Future<bool> recordExpense({
     required String projectId,
     required String amountPaise,
     required String category,
     required String spentOn,
     String? note,
+    String? siteName,
   }) async {
-    await _client.post(
-      '/expenses',
-      body: {
-        'project_id': projectId,
-        'amount': amountPaise,
-        'category': category,
-        'spent_on': spentOn,
-        if (note != null && note.isNotEmpty) 'note': note,
-      },
+    final payload = <String, dynamic>{
+      'project_id': projectId,
+      'amount': amountPaise,
+      'category': category,
+      'spent_on': spentOn,
+      if (note != null && note.isNotEmpty) 'note': note,
+    };
+
+    final sent = await _sendOrQueue(
+      send: () => _client.post('/expenses', body: payload),
+      kind: 'expense',
+      label: 'Spend · ${formatInrCompact(amountPaise)} · ${siteName ?? titleCase(category)}',
+      payload: payload,
     );
     _ref.invalidate(expensesProvider);
     _ref.invalidate(overviewProvider);
+    return sent;
   }
 
   Future<void> decideExpense(String id, String status) async {
@@ -762,6 +1031,23 @@ class Api {
         'supersedes_id': ?supersedesId,
       },
     );
+    _invalidateDocuments(projectId);
+  }
+
+  /// Corrects what a document is called and what kind of thing it is.
+  ///
+  /// Separate from uploading a revision, and the distinction matters on site: a revision is a new
+  /// drawing superseding an old one, while this is the same drawing that was filed under the wrong
+  /// name. Conflating them would put a second copy of an unchanged document in the history and make
+  /// "what were we building to in March" harder to answer, which is the whole point of keeping
+  /// revisions at all.
+  Future<void> updateDocument(
+    String id, {
+    required String title,
+    required String category,
+    String? projectId,
+  }) async {
+    await _client.patch('/documents/$id', body: {'title': title, 'category': category});
     _invalidateDocuments(projectId);
   }
 

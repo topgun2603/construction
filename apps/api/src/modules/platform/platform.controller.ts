@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -13,9 +16,13 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  deleteTenantSchema,
+  grantOperatorSchema,
   listTenantsQuerySchema,
   platformLoginSchema,
   updateTenantPlatformSchema,
+  type DeleteTenantInput,
+  type GrantOperatorInput,
   type ListTenantsQuery,
   type PlatformLoginInput,
   type UpdateTenantPlatformInput,
@@ -26,6 +33,7 @@ import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { PlatformAnalytics } from './platform-analytics.service';
 import { PlatformAuthService } from './platform-auth.service';
 import { PlatformGuard, type PlatformRequest } from './platform.guard';
+import { PlatformOperators } from './platform-operators.service';
 import { PlatformService } from './platform.service';
 
 /**
@@ -45,6 +53,7 @@ export class PlatformController {
     private readonly auth: PlatformAuthService,
     private readonly platform: PlatformService,
     private readonly analytics: PlatformAnalytics,
+    private readonly operators: PlatformOperators,
   ) {}
 
   /**
@@ -63,7 +72,10 @@ export class PlatformController {
   @Get('me')
   @ApiOperation({ summary: 'Who the console thinks you are' })
   me(@Req() request: PlatformRequest) {
-    return { phone: actor(request) };
+    const phone = actor(request);
+    // `root` drives the console's own UI: an operator who cannot grant access should not be shown
+    // the controls for it and then refused by the server.
+    return { phone, root: this.operators.isRoot(phone) };
   }
 
   @UseGuards(PlatformGuard)
@@ -96,6 +108,70 @@ export class PlatformController {
     @Body(zodBody(updateTenantPlatformSchema)) body: UpdateTenantPlatformInput,
   ) {
     return this.platform.updateTenant(actor(request), id, body);
+  }
+
+  /**
+   * Read-only, and not impersonation.
+   *
+   * Minting a tenant token for a support person would put them inside a customer's account with
+   * that customer's permissions and nothing in the tenant's own audit log to say it was not them.
+   * This answers the same questions without becoming anybody.
+   */
+  @UseGuards(PlatformGuard)
+  @Get('tenants/:id/support')
+  @ApiOperation({ summary: 'What an operator needs to answer a support call' })
+  support(@Req() request: PlatformRequest, @Param('id', ParseUUIDPipe) id: string) {
+    return this.platform.supportView(actor(request), id);
+  }
+
+  @UseGuards(PlatformGuard)
+  @Get('tenants/:id/export')
+  @ApiOperation({ summary: 'Everything this tenant owns, as JSON' })
+  exportTenant(@Req() request: PlatformRequest, @Param('id', ParseUUIDPipe) id: string) {
+    return this.platform.exportTenant(actor(request), id);
+  }
+
+  /**
+   * A DELETE with a body, which is unusual but right here: the confirmation is the tenant's own
+   * name, and a name in a query string ends up in access logs and browser history.
+   */
+  @UseGuards(PlatformGuard)
+  @Delete('tenants/:id')
+  @ApiOperation({ summary: 'Remove a tenant and everything under it, permanently' })
+  deleteTenant(
+    @Req() request: PlatformRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(deleteTenantSchema)) body: DeleteTenantInput,
+  ) {
+    return this.platform.deleteTenant(actor(request), id, body.confirm_name);
+  }
+
+  @UseGuards(PlatformGuard)
+  @Get('operators')
+  @ApiOperation({ summary: 'Who may use the console' })
+  listOperators() {
+    return this.operators.list().then((items) => ({ items }));
+  }
+
+  @UseGuards(PlatformGuard)
+  @Post('operators')
+  @ApiOperation({ summary: 'Grant console access to a number' })
+  grantOperator(
+    @Req() request: PlatformRequest,
+    @Body(zodBody(grantOperatorSchema)) body: GrantOperatorInput,
+  ) {
+    return this.operators.grant(actor(request), body);
+  }
+
+  @UseGuards(PlatformGuard)
+  @Delete('operators/:phone')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Withdraw console access' })
+  async revokeOperator(
+    @Req() request: PlatformRequest,
+    @Param('phone') phone: string,
+  ): Promise<void> {
+    await this.operators.revoke(actor(request), phone);
   }
 
   @UseGuards(PlatformGuard)

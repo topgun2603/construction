@@ -256,6 +256,28 @@ class OfflineRepository {
   }
 
   /// Save a roll call. Lands on disk immediately; reaches the server when it can.
+  /// Queues a write that has no local mirror: an indent, an expense, a stock movement.
+  ///
+  /// Called only when the request has already been tried and the network was not there. Everything
+  /// else about it is the roll call's arrangement — a client id the API deduplicates on, a label a
+  /// person would recognise in the queue, and an entry that stays until the server accepts it.
+  ///
+  /// The client id is generated here rather than taken from the caller so that one queued thing can
+  /// never be given two of them by a retry higher up.
+  Future<void> queueWrite({
+    required String kind,
+    required String label,
+    required Map<String, dynamic> payload,
+  }) async {
+    final clientId = _clientId();
+    await _sync.enqueue(
+      kind: kind,
+      clientId: clientId,
+      label: label,
+      payload: {...payload, 'client_id': clientId},
+    );
+  }
+
   Future<void> saveRollCall({
     required String projectId,
     required String date,

@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../shared/site_map.dart';
 import '../../shared/site_photos.dart';
 import '../../shared/widgets.dart';
+import 'payment_schedule.dart';
 import '../documents/documents_list.dart';
 import '../portal/site_conversation_screen.dart';
 
@@ -79,6 +80,15 @@ class SiteDetailScreen extends ConsumerWidget {
                 trailing: AddDocumentButton(projectId: projectId, compact: true),
               ),
               DocumentsList(projectId: projectId),
+            ],
+            const SizedBox(height: 24),
+            // The money the job brings in, kept next to the timeline it is usually tied to: an
+            // instalment falls due when a milestone is reached, and reading one without the other
+            // is how a builder forgets to raise it.
+            if ((me?.can('client_payments.view') ?? false)) ...[
+              const SizedBox(height: 24),
+              const SectionLabel('Client payments'),
+              PaymentSchedule(projectId: projectId),
             ],
             const SizedBox(height: 24),
             const SectionLabel('Timeline'),

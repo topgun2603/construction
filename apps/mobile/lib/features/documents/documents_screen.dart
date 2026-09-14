@@ -30,9 +30,13 @@ class DocumentsScreen extends ConsumerWidget {
           ],
         ),
       ),
-      // Lifted clear of the floating bar the shell draws over this screen.
+      /*
+       * `fabInset` is already the whole lift — the phone's own navigation plus the floating bar the
+       * shell draws over this screen. Subtracting the bar height back off, as this once did, put
+       * the button exactly behind the bar it was meant to clear.
+       */
       floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: fabInset(context) - kFloatingBarHeight),
+        padding: EdgeInsets.only(bottom: fabInset(context)),
         child: const AddDocumentButton(),
       ),
     );

@@ -1,0 +1,61 @@
+# BUILDR API and background worker.
+#
+# One Fly app, two process groups. They are the same image and the same secrets — the worker is
+# `dist/worker.js` instead of `dist/main.js`, and sets `SITEBOOK_ROLE=worker` itself, which is what
+# stops two copies of every cron job firing. Splitting them into separate Fly apps would mean
+# setting thirty secrets twice and remembering to deploy both after every change.
+#
+#   fly deploy -c fly.api.toml
+#
+# See docs/deploy-fly.md before the first one.
+
+app = "buildr-api"
+primary_region = "bom"
+
+[build]
+  dockerfile = "infra/Dockerfile.api"
+
+[processes]
+  # The Dockerfile's WORKDIR is /app/apps/api, so these are relative to it.
+  app = "node dist/main.js"
+  worker = "node dist/worker.js"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  S3_REGION = "ap-south-1"
+  # Where the browser calls from. Anything not listed here is refused at the CORS layer, so this
+  # has to change the day the web app gets a real domain.
+  CORS_ORIGINS = "https://buildr-web.fly.dev"
+  # Nominatim asks for a contact address on every caller. Ours is sent on geocode lookups.
+  GEOCODER_CONTACT = "ops@example.com"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  processes = ["app"]
+
+  # Never scaled to zero. A supervisor filing a report from a site with one bar has a request
+  # timeout measured in seconds, and a cold machine spends most of that starting Node.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "4s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/v1/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  processes = ["app"]
+
+[[vm]]
+  # The worker is quieter than the API but does the heavy one-off jobs — the nightly wage-period
+  # draft walks every contractor in every tenant — so it is not the machine to starve.
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  processes = ["worker"]

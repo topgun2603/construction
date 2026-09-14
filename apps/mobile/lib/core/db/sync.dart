@@ -239,6 +239,16 @@ class SyncEngine with WidgetsBindingObserver {
         for (final path in (payload['pending_photos'] as List<dynamic>? ?? const [])) {
           await PhotoQueue.discard(path as String);
         }
+      // The three below are plain posts. They have no mirror to reconcile afterwards, because
+      // nothing on the phone renders them from local state — the list they belong to is the
+      // server's, and it refreshes when the queue empties. What the phone owes them is only that
+      // they are not lost, and that a retry cannot make two of them.
+      case 'indent':
+        await _api.post('/indents', body: payload);
+      case 'expense':
+        await _api.post('/expenses', body: payload);
+      case 'stock_movement':
+        await _api.post('/stock/movements', body: payload);
       default:
         throw ApiException('Nothing knows how to send a ${entry.kind}');
     }

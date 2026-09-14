@@ -27,7 +27,7 @@ const documentCategories = <String>[
 /// to. Who can open it is stated on every row rather than hidden behind a tap: a builder needs to
 /// see at a glance that their costing is not shared with the client, and "I thought it was private"
 /// is not a thing you get to say afterwards.
-class DocumentsList extends ConsumerWidget {
+class DocumentsList extends ConsumerStatefulWidget {
   const DocumentsList({super.key, this.projectId, this.showProject = false});
 
   /// Null for every site this person is on.
@@ -37,20 +37,113 @@ class DocumentsList extends ConsumerWidget {
   final bool showProject;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DocumentsList> createState() => _DocumentsListState();
+}
+
+/// How a long list is narrowed on a phone.
+///
+/// The web page answers the same questions with a table — sort a column, page through. Neither
+/// gesture exists here: a phone list scrolls, and columns do not fit. So the capabilities are the
+/// same and the shape is not. Search and the newest-first default do most of the work; the filter
+/// sheet holds the rest, because a toolbar of six controls above a list would leave no list.
+///
+/// Nothing is fetched again when any of this changes. The documents are already in hand, and a
+/// request per keystroke on a site with one bar is how a search box comes to feel broken.
+class _DocumentsListState extends ConsumerState<DocumentsList> {
+  String _query = '';
+  String? _category;
+  String? _from;
+  String? _to;
+  _Sort _sort = _Sort.newest;
+
+  /// Rendered so far. `ListView` is lazy, so this is not about drawing cost — it is about the
+  /// scrollbar. Six hundred documents make the thumb a sliver and scrolling a gamble, and "show
+  /// more" keeps somebody's place instead of dropping them into the middle of a list.
+  static const _pageSize = 25;
+  int _shown = _pageSize;
+
+  bool get _filtered => _query.isNotEmpty || _category != null || _from != null || _to != null;
+
+  void _reset() => setState(() => _shown = _pageSize);
+
+  List<Map<String, dynamic>> _apply(List<Map<String, dynamic>> rows) {
+    final filtered = rows.where((document) {
+      if (_category != null && document['category'] != _category) return false;
+
+      // `created_at` is an instant and the range is days, so only the date part is compared —
+      // otherwise "to the 14th" would exclude everything filed on the 14th after midnight.
+      final filed = (document['created_at'] as String? ?? '').split('T').first;
+      if (_from != null && filed.compareTo(_from!) < 0) return false;
+      if (_to != null && filed.compareTo(_to!) > 0) return false;
+
+      if (_query.isEmpty) return true;
+      final haystack = [
+        document['title'],
+        document['category'],
+        document['project_name'],
+        (document['uploaded_by'] as Map?)?['name'],
+      ].whereType<String>().join(' ').toLowerCase();
+      return haystack.contains(_query);
+    }).toList();
+
+    filtered.sort(switch (_sort) {
+      _Sort.newest => (a, b) => (b['created_at'] as String? ?? '').compareTo(
+        a['created_at'] as String? ?? '',
+      ),
+      _Sort.oldest => (a, b) => (a['created_at'] as String? ?? '').compareTo(
+        b['created_at'] as String? ?? '',
+      ),
+      _Sort.name => (a, b) => (a['title'] as String? ?? '').toLowerCase().compareTo(
+        (b['title'] as String? ?? '').toLowerCase(),
+      ),
+      _Sort.site => (a, b) => (a['project_name'] as String? ?? '~').compareTo(
+        b['project_name'] as String? ?? '~',
+      ),
+    });
+
+    return filtered;
+  }
+
+  Future<void> _openFilters(List<Map<String, dynamic>> rows) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Palette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _FilterSheet(
+        category: _category,
+        from: _from,
+        to: _to,
+        sort: _sort,
+        showSite: widget.showProject,
+        onApply: (category, from, to, sort) => setState(() {
+          _category = category;
+          _from = from;
+          _to = to;
+          _sort = sort;
+          _shown = _pageSize;
+        }),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final me = ref.watch(authControllerProvider).me;
     final canManage = me?.can('documents.manage') ?? false;
-    final documents = ref.watch(documentsProvider(projectId));
+    final documents = ref.watch(documentsProvider(widget.projectId));
 
     return AsyncSection<List<Map<String, dynamic>>>(
       value: documents,
-      onRetry: () => ref.invalidate(documentsProvider(projectId)),
+      onRetry: () => ref.invalidate(documentsProvider(widget.projectId)),
       builder: (rows) {
         if (rows.isEmpty) {
           return Card(
             child: EmptyNote(
               icon: Icons.folder_open_outlined,
-              title: showProject ? 'No documents yet' : 'No documents on this site',
+              title: widget.showProject ? 'No documents yet' : 'No documents on this site',
               body: canManage
                   ? 'Drawings, the contract, approvals. Each keeps its revisions, so you can show '
                         'what was current on the day something was built.'
@@ -59,20 +152,290 @@ class DocumentsList extends ConsumerWidget {
           );
         }
 
-        return ListCard(
+        final visible = _apply(rows);
+        final shown = visible.take(_shown).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final document in rows)
-              _Row(
-                document: document,
-                canManage: canManage,
-                showProject: showProject,
-                listProjectId: projectId,
+            // The controls appear once there is enough to need them. Four drawings on a site do
+            // not want a search box above them.
+            if (rows.length > 5) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      onChanged: (value) {
+                        setState(() => _query = value.trim().toLowerCase());
+                        _reset();
+                      },
+                      decoration: const InputDecoration(
+                        hintText: 'Search documents',
+                        prefixIcon: Icon(Icons.search, size: 20),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Badged when something is on, so a list that looks short for no obvious reason
+                  // always has a visible reason.
+                  IconButton.filledTonal(
+                    onPressed: () => _openFilters(rows),
+                    icon: Badge(
+                      isLabelVisible: _category != null || _from != null || _to != null,
+                      backgroundColor: Palette.accent,
+                      child: const Icon(Icons.tune, size: 20),
+                    ),
+                    tooltip: 'Filter and sort',
+                  ),
+                ],
+              ),
+              if (_filtered)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${visible.length} of ${rows.length}',
+                          style: const TextStyle(fontSize: 12.5, color: Palette.inkMuted),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() {
+                          _query = '';
+                          _category = null;
+                          _from = null;
+                          _to = null;
+                          _shown = _pageSize;
+                        }),
+                        child: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 10),
+            ],
+            if (visible.isEmpty)
+              Card(
+                child: EmptyNote(
+                  icon: Icons.search_off,
+                  title: 'Nothing matches',
+                  body: _from != null || _to != null
+                      ? 'Nothing was filed in that range. Try widening the dates.'
+                      : 'Try part of a name, or a different category.',
+                ),
+              )
+            else
+              ListCard(
+                children: [
+                  for (final document in shown)
+                    _Row(
+                      document: document,
+                      canManage: canManage,
+                      showProject: widget.showProject,
+                      listProjectId: widget.projectId,
+                    ),
+                ],
+              ),
+            if (shown.length < visible.length)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _shown += _pageSize),
+                  child: Text('Show ${visible.length - shown.length} more'),
+                ),
               ),
           ],
         );
       },
     );
   }
+}
+
+enum _Sort { newest, oldest, name, site }
+
+extension _SortLabel on _Sort {
+  String get label => switch (this) {
+    _Sort.newest => 'Newest first',
+    _Sort.oldest => 'Oldest first',
+    _Sort.name => 'By name',
+    _Sort.site => 'By site',
+  };
+}
+
+/// Category, date range and order, in a sheet.
+///
+/// Applied on "Show results" rather than as each control is touched. Half a range — a start with no
+/// end — would otherwise filter the list to something nobody asked for while they were still
+/// picking the second date.
+class _FilterSheet extends StatefulWidget {
+  const _FilterSheet({
+    required this.category,
+    required this.from,
+    required this.to,
+    required this.sort,
+    required this.showSite,
+    required this.onApply,
+  });
+
+  final String? category;
+  final String? from;
+  final String? to;
+  final _Sort sort;
+  final bool showSite;
+  final void Function(String? category, String? from, String? to, _Sort sort) onApply;
+
+  @override
+  State<_FilterSheet> createState() => _FilterSheetState();
+}
+
+class _FilterSheetState extends State<_FilterSheet> {
+  late String? _category = widget.category;
+  late String? _from = widget.from;
+  late String? _to = widget.to;
+  late _Sort _sort = widget.sort;
+
+  Future<void> _pick({required bool start}) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: parseIsoDate(start ? _from : _to) ?? DateTime.now(),
+      firstDate: DateTime(DateTime.now().year - 5),
+      lastDate: DateTime.now(),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (start) {
+        _from = isoDate(picked);
+        // A start after the end is a range that matches nothing, so the end moves rather than
+        // leaving somebody to work out why the list went empty.
+        if (_to != null && _to!.compareTo(_from!) < 0) _to = _from;
+      } else {
+        _to = isoDate(picked);
+        if (_from != null && _to!.compareTo(_from!) < 0) _from = _to;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Filter and sort',
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const _SheetLabel('What it is'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Anything'),
+                  selected: _category == null,
+                  onSelected: (_) => setState(() => _category = null),
+                ),
+                for (final category in documentCategories)
+                  ChoiceChip(
+                    label: Text(titleCase(category)),
+                    selected: _category == category,
+                    onSelected: (_) => setState(() => _category = category),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            const _SheetLabel('Filed between'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _pick(start: true),
+                    child: Text(_from == null ? 'Any time' : shortDate(_from)),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('to', style: TextStyle(color: Palette.inkMuted)),
+                ),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _pick(start: false),
+                    child: Text(_to == null ? 'Today' : shortDate(_to)),
+                  ),
+                ),
+              ],
+            ),
+            if (_from != null || _to != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() {
+                    _from = null;
+                    _to = null;
+                  }),
+                  child: const Text('Any date'),
+                ),
+              ),
+            const SizedBox(height: 18),
+            const _SheetLabel('Order'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final option in _Sort.values)
+                  if (option != _Sort.site || widget.showSite)
+                    ChoiceChip(
+                      label: Text(option.label),
+                      selected: _sort == option,
+                      onSelected: (_) => setState(() => _sort = option),
+                    ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            FilledButton(
+              onPressed: () {
+                widget.onApply(_category, _from, _to, _sort);
+                Navigator.of(context).pop();
+              },
+              child: const Text('Show results'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetLabel extends StatelessWidget {
+  const _SheetLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Palette.inkMuted),
+    ),
+  );
 }
 
 class _Row extends ConsumerWidget {
@@ -232,6 +595,15 @@ class _Row extends ConsumerWidget {
               onTap: () => Navigator.of(context).pop('share'),
             ),
             ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Rename or recategorise'),
+              subtitle: const Text(
+                'The same document, filed correctly',
+                style: TextStyle(fontSize: 12),
+              ),
+              onTap: () => Navigator.of(context).pop('edit'),
+            ),
+            ListTile(
               leading: const Icon(Icons.history),
               title: const Text('Upload a new revision'),
               subtitle: const Text(
@@ -255,6 +627,28 @@ class _Row extends ConsumerWidget {
     switch (choice) {
       case 'open':
         await _open(context);
+      case 'edit':
+        final details = await showDialog<({String title, String category})>(
+          context: context,
+          builder: (_) => _EditDetailsDialog(
+            initialTitle: document['title'] as String? ?? '',
+            initialCategory: document['category'] as String? ?? 'other',
+          ),
+        );
+        if (details == null || !context.mounted) return;
+        try {
+          await ref
+              .read(apiProvider)
+              .updateDocument(
+                document['id'] as String,
+                title: details.title,
+                category: details.category,
+                projectId: projectId ?? listProjectId,
+              );
+          if (context.mounted) notify(context, 'Updated');
+        } on ApiException catch (error) {
+          if (context.mounted) notify(context, error.message, bad: true);
+        }
       case 'revise':
         await addDocument(
           context,
@@ -600,6 +994,78 @@ class _DetailsDialogState extends State<_DetailsDialog> {
                   share: _share,
                 )),
           child: const Text('File it'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Renaming a document, or filing it under the right kind.
+///
+/// Sharing is left out deliberately. It is one tap away in the same menu, and putting it here too
+/// would mean an operator correcting a typo has to decide about client visibility at the same
+/// time — which is how a contract ends up shared by somebody who was only fixing a spelling.
+class _EditDetailsDialog extends StatefulWidget {
+  const _EditDetailsDialog({required this.initialTitle, required this.initialCategory});
+
+  final String initialTitle;
+  final String initialCategory;
+
+  @override
+  State<_EditDetailsDialog> createState() => _EditDetailsDialogState();
+}
+
+class _EditDetailsDialogState extends State<_EditDetailsDialog> {
+  late final _title = TextEditingController(text: widget.initialTitle);
+  late String _category = documentCategories.contains(widget.initialCategory)
+      ? widget.initialCategory
+      : 'other';
+
+  @override
+  void dispose() {
+    _title.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Document details'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _title,
+              autofocus: true,
+              maxLength: 200,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(labelText: 'Name', counterText: ''),
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              initialValue: _category,
+              decoration: const InputDecoration(labelText: 'What is it'),
+              items: [
+                for (final category in documentCategories)
+                  DropdownMenuItem(value: category, child: Text(titleCase(category))),
+              ],
+              onChanged: (value) => setState(() => _category = value ?? _category),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _title.text.trim().isEmpty
+              ? null
+              : () => Navigator.of(
+                  context,
+                ).pop((title: _title.text.trim(), category: _category)),
+          child: const Text('Save'),
         ),
       ],
     );

@@ -35,6 +35,20 @@ export interface PlatformTokenClaims extends JwtPayload {
   purpose: 'platform';
 }
 
+/**
+ * A link a worker was sent, standing in for an account they do not have.
+ *
+ * Carries the tenant and the worker and nothing else: it can only ever read one person's own
+ * attendance and dues, so there is no permission to encode and no session to escalate. A worker on
+ * a site has no email, often no smartphone of their own, and no reason to keep a password — the
+ * link *is* the credential, and it expires.
+ */
+export interface WorkerLinkClaims extends JwtPayload {
+  tenantId: string;
+  workerId: string;
+  purpose: 'worker_link';
+}
+
 /** Short-lived ticket proving a phone passed OTP but has no tenant yet. */
 export interface OnboardingTokenClaims extends JwtPayload {
   phone: string;
@@ -155,6 +169,36 @@ export class TokenService {
     return claims;
   }
 
+  /**
+   * Signs a worker's self-service link.
+   *
+   * Thirty days, and deliberately not longer. The link travels by WhatsApp, which means it lives
+   * in a chat that gets forwarded, backed up and read over somebody's shoulder — so it has to stop
+   * working on its own. A worker who still needs it gets sent another, which costs the site office
+   * one tap.
+   *
+   * No row is written for it. Revocation is by the reader instead: the endpoint refuses a worker
+   * who has been removed or a tenant that is suspended, which covers every case a revocation list
+   * would have, without a table that has to be cleaned up.
+   */
+  signWorkerLink(input: { tenantId: string; workerId: string }): string {
+    return jwt.sign(
+      { tenantId: input.tenantId, workerId: input.workerId, purpose: 'worker_link' },
+      this.config.JWT_SECRET,
+      { issuer: ISSUER, audience: 'worker_link', expiresIn: WORKER_LINK_TTL_SECONDS },
+    );
+  }
+
+  verifyWorkerLink(token: string): WorkerLinkClaims {
+    const claims = this.verify<WorkerLinkClaims>(token, this.config.JWT_SECRET, 'worker_link');
+    if (claims.purpose !== 'worker_link') throw ApiError.invalidToken('Not a worker link');
+    return claims;
+  }
+
+  get workerLinkTtlSeconds(): number {
+    return WORKER_LINK_TTL_SECONDS;
+  }
+
   get platformTokenTtlSeconds(): number {
     return this.config.PLATFORM_TOKEN_TTL_SECONDS;
   }
@@ -168,6 +212,9 @@ export class TokenService {
     }
   }
 }
+
+/** Thirty days. See `signWorkerLink` for why it is not indefinite. */
+const WORKER_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /** Stored so a database dump cannot be replayed as a session. */
 export function hashToken(token: string): string {

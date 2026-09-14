@@ -101,6 +101,20 @@ export class WorkersController {
     return this.workers.assign(user, id, body);
   }
 
+  /**
+   * Mints the link a worker is sent so they can check their own days and dues.
+   *
+   * Behind the same permission as the ledger, because it discloses exactly the ledger — handing
+   * somebody a link is handing them a read, and the person doing the handing should already be
+   * allowed to see what is in it.
+   */
+  @RequiresPermission('wages.view', 'payments.view')
+  @Post(':id/self-service-link')
+  @ApiOperation({ summary: 'A link the worker can open without an account' })
+  selfServiceLink(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.workers.selfServiceLink(user, id);
+  }
+
   @RequiresPermission('wages.view', 'payments.view')
   @Get(':id/ledger')
   @ApiOperation({ summary: 'Attendance and payments with a running balance' })
