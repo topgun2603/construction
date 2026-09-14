@@ -49,7 +49,10 @@ export default async function PlatformTenantsPage({
         plans={catalogue.items}
       />
 
-      <TenantsTable tenants={list.tenants} />
+      <TenantsTable
+        tenants={list.tenants}
+        planNames={Object.fromEntries(catalogue.items.map((plan) => [plan.code, plan.name]))}
+      />
     </FadeIn>
   );
 }

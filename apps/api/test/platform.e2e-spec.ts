@@ -562,6 +562,70 @@ describe('platform console', () => {
     });
   });
 
+  describe('when a term runs out', () => {
+    it('tells an operator when each account expires, and where that leaves it', async () => {
+      const builder = await onboardTenant(test, { name: 'Termly Builders', phone: uniquePhone() });
+
+      try {
+        await test
+          .http()
+          .patch(`/v1/admin/tenants/${builder.tenantId}`)
+          .set(adminAuth)
+          .send({ plan: 'three_months' })
+          .expect(200);
+
+        // The list is where "who lapses next" gets answered, so the date has to be on the row and
+        // not only on the detail page an operator would have to open one account at a time.
+        const list = await test.http().get('/v1/admin/tenants').set(adminAuth).expect(200);
+        const row = list.body.tenants.find(
+          (tenant: { id: string }) => tenant.id === builder.tenantId,
+        );
+        expect(row.plan_standing).toBe('active');
+        const months = Math.round(
+          (new Date(row.plan_expires_on as string).getTime() - Date.now()) /
+            (30.44 * 24 * 60 * 60 * 1000),
+        );
+        expect(months).toBe(3);
+
+        const detail = await test
+          .http()
+          .get(`/v1/admin/tenants/${builder.tenantId}`)
+          .set(adminAuth)
+          .expect(200);
+        expect(detail.body.tenant.plan_started_on).not.toBeNull();
+        expect(detail.body.tenant.plan_expires_on).toBe(row.plan_expires_on);
+        expect(detail.body.tenant.plan_standing).toBe('active');
+      } finally {
+        await destroyTenant(test, builder.tenantId);
+      }
+    });
+
+    it('reports a lifetime account as never expiring rather than as expired', async () => {
+      const builder = await onboardTenant(test, { name: 'Forever Builders', phone: uniquePhone() });
+
+      try {
+        await test
+          .http()
+          .patch(`/v1/admin/tenants/${builder.tenantId}`)
+          .set(adminAuth)
+          .send({ plan: 'lifetime' })
+          .expect(200);
+
+        const detail = await test
+          .http()
+          .get(`/v1/admin/tenants/${builder.tenantId}`)
+          .set(adminAuth)
+          .expect(200);
+        // A null date is the one case where absent is correct, and the standing has to agree —
+        // reading it as "no term" would make every lifetime account read-only.
+        expect(detail.body.tenant.plan_expires_on).toBeNull();
+        expect(detail.body.tenant.plan_standing).toBe('active');
+      } finally {
+        await destroyTenant(test, builder.tenantId);
+      }
+    });
+  });
+
   describe('creating a tenant', () => {
     it('makes an account nobody signed up for, ready for its owner', async () => {
       const phone = uniquePhone();

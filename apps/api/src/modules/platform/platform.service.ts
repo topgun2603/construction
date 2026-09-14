@@ -5,12 +5,15 @@ import {
   defaultModulesForPlan,
   expiryAfterMonths,
   permissionsForSystemRole,
+  planStanding,
   systemRoleSeesAllProjects,
   toE164Indian,
   type CreateTenantPlatformInput,
+  type PlanStanding,
   type UserRole,
 } from '@sitebook/shared';
 import { ApiError } from '../../common/errors/api-error';
+import { env } from '../../config/env';
 import { PlansService } from '../plans/plans.service';
 import { SYSTEM_ROLE_NAMES } from '../tenants/tenants.service';
 import { PlatformDb } from './platform-db.service';
@@ -22,6 +25,10 @@ export interface TenantRow {
   status: string;
   enabled_modules: string[];
   created_at: string;
+  /** When the term runs out. Null is a plan that never does. */
+  plan_expires_on: string | null;
+  /** `active`, `grace` or `expired` — what the write gate is doing about that date today. */
+  plan_standing: PlanStanding;
   owner_name: string | null;
   owner_phone: string | null;
   user_count: number;
@@ -41,6 +48,8 @@ export interface TenantRow {
  */
 @Injectable()
 export class PlatformService {
+  private readonly config = env();
+
   constructor(
     private readonly db: PlatformDb,
     private readonly plans: PlansService,
@@ -165,6 +174,7 @@ export class PlatformService {
         status: true,
         enabledModules: true,
         createdAt: true,
+        planExpiresOn: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 500,
@@ -203,6 +213,10 @@ export class PlatformService {
       }),
     ]);
 
+    // One instant for the whole list: rows judged against different `now`s could disagree about
+    // where the same boundary falls, which is a confusing thing for a table to do.
+    const now = new Date();
+
     const count = (rows: Array<{ tenantId: string; _count: { _all: number } }>) =>
       new Map(rows.map((row) => [row.tenantId, row._count._all]));
     const userCount = count(users);
@@ -225,6 +239,8 @@ export class PlatformService {
       status: tenant.status,
       enabled_modules: tenant.enabledModules,
       created_at: tenant.createdAt.toISOString(),
+      plan_expires_on: tenant.planExpiresOn?.toISOString() ?? null,
+      plan_standing: planStanding(tenant.planExpiresOn, now, this.config.BILLING_GRACE_DAYS),
       owner_name: ownerByTenant.get(tenant.id)?.name ?? null,
       owner_phone: ownerByTenant.get(tenant.id)?.phone ?? null,
       user_count: userCount.get(tenant.id) ?? 0,
@@ -250,6 +266,8 @@ export class PlatformService {
         status: true,
         enabledModules: true,
         createdAt: true,
+        planStartedOn: true,
+        planExpiresOn: true,
         razorpayCustomerId: true,
       },
     });
@@ -291,6 +309,13 @@ export class PlatformService {
         status: tenant.status,
         enabled_modules: tenant.enabledModules,
         created_at: tenant.createdAt.toISOString(),
+        plan_started_on: tenant.planStartedOn?.toISOString() ?? null,
+        plan_expires_on: tenant.planExpiresOn?.toISOString() ?? null,
+        plan_standing: planStanding(
+          tenant.planExpiresOn,
+          new Date(),
+          this.config.BILLING_GRACE_DAYS,
+        ),
         razorpay_customer_id: tenant.razorpayCustomerId,
       },
       usage: { workers, attendance_rows: attendanceRows, reports, expenses },

@@ -69,6 +69,8 @@ export interface PlatformTenantRow {
   project_count: number;
   worker_count: number;
   last_activity: string | null;
+  plan_expires_on: string | null;
+  plan_standing: 'active' | 'grace' | 'expired';
 }
 
 export interface PlatformTenantDetail {
@@ -80,6 +82,9 @@ export interface PlatformTenantDetail {
     status: string;
     enabled_modules: string[];
     created_at: string;
+    plan_started_on: string | null;
+    plan_expires_on: string | null;
+    plan_standing: 'active' | 'grace' | 'expired';
     razorpay_customer_id: string | null;
   };
   usage: { workers: number; attendance_rows: number; reports: number; expenses: number };

@@ -46,13 +46,29 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[22px] font-semibold leading-tight">{tenant.name}</h1>
           <Badge tone={STATUS_TONE[tenant.status] ?? 'neutral'}>{titleCase(tenant.status)}</Badge>
-          <Badge tone={tenant.plan === 'lifetime' ? 'accent' : 'neutral'} dot={false}>
-            {titleCase(tenant.plan)}
+          <Badge tone={tenant.plan_expires_on === null ? 'accent' : 'neutral'} dot={false}>
+            {catalogue.items.find((plan) => plan.code === tenant.plan)?.name ??
+              titleCase(tenant.plan)}
           </Badge>
+          {tenant.plan_standing !== 'active' && (
+            <Badge tone={tenant.plan_standing === 'expired' ? 'blocked' : 'pending'}>
+              {tenant.plan_standing === 'expired' ? 'Term run out — read-only' : 'In grace'}
+            </Badge>
+          )}
         </div>
         <span className="text-[13px] text-ink-muted">
           Joined {longDate(tenant.created_at.slice(0, 10))} ·{' '}
-          <span className="font-mono text-[12.5px]">{tenant.id}</span>
+          {/*
+            * The term, spelled out where the account is worked on. Without it an operator had to
+            * open the builder's own plan page to answer "when does this run out", which is the
+            * question behind most renewal calls.
+            */}
+          {tenant.plan_expires_on
+            ? `Term ${tenant.plan_standing === 'active' ? 'runs until' : 'ended'} ${longDate(
+                tenant.plan_expires_on.slice(0, 10),
+              )}`
+            : 'Never expires'}{' '}
+          · <span className="font-mono text-[12.5px]">{tenant.id}</span>
         </span>
       </div>
 
