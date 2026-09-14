@@ -28,6 +28,7 @@ import { LabourPaymentsModule } from './modules/labour-payments/labour-payments.
 import { MaterialsModule } from './modules/materials/materials.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PlatformModule } from './modules/platform/platform.module';
+import { PlansModule } from './modules/plans/plans.module';
 import { PortalModule } from './modules/portal/portal.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -84,6 +85,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     RolesModule,
     TenantsModule,
     UsersModule,
+    PlansModule,
     PortalModule,
     ProjectsModule,
     ContractorsModule,

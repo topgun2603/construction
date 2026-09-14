@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { PLANS, PLAN_LABELS } from '@sitebook/shared';
+import type { PlanView } from '@sitebook/shared';
 import { createTenantFromConsole } from '@/lib/platform-actions';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,10 +38,17 @@ import {
  * becomes a working login the first time they pass OTP with it — so the operator's last job is to
  * tell them, out of band, that it is ready.
  */
-export function NewTenantDialog({ canCreate }: { canCreate: boolean }) {
+export function NewTenantDialog({
+  canCreate,
+  plans,
+}: {
+  canCreate: boolean;
+  /** The catalogue. An account cannot be put on a term that is not sold. */
+  plans: PlanView[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [plan, setPlan] = useState('three_months');
+  const [plan, setPlan] = useState(plans[0]?.code ?? 'three_months');
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -110,9 +117,9 @@ export function NewTenantDialog({ canCreate }: { canCreate: boolean }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PLANS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {PLAN_LABELS[option]}
+                {plans.map((option) => (
+                  <SelectItem key={option.code} value={option.code}>
+                    {option.name}
                   </SelectItem>
                 ))}
               </SelectContent>

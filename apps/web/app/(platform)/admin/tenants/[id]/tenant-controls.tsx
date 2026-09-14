@@ -7,7 +7,7 @@ import { updateTenantPlan } from '@/lib/platform-actions';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { PLANS, PLAN_LABELS } from '@sitebook/shared';
+import type { PlanView } from '@sitebook/shared';
 import { cn } from '@/lib/utils';
 import { MODULES, moduleLabel } from './modules';
 
@@ -27,12 +27,15 @@ export function TenantControls({
   tenantId,
   tenantName,
   plan,
+  plans,
   status,
   enabledModules,
 }: {
   tenantId: string;
   tenantName: string;
   plan: string;
+  /** The catalogue, so the levers show whatever an operator has put on sale. */
+  plans: PlanView[];
   status: string;
   enabledModules: string[];
 }) {
@@ -76,25 +79,20 @@ export function TenantControls({
             Starts the term again from today
           </span>
           <div className="flex flex-wrap gap-1 rounded-btn bg-neutral-bg p-1">
-            {PLANS.map((option) => (
+            {plans.map((option) => (
               <button
-                key={option}
+                key={option.code}
                 type="button"
-                disabled={pending || plan === option}
-                onClick={() =>
-                  apply(
-                    { plan: option },
-                    `${tenantName} moved to ${PLAN_LABELS[option]}`,
-                  )
-                }
+                disabled={pending || plan === option.code}
+                onClick={() => apply({ plan: option.code }, `${tenantName} moved to ${option.name}`)}
                 className={cn(
                   'min-h-0 rounded-[7px] px-3 py-2 text-[13px] font-medium transition',
-                  plan === option
+                  plan === option.code
                     ? 'bg-surface font-semibold text-ink shadow-seg'
                     : 'text-ink-soft hover:text-ink',
                 )}
               >
-                {PLAN_LABELS[option]}
+                {option.name}
               </button>
             ))}
           </div>

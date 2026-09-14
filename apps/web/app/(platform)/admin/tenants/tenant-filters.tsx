@@ -6,7 +6,7 @@ import { Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { PLANS, PLAN_LABELS } from '@sitebook/shared';
+import type { PlanView } from '@sitebook/shared';
 
 /**
  * Filters for the tenant list.
@@ -23,10 +23,13 @@ export function TenantFilters({
   search,
   status,
   plan,
+  plans,
 }: {
   search: string;
   status: string;
   plan: string;
+  /** The catalogue, so the filter offers whatever is actually sold. */
+  plans: PlanView[];
 }) {
   const router = useRouter();
   const [term, setTerm] = useState(search);
@@ -92,7 +95,7 @@ export function TenantFilters({
         value={plan}
         options={[
           { value: '', label: 'All' },
-          ...PLANS.map((option) => ({ value: option, label: PLAN_LABELS[option] })),
+          ...plans.map((option) => ({ value: option.code, label: option.name })),
         ]}
         onChange={(value) => push({ plan: value })}
       />

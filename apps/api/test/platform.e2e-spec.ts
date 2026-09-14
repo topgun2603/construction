@@ -419,6 +419,149 @@ describe('platform console', () => {
     });
   });
 
+  describe('the plan catalogue', () => {
+    it('is what tenants are offered, and an operator can add to it', async () => {
+      const code = `two_years_${Date.now()}`;
+
+      const created = await test
+        .http()
+        .post('/v1/admin/plans')
+        .set(adminAuth)
+        .send({
+          code,
+          name: '2 years',
+          months: 24,
+          price: '1799900',
+          description: 'For somebody who has decided.',
+          badge: 'Best value',
+          highlights: ['Every feature', 'Two years of it'],
+          sort_order: 9,
+        })
+        .expect(201);
+      expect(created.body.code).toBe(code);
+      expect(created.body.badge).toBe('Best value');
+
+      // The whole point: a builder sees it without anybody deploying anything.
+      const offered = await test
+        .http()
+        .get('/v1/plans')
+        .set({ Authorization: `Bearer ${tenantA.accessToken}` })
+        .expect(200);
+      expect(offered.body.items.map((plan: { code: string }) => plan.code)).toContain(code);
+
+      // The ribbon travels with it: what an operator wants called out is called out everywhere a
+      // builder sees the catalogue, the app included.
+      const offeredPlan = offered.body.items.find(
+        (plan: { code: string }) => plan.code === code,
+      );
+      expect(offeredPlan.badge).toBe('Best value');
+
+      // And clearing it is a plain edit, not a second endpoint.
+      const cleared = await test
+        .http()
+        .patch(`/v1/admin/plans/${created.body.id}`)
+        .set(adminAuth)
+        .send({ badge: null })
+        .expect(200);
+      expect(cleared.body.badge).toBeNull();
+
+      // Retiring stops it being offered without touching anybody already on it.
+      await test
+        .http()
+        .patch(`/v1/admin/plans/${created.body.id}`)
+        .set(adminAuth)
+        .send({ is_active: false })
+        .expect(200);
+
+      const after = await test
+        .http()
+        .get('/v1/plans')
+        .set({ Authorization: `Bearer ${tenantA.accessToken}` })
+        .expect(200);
+      expect(after.body.items.map((plan: { code: string }) => plan.code)).not.toContain(code);
+
+      await test.http().delete(`/v1/admin/plans/${created.body.id}`).set(adminAuth).expect(204);
+    });
+
+    it('decides a term from the catalogue, not from anything compiled in', async () => {
+      const code = `one_month_${Date.now()}`;
+      const plan = await test
+        .http()
+        .post('/v1/admin/plans')
+        .set(adminAuth)
+        .send({ code, name: '1 month', months: 1, price: '99900' })
+        .expect(201);
+
+      const builder = await onboardTenant(test, {
+        name: 'Monthly Builders',
+        phone: uniquePhone(),
+      });
+
+      try {
+        await test
+          .http()
+          .patch(`/v1/admin/tenants/${builder.tenantId}`)
+          .set(adminAuth)
+          .send({ plan: code })
+          .expect(200);
+
+        const me = await test
+          .http()
+          .get('/v1/me')
+          .set({ Authorization: `Bearer ${builder.accessToken}` })
+          .expect(200);
+
+        // A month from today, from a plan that did not exist when this code was written.
+        expect(me.body.tenant.plan).toBe(code);
+        expect(me.body.tenant.plan_name).toBe('1 month');
+        const expires = new Date(me.body.tenant.plan_expires_on as string);
+        const monthsAway = Math.round(
+          (expires.getTime() - Date.now()) / (30.44 * 24 * 60 * 60 * 1000),
+        );
+        expect(monthsAway).toBe(1);
+      } finally {
+        await destroyTenant(test, builder.tenantId);
+        await test.http().delete(`/v1/admin/plans/${plan.body.id}`).set(adminAuth).expect(204);
+      }
+    });
+
+    it('refuses to delete a plan somebody is on', async () => {
+      // Its own plan and its own tenant. An earlier version of this reached for a seeded plan and
+      // deleted it out of the shared database when the assertions moved around — a test that can
+      // destroy the catalogue it is checking is worse than no test.
+      const code = `doomed_${Date.now()}`;
+      const plan = await test
+        .http()
+        .post('/v1/admin/plans')
+        .set(adminAuth)
+        .send({ code, name: 'Doomed term', months: 6, price: '100000' })
+        .expect(201);
+
+      const builder = await onboardTenant(test, { name: 'On Doomed', phone: uniquePhone() });
+
+      try {
+        await test
+          .http()
+          .patch(`/v1/admin/tenants/${builder.tenantId}`)
+          .set(adminAuth)
+          .send({ plan: code })
+          .expect(200);
+
+        // Deleting it would leave that account pointing at a code resolving to nothing, and its
+        // plan page would go blank. Retiring is the operation an operator actually wants.
+        const refused = await test
+          .http()
+          .delete(`/v1/admin/plans/${plan.body.id}`)
+          .set(adminAuth)
+          .expect(409);
+        expect(refused.body.message).toContain('Retire it');
+      } finally {
+        await destroyTenant(test, builder.tenantId);
+        await test.http().delete(`/v1/admin/plans/${plan.body.id}`).set(adminAuth).expect(204);
+      }
+    });
+  });
+
   describe('creating a tenant', () => {
     it('makes an account nobody signed up for, ready for its owner', async () => {
       const phone = uniquePhone();

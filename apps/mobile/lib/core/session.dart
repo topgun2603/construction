@@ -39,6 +39,7 @@ class Me {
     required this.roleName,
     required this.companyName,
     required this.plan,
+    this.planName,
     this.planExpiresOn,
     this.planStanding = 'active',
     required this.permissions,
@@ -59,6 +60,9 @@ class Me {
   final String companyName;
   final String plan;
 
+  /// What the plan is called. Null when its row has gone.
+  final String? planName;
+
   /// Null on a lifetime plan, which does not end.
   final String? planExpiresOn;
 
@@ -70,15 +74,12 @@ class Me {
   final bool seesAllProjects;
   final int unreadNotifications;
 
-  /// `three_months` → `3 months`. A plan is a length of time now, and the raw value reads as a
-  /// database column if it is ever shown as one.
-  String get planLabel => switch (plan) {
-    'three_months' => '3 months',
-    'six_months' => '6 months',
-    'one_year' => '1 year',
-    'lifetime' => 'Lifetime',
-    _ => plan,
-  };
+  /// What the plan is called, as the server says it.
+  ///
+  /// Named by the API rather than translated here: the catalogue is rows an operator edits, and a
+  /// copy of the names in this file would be wrong the first time one was renamed. The code is the
+  /// fallback for a plan that has since been deleted — a bare code reads badly, but it reads.
+  String get planLabel => planName?.isNotEmpty == true ? planName! : plan;
 
   /// Past the grace period: everything can be read, nothing can be saved.
   bool get planExpired => planStanding == 'expired';
@@ -97,6 +98,7 @@ class Me {
       roleName: json['role_name'] as String? ?? '',
       companyName: tenant['name'] as String? ?? '',
       plan: tenant['plan'] as String? ?? '',
+      planName: tenant['plan_name'] as String?,
       planExpiresOn: tenant['plan_expires_on'] as String?,
       planStanding: tenant['plan_standing'] as String? ?? 'active',
       permissions: (json['permissions'] as List<dynamic>? ?? const []).cast<String>(),

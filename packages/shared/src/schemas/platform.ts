@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { PLANS, TENANT_STATUSES } from '../enums';
+import { planCodeSchema } from './plan';
+import { TENANT_STATUSES } from '../enums';
 import { MODULES } from '../plans';
 
 /**
@@ -18,7 +19,7 @@ export type PlatformLoginInput = z.infer<typeof platformLoginSchema>;
 export const listTenantsQuerySchema = z.object({
   search: z.string().trim().max(120).optional(),
   status: z.enum(TENANT_STATUSES).optional(),
-  plan: z.enum(PLANS).optional(),
+  plan: planCodeSchema.optional(),
 });
 export type ListTenantsQuery = z.infer<typeof listTenantsQuerySchema>;
 
@@ -29,7 +30,7 @@ export type ListTenantsQuery = z.infer<typeof listTenantsQuerySchema>;
  */
 export const updateTenantPlatformSchema = z
   .object({
-    plan: z.enum(PLANS).optional(),
+    plan: planCodeSchema.optional(),
     status: z.enum(TENANT_STATUSES).optional(),
     enabled_modules: z.array(z.enum(MODULES)).optional(),
   })
@@ -76,6 +77,6 @@ export const createTenantPlatformSchema = z.object({
   name: z.string().trim().min(2).max(160),
   owner_name: z.string().trim().min(1).max(120),
   owner_phone: z.string().trim().min(6).max(20),
-  plan: z.enum(PLANS).default('three_months'),
+  plan: planCodeSchema.default('three_months'),
 });
 export type CreateTenantPlatformInput = z.infer<typeof createTenantPlatformSchema>;

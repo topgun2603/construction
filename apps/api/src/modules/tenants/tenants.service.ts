@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   defaultModulesForPlan,
-  planExpiryFrom,
+  expiryAfterMonths,
   permissionsForSystemRole,
   systemRoleSeesAllProjects,
   type CreateTenantInput,
@@ -14,6 +14,7 @@ import {
 import { TenantCache } from '../../common/auth/tenant-cache.service';
 import { TokenService } from '../../common/auth/token.service';
 import { ApiError } from '../../common/errors/api-error';
+import { PlansService } from '../plans/plans.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import type { RequestUser } from '../../common/auth/request-user';
@@ -31,6 +32,7 @@ export interface TenantView {
 @Injectable()
 export class TenantsService {
   constructor(
+    private readonly plans: PlansService,
     private readonly prisma: PrismaService,
     private readonly tenantDb: TenantDb,
     private readonly tenantCache: TenantCache,
@@ -70,7 +72,7 @@ export class TenantsService {
           // The term starts the moment the account does. Without these two an account would have
           // no expiry at all, which reads as lifetime — the most expensive plan, given away.
           planStartedOn: new Date(),
-          planExpiresOn: planExpiryFrom(input.plan, new Date()),
+          planExpiresOn: expiryAfterMonths(await this.plans.monthsFor(input.plan), new Date()),
           enabledModules: defaultModulesForPlan(input.plan),
         },
         select: selectTenant,

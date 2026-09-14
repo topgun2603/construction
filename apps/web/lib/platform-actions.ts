@@ -126,3 +126,49 @@ export async function createTenantFromConsole(input: {
   }
   return result;
 }
+
+/**
+ * The plan catalogue. Root operators only; the API enforces that.
+ *
+ * Every write revalidates both console pages and the tenant plan page — a price change that did
+ * not show on the page a builder is looking at is the one that causes an argument.
+ */
+export async function createPlan(input: {
+  code: string;
+  name: string;
+  months: number | null;
+  price: string;
+  description: string | null;
+  highlights: string[];
+  is_active: boolean;
+  sort_order: number;
+}): Promise<ActionResult> {
+  const result = await runAction(() => platformFetch('/plans', { method: 'POST', body: input }));
+  if (result.ok) revalidatePath('/admin/plans');
+  return result;
+}
+
+export async function updatePlan(
+  id: string,
+  input: {
+    name?: string;
+    months?: number | null;
+    price?: string;
+    description?: string | null;
+    highlights?: string[];
+    is_active?: boolean;
+    sort_order?: number;
+  },
+): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch(`/plans/${id}`, { method: 'PATCH', body: input }),
+  );
+  if (result.ok) revalidatePath('/admin/plans');
+  return result;
+}
+
+export async function deletePlan(id: string): Promise<ActionResult> {
+  const result = await runAction(() => platformFetch(`/plans/${id}`, { method: 'DELETE' }));
+  if (result.ok) revalidatePath('/admin/plans');
+  return result;
+}

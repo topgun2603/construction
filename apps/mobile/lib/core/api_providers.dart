@@ -144,6 +144,18 @@ class RollCallKey {
   int get hashCode => Object.hash(projectId, date);
 }
 
+/// What a builder can buy.
+///
+/// Read from the API rather than written out here: the catalogue is rows an operator edits, and a
+/// copy compiled into the app would be wrong the first time a price changed — on the one screen
+/// where being wrong is an argument about money.
+///
+/// Not `autoDispose`: it does not change while somebody is signed in.
+final plansProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  return _items(await api.get('/plans'));
+});
+
 /// Everyone who supplies labour. Gangs are how a site thinks about people, so this sits beside the
 /// worker list rather than in a settings corner.
 final contractorsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {

@@ -16,14 +16,18 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  createPlanSchema,
   createTenantPlatformSchema,
   deleteTenantSchema,
+  updatePlanSchema,
   grantOperatorSchema,
   listTenantsQuerySchema,
   platformLoginSchema,
   updateTenantPlatformSchema,
+  type CreatePlanInput,
   type CreateTenantPlatformInput,
   type DeleteTenantInput,
+  type UpdatePlanInput,
   type GrantOperatorInput,
   type ListTenantsQuery,
   type PlatformLoginInput,
@@ -35,6 +39,7 @@ import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { PlatformAnalytics } from './platform-analytics.service';
 import { PlatformAuthService } from './platform-auth.service';
 import { PlatformGuard, type PlatformRequest } from './platform.guard';
+import { PlansService } from '../plans/plans.service';
 import { PlatformOperators } from './platform-operators.service';
 import { PlatformService } from './platform.service';
 
@@ -56,6 +61,7 @@ export class PlatformController {
     private readonly platform: PlatformService,
     private readonly analytics: PlatformAnalytics,
     private readonly operators: PlatformOperators,
+    private readonly plans: PlansService,
   ) {}
 
   /**
@@ -105,10 +111,7 @@ export class PlatformController {
     @Req() request: PlatformRequest,
     @Body(zodBody(createTenantPlatformSchema)) body: CreateTenantPlatformInput,
   ) {
-    const phone = actor(request);
-    if (!this.operators.isRoot(phone)) {
-      throw ApiError.forbidden('Only an operator named in the deployment config can do that');
-    }
+    const phone = this.assertRoot(request);
     return this.platform.createTenant(phone, body);
   }
 
@@ -166,6 +169,56 @@ export class PlatformController {
     return this.platform.deleteTenant(actor(request), id, body.confirm_name);
   }
 
+  /**
+   * The catalogue, including what has been retired — an operator needs to see the plan an account
+   * is on even after it stopped being sold.
+   */
+  @UseGuards(PlatformGuard)
+  @Get('plans')
+  @ApiOperation({ summary: 'Every plan, on sale or retired' })
+  async listPlans() {
+    return { items: await this.plans.listAll() };
+  }
+
+  /**
+   * Root operators only, like creating an account. A price is the one number in this console that
+   * somebody outside the company should never be able to set.
+   */
+  @UseGuards(PlatformGuard)
+  @Post('plans')
+  @ApiOperation({ summary: 'Add a plan' })
+  createPlan(
+    @Req() request: PlatformRequest,
+    @Body(zodBody(createPlanSchema)) body: CreatePlanInput,
+  ) {
+    this.assertRoot(request);
+    return this.plans.create(body);
+  }
+
+  @UseGuards(PlatformGuard)
+  @Patch('plans/:id')
+  @ApiOperation({ summary: 'Change what a plan says or costs' })
+  updatePlan(
+    @Req() request: PlatformRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(updatePlanSchema)) body: UpdatePlanInput,
+  ) {
+    this.assertRoot(request);
+    return this.plans.update(id, body);
+  }
+
+  @UseGuards(PlatformGuard)
+  @Delete('plans/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a plan nobody is on' })
+  async deletePlan(
+    @Req() request: PlatformRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    this.assertRoot(request);
+    await this.plans.remove(id, (code) => this.platform.tenantsOnPlan(code));
+  }
+
   @UseGuards(PlatformGuard)
   @Get('operators')
   @ApiOperation({ summary: 'Who may use the console' })
@@ -212,6 +265,20 @@ export class PlatformController {
     const parsed = Number.parseInt(weeks ?? '', 10);
     const clamped = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 4), 52) : 12;
     return this.analytics.overview(clamped);
+  }
+
+  /**
+   * Refuses anybody who is not named in the deployment config, and returns who they are.
+   *
+   * Creating accounts and pricing them are the two things in this console that make a business
+   * rather than support one, and neither is support work.
+   */
+  private assertRoot(request: PlatformRequest): string {
+    const phone = actor(request);
+    if (!this.operators.isRoot(phone)) {
+      throw ApiError.forbidden('Only an operator named in the deployment config can do that');
+    }
+    return phone;
   }
 }
 

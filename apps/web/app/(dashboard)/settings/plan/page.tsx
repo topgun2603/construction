@@ -1,12 +1,12 @@
 import { AlertTriangle, Check, Clock, Infinity as InfinityIcon } from 'lucide-react';
-import { MODULES, PLANS, PLAN_LABELS, planPricePaise, type Plan } from '@sitebook/shared';
+import { MODULES, type PlanView } from '@sitebook/shared';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { Tenant } from '@/lib/api-types';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
-import { longDate, money, titleCase } from '@/lib/format';
+import { longDate, money } from '@/lib/format';
 
 export const metadata = { title: 'Plan · BUILDR' };
 
@@ -20,22 +20,29 @@ const STANDING_TONE: Record<string, Tone> = {
  * What this account has paid for, and for how much longer.
  *
  * Every plan is every feature. What a builder buys is a length of time, so this page is about
- * dates rather than about which of their sites they are allowed to see — the tiered model this
- * replaced hid the product's best half from the customers most likely to need it.
+ * dates rather than about which of their sites they are allowed to see.
+ *
+ * The terms come from the API, not from this codebase — an operator can change a price or add a
+ * term, and it shows here without a deploy.
  *
  * Ordered by urgency. A term that has run out is the only thing here that needs doing today, so it
  * sits above the plan somebody came to look at.
  */
 export default async function PlanPage() {
-  const [tenant, me] = await Promise.all([
+  const [tenant, me, catalogue] = await Promise.all([
     serverFetch<Tenant>('/tenants/current'),
     requireSelf(),
+    serverFetch<{ items: PlanView[] }>('/plans'),
   ]);
 
   const standing = me.tenant.plan_standing ?? 'active';
   const expiresOn = me.tenant.plan_expires_on;
-  const current = tenant.plan as Plan;
-  const lifetime = current === 'lifetime';
+
+  // Their own plan may have been retired since they bought it, in which case it is not in the
+  // catalogue — so the code is the fallback rather than an empty heading.
+  const current = catalogue.items.find((plan) => plan.code === tenant.plan);
+  const lifetime = current ? current.months === null : !expiresOn;
+  const canManage = me.permissions.includes('tenant.manage');
 
   return (
     <FadeIn className="flex flex-col gap-4">
@@ -58,8 +65,7 @@ export default async function PlanPage() {
             </span>
             <span className="text-[13.5px] text-ink-soft">
               {standing === 'expired'
-                ? // Said plainly, because the alternative is a supervisor on a site deciding the app is broken.
-                  'Everything can still be read — your sites, wages and drawings are all here. Nothing new can be saved until the plan is renewed.'
+                ? 'Everything can still be read — your sites, wages and drawings are all here. Nothing new can be saved until the plan is renewed.'
                 : 'Everything still works. Renew before the grace period ends and nothing changes.'}
             </span>
           </div>
@@ -74,7 +80,7 @@ export default async function PlanPage() {
             </span>
             <span className="flex items-center gap-2 text-[24px] font-semibold leading-tight">
               {lifetime && <InfinityIcon className="size-6 text-accent" />}
-              {PLAN_LABELS[current] ?? titleCase(current)}
+              {current?.name ?? tenant.plan}
             </span>
           </div>
           <Badge tone={STANDING_TONE[standing] ?? 'neutral'}>
@@ -96,60 +102,72 @@ export default async function PlanPage() {
         </div>
       </Card>
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          What you can buy
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {PLANS.map((plan) => (
-            <Card
-              key={plan}
-              className={`flex flex-col gap-3 p-4 ${
-                plan === current ? 'border-accent' : ''
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[15px] font-semibold">{PLAN_LABELS[plan]}</span>
-                {plan === current && <Badge tone="done">Yours</Badge>}
-              </div>
-              <span className="font-mono text-[20px] font-bold leading-none">
-                {money(planPricePaise(plan).toString())}
-              </span>
-              <span className="text-[12.5px] text-ink-muted">
-                {plan === 'lifetime' ? 'Paid once, never again' : 'Paid up front for the term'}
-              </span>
-              {/*
-                No feature list under each price, because there is no difference to list. Saying so
-                once is more honest than four identical columns of ticks pretending to be a choice.
-              */}
-              <span className="mt-auto flex items-center gap-1.5 text-[12.5px] text-done-fg">
-                <Check className="size-3.5" />
-                Every feature
-              </span>
-            </Card>
-          ))}
+      {catalogue.items.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+            What you can buy
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {catalogue.items.map((plan) => (
+              <Card
+                key={plan.id}
+                className={`flex flex-col gap-3 p-4 ${
+                  plan.code === tenant.plan
+                    ? 'border-accent'
+                    : plan.badge
+                      ? 'border-accent/50 ring-1 ring-accent/20'
+                      : ''
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[15px] font-semibold">{plan.name}</span>
+                  {plan.code === tenant.plan ? (
+                    <Badge tone="done">Yours</Badge>
+                  ) : (
+                    plan.badge && <Badge tone="accent">{plan.badge}</Badge>
+                  )}
+                </div>
+                <span className="font-mono text-[20px] font-bold leading-none">
+                  {money(plan.price)}
+                </span>
+                <span className="text-[12.5px] text-ink-muted">
+                  {plan.description ??
+                    (plan.months === null
+                      ? 'Paid once, never again'
+                      : 'Paid up front for the term')}
+                </span>
+                {plan.highlights.length > 0 && (
+                  <ul className="mt-auto flex flex-col gap-1 pt-1">
+                    {plan.highlights.map((line) => (
+                      <li
+                        key={line}
+                        className="flex items-start gap-1.5 text-[12.5px] text-ink-soft"
+                      >
+                        <Check className="mt-0.5 size-3.5 flex-none text-done-fg" />
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <Card className="flex items-start gap-3 p-4">
         <Clock className="mt-0.5 size-5 flex-none text-ink-faint" />
         <div className="flex flex-col gap-1">
           <span className="text-[14px] font-medium">
-            {canManage(me) ? 'Changing or renewing your plan' : 'Who can change this'}
+            {canManage ? 'Changing or renewing your plan' : 'Who can change this'}
           </span>
           <span className="text-[13.5px] text-ink-soft">
-            {canManage(me)
-              ? // Honest about where this stands: money is collected outside the product for now,
-                // and an operator sets the term. Pretending there is a buy button would be worse.
-                'Talk to us and we will set it. Payment is arranged directly at the moment — there is nothing to pay for on this screen yet.'
+            {canManage
+              ? 'Talk to us and we will set it. Payment is arranged directly at the moment — there is nothing to pay for on this screen yet.'
               : 'Only the account owner can change the plan.'}
           </span>
         </div>
       </Card>
     </FadeIn>
   );
-}
-
-function canManage(me: Awaited<ReturnType<typeof requireSelf>>): boolean {
-  return me.permissions.includes('tenant.manage');
 }

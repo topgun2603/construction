@@ -1,5 +1,6 @@
 export * from './enums';
 export * from './plans';
+export * from './schemas/plan';
 export * from './permissions';
 export * from './errors';
 export * from './money';

@@ -4,20 +4,20 @@
  */
 
 /**
- * What a builder buys: a length of time, not a set of features.
+ * A plan's code.
  *
- * Every account gets every module. The tiered model this replaced made the product's best half —
- * expenses, stock, reports, the client portal — invisible to the customers most likely to need it,
- * and turned every support call into a conversation about which tier somebody was on. A builder
- * choosing between three months and a year is choosing how much they trust the thing, which is a
- * question they can actually answer.
+ * Just a string, because the catalogue is rows in `plans` rather than values in this file. What a
+ * term costs, what it is called and how long it runs are commercial decisions — the sort made on a
+ * phone call with a customer — and holding them here meant a migration and a deploy to change a
+ * price.
  *
- * `lifetime` never expires. The others do, and the account goes read-only after a grace period
- * rather than vanishing — their data stays visible, which is what makes renewing feel like a
- * decision rather than a ransom.
+ * `PLAN_SEED_CODES` are the four the product shipped with. They are a starting catalogue and a
+ * convenience for fixtures, **not** the set of valid values: an operator can add "two years" and
+ * retire any of these.
  */
-export const PLANS = ['three_months', 'six_months', 'one_year', 'lifetime'] as const;
-export type Plan = (typeof PLANS)[number];
+export type Plan = string;
+
+export const PLAN_SEED_CODES = ['three_months', 'six_months', 'one_year', 'lifetime'] as const;
 
 export const TENANT_STATUSES = ['active', 'suspended', 'cancelled'] as const;
 export type TenantStatus = (typeof TENANT_STATUSES)[number];

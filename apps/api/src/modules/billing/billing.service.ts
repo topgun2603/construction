@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   defaultModulesForPlan,
-  planPricePaise,
   type CancelSubscriptionInput,
   type Plan,
   type StartSubscriptionInput,
@@ -9,6 +8,7 @@ import {
 import type { RequestUser } from '../../common/auth/request-user';
 import { TenantCache } from '../../common/auth/tenant-cache.service';
 import { ApiError } from '../../common/errors/api-error';
+import { PlansService } from '../plans/plans.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { RazorpayService } from '../../integrations/razorpay.service';
@@ -42,6 +42,7 @@ export class BillingService {
   private readonly config = env();
 
   constructor(
+    private readonly plans: PlansService,
     private readonly tenantDb: TenantDb,
     /** Webhooks arrive with no tenant context, so they are handled outside RLS by event id. */
     private readonly prisma: PrismaService,
@@ -125,6 +126,12 @@ export class BillingService {
       ownerPhone: owner?.phone ?? '',
     });
 
+    // The amount is the catalogue's, never the caller's. A client that could name its price
+    // would be a client that could buy a year for a rupee.
+    const plan = await this.plans.forCode(input.plan);
+    if (!plan) throw ApiError.notFound('Plan');
+    const price = BigInt(plan.price);
+
     await db.subscription.upsert({
       where: { tenantId: actor.tenantId },
       create: {
@@ -134,14 +141,14 @@ export class BillingService {
         status: 'trialing',
         razorpaySubscriptionId: created.id,
         razorpayPlanId: created.planId,
-        amount: planPricePaise(input.plan),
+        amount: price,
       },
       update: {
         plan: input.plan,
         status: 'trialing',
         razorpaySubscriptionId: created.id,
         razorpayPlanId: created.planId,
-        amount: planPricePaise(input.plan),
+        amount: price,
         cancelAt: null,
         cancelledAt: null,
         lastFailureReason: null,
@@ -154,7 +161,7 @@ export class BillingService {
       /** True when no Razorpay account is configured: the UI explains instead of pretending. */
       dry_run: created.dryRun,
       plan: input.plan,
-      amount: planPricePaise(input.plan).toString(),
+      amount: price.toString(),
     };
   }
 

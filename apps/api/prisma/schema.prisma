@@ -22,15 +22,40 @@ datasource db {
 // Enums
 // ---------------------------------------------------------------------------
 
-/// What a builder buys is a length of time, not a set of features — every account gets every
-/// module. `lifetime` never expires; the rest set `tenants.plan_expires_on`.
-enum Plan {
-  three_months
-  six_months
-  one_year
-  lifetime
+/// What a builder can buy.
+///
+/// A row rather than an enum, because the price of a term, what it is called, and how long it runs
+/// are commercial decisions — the sort that change on a phone call with a customer, and should not
+/// need a deploy. Adding "two years" is now an operator's afternoon rather than a migration.
+///
+/// No `tenant_id` and no RLS: the catalogue is the same for everybody, read by tenants who are
+/// deciding and written only from the platform console.
+model Plan {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Stable identifier stored on `tenants.plan`. Never shown to anybody.
+  code        String   @unique
+  /// What a builder reads: "3 months", "Lifetime".
+  name        String
+  /// How long the term runs. Null is a plan that never expires.
+  months      Int?
+  /// Whole-term price in paise, like all money here.
+  pricePaise  BigInt   @map("price_paise")
+  /// A sentence under the price, for anything the name cannot carry.
+  description String?
+  /// A ribbon on the card: "Best value", "Most popular". Null for a plan that is not called out.
+  badge       String?
+  /// Bullets shown beneath a plan. Every plan includes every feature, so these are for terms and
+  /// promises — "best value", "no renewals ever" — not for feature lists.
+  highlights  String[] @default([])
+  /// Whether it can still be bought. Retired rather than deleted, so an account already on it
+  /// keeps a plan that resolves to something.
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@map("plan")
+  @@index([isActive, sortOrder])
+  @@map("plans")
 }
 
 enum TenantStatus {
@@ -174,7 +199,9 @@ model Tenant {
   id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name               String
   logoUrl            String?      @map("logo_url")
-  plan               Plan         @default(three_months)
+  /// The `code` of a row in `plans`. Deliberately not a foreign key: a plan that is retired or
+  /// mistakenly deleted must not take its customers' accounts down with it.
+  plan               String       @default("three_months")
   /// When the current term began. Null on an account that has never had one set.
   planStartedOn      DateTime?    @map("plan_started_on") @db.Timestamptz(6)
   /// When it runs out. Null means lifetime — not "already expired", which is the reading that
@@ -1011,7 +1038,7 @@ enum BillingStatus {
 model Subscription {
   id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId               String        @unique @map("tenant_id") @db.Uuid
-  plan                   Plan
+  plan                   String
   status                 BillingStatus @default(none)
   razorpaySubscriptionId String?       @unique @map("razorpay_subscription_id")
   razorpayPlanId         String?       @map("razorpay_plan_id")

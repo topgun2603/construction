@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import type { PlanView } from '@sitebook/shared';
 import { platformFetch, type PlatformTenantDetail } from '@/lib/platform-session';
 import { longDate, money, shortDate, titleCase } from '@/lib/format';
 import { Badge, type Tone } from '@/components/ui/badge';
@@ -26,7 +27,10 @@ const STATUS_TONE: Record<string, Tone> = {
  */
 export default async function PlatformTenantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const detail = await platformFetch<PlatformTenantDetail>(`/tenants/${id}`);
+  const [detail, catalogue] = await Promise.all([
+    platformFetch<PlatformTenantDetail>(`/tenants/${id}`),
+    platformFetch<{ items: PlanView[] }>('/plans'),
+  ]);
   const { tenant, usage, team, projects, audit } = detail;
 
   return (
@@ -71,6 +75,7 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
         tenantId={tenant.id}
         tenantName={tenant.name}
         plan={tenant.plan}
+        plans={catalogue.items}
         status={tenant.status}
         enabledModules={tenant.enabled_modules}
       />

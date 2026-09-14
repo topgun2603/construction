@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PLANS } from '../enums';
+import { planCodeSchema } from './plan';
 import { MODULES } from '../plans';
 
 /**
@@ -9,7 +9,7 @@ import { MODULES } from '../plans';
 export const createTenantSchema = z.object({
   name: z.string().trim().min(2).max(160),
   owner_name: z.string().trim().min(1).max(120),
-  plan: z.enum(PLANS).default('three_months'),
+  plan: planCodeSchema.default('three_months'),
 });
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 
@@ -23,7 +23,7 @@ export type UpdateTenantInput = z.infer<typeof updateTenantSchema>;
 
 /** Superadmin-only: plan and module changes are not part of the tenant-facing API. */
 export const setTenantPlanSchema = z.object({
-  plan: z.enum(PLANS),
+  plan: planCodeSchema,
   enabled_modules: z.array(z.enum(MODULES)).optional(),
 });
 export type SetTenantPlanInput = z.infer<typeof setTenantPlanSchema>;

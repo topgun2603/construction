@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { planStanding } from '@sitebook/shared';
 import { env } from '../../config/env';
+import { PlansService } from '../plans/plans.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
@@ -18,6 +19,7 @@ export interface SelfView {
     name: string;
     logo_url: string | null;
     plan: string;
+    plan_name: string | null;
     plan_expires_on: string | null;
     plan_standing: string;
   };
@@ -37,7 +39,10 @@ export interface SelfView {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly tenantDb: TenantDb) {}
+  constructor(
+    private readonly tenantDb: TenantDb,
+    private readonly plans: PlansService,
+  ) {}
 
   async describeSelf(actor: RequestUser): Promise<SelfView> {
     const db = this.tenantDb.clientFor(actor.tenantId);
@@ -72,6 +77,15 @@ export class UsersService {
         name: tenant.name,
         logo_url: tenant.logoUrl,
         plan: tenant.plan,
+        /*
+         * The plan's name as well as its code.
+         *
+         * Both clients show "1 year" somewhere, and the catalogue is rows an operator edits — a
+         * copy of the names compiled into each app would be wrong the first time one was renamed.
+         * Null when the plan has been deleted, and the clients fall back to the code rather than
+         * showing nothing.
+         */
+        plan_name: (await this.plans.forCode(tenant.plan))?.name ?? null,
         /*
          * Both clients show what a builder has bought and how long is left, and the app decides
          * what to warn about from the standing rather than from the date — so the standing is

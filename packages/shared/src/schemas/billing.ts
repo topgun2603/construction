@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PLANS } from '../enums';
+import { planCodeSchema } from './plan';
 
 /**
  * Subscription billing (spec §3 item 12).
@@ -9,7 +9,7 @@ import { PLANS } from '../enums';
  * id — a client that could name its own price would be a client that could buy Pro for a rupee.
  */
 export const startSubscriptionSchema = z.object({
-  plan: z.enum(PLANS),
+  plan: planCodeSchema,
   /**
    * Where Razorpay sends the builder after checkout. Validated as a URL and checked against the
    * configured origins server-side, so this cannot be turned into an open redirect.

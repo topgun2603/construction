@@ -5,7 +5,8 @@ import {
   effectiveModules,
   hasModule,
   isModuleName,
-  planExpiryFrom,
+  monthlyRecurringPaise,
+  expiryAfterMonths,
   planStanding,
 } from './plans';
 
@@ -19,25 +20,53 @@ describe('defaultModulesForPlan', () => {
   });
 });
 
-describe('planExpiryFrom', () => {
+describe('expiryAfterMonths', () => {
   it('counts months, so a term ends on the day it started', () => {
-    expect(planExpiryFrom('three_months', new Date('2026-09-15T00:00:00Z'))?.toISOString()).toBe(
+    expect(expiryAfterMonths(3, new Date('2026-09-15T00:00:00Z'))?.toISOString()).toBe(
       new Date('2026-12-15T00:00:00Z').toISOString(),
     );
-    expect(planExpiryFrom('one_year', new Date('2026-09-15T00:00:00Z'))?.toISOString()).toBe(
+    expect(expiryAfterMonths(12, new Date('2026-09-15T00:00:00Z'))?.toISOString()).toBe(
       new Date('2027-09-15T00:00:00Z').toISOString(),
     );
   });
 
   it('pulls back to the last day when the target month is shorter', () => {
-    // 31 January plus one month is 28 February, not 3 March — which is what plain month arithmetic
-    // would give, and what anybody selling a term means by it.
-    const end = planExpiryFrom('three_months', new Date('2026-11-30T00:00:00Z'));
+    // 30 November plus three months is 28 February, not 2 March — which is what plain month
+    // arithmetic would give, and what anybody selling a term means by it.
+    const end = expiryAfterMonths(3, new Date('2026-11-30T00:00:00Z'));
     expect(end?.toISOString().slice(0, 10)).toBe('2027-02-28');
   });
 
-  it('never ends a lifetime', () => {
-    expect(planExpiryFrom('lifetime', new Date())).toBeNull();
+  it('never ends a plan with no length', () => {
+    // Null months is the lifetime plan. Zero would be a term that expired the instant it started.
+    expect(expiryAfterMonths(null, new Date())).toBeNull();
+    expect(expiryAfterMonths(undefined, new Date())).toBeNull();
+  });
+});
+
+describe('monthlyRecurringPaise', () => {
+  it('spreads a term over its months rather than counting it whole', () => {
+    // A ₹9,999 year is ₹833 a month. Counting the whole term would report a business twelve times
+    // the size it is the moment somebody bought one.
+    const mrr = monthlyRecurringPaise([
+      { price: 999_900n, months: 12, billing_status: 'active' },
+    ]);
+    expect(mrr).toBe(83_325n);
+  });
+
+  it('leaves lifetime out, because it is not recurring', () => {
+    const mrr = monthlyRecurringPaise([
+      { price: 2_499_900n, months: null, billing_status: 'active' },
+    ]);
+    expect(mrr).toBe(0n);
+  });
+
+  it('counts only what is actually being billed', () => {
+    const mrr = monthlyRecurringPaise([
+      { price: 999_900n, months: 12, billing_status: 'past_due' },
+      { price: 299_900n, months: 3, billing_status: 'cancelled' },
+    ]);
+    expect(mrr).toBe(0n);
   });
 });
 

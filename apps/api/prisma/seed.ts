@@ -5,7 +5,7 @@ import {
   addDays,
   defaultModulesForPlan,
   isoDateToUtcDate,
-  planExpiryFrom,
+  expiryAfterMonths,
   todayInIst,
 } from '@sitebook/shared';
 
@@ -49,7 +49,10 @@ async function main(): Promise<void> {
         name: 'ARK Constructions',
         plan: 'one_year',
         planStartedOn: new Date(),
-        planExpiresOn: planExpiryFrom('one_year', new Date()),
+        // Twelve months, matching the `one_year` row the migration seeds into the catalogue.
+        // The seed does not read the catalogue back: it is building the world, and a fixture that
+        // depended on a row it had not written yet would be a chicken-and-egg problem.
+        planExpiresOn: expiryAfterMonths(12, new Date()),
         enabledModules: defaultModulesForPlan('one_year'),
         status: 'active',
       },

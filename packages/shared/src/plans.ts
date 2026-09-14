@@ -64,45 +64,39 @@ export function hasModule(enabled: readonly string[], moduleName: ModuleName): b
  * with. `RAZORPAY_PLAN_ID_STARTER` / `_PRO` map each to its Razorpay plan, and the webhook never
  * trusts an amount from the client.
  */
-export const PLAN_PRICES_PAISE: Record<Plan, bigint> = {
-  three_months: 299_900n,
-  six_months: 549_900n,
-  one_year: 999_900n,
-  lifetime: 2_499_900n,
-};
-
-/** What a term costs outright, in paise. Not a monthly rate — a term is bought whole. */
-export function planPricePaise(plan: Plan): bigint {
-  return PLAN_PRICES_PAISE[plan] ?? 0n;
+/**
+ * One plan as both clients receive it.
+ *
+ * Money is a string of paise on the wire like everything else here, and `months` is null for a
+ * plan that never ends — not zero, which would read as a term that expired the instant it started.
+ */
+export interface PlanView {
+  id: string;
+  code: string;
+  name: string;
+  months: number | null;
+  price: string;
+  description: string | null;
+  /** A ribbon on the card — "Best value" — or null for a plan that is not called out. */
+  badge: string | null;
+  highlights: string[];
+  is_active: boolean;
+  sort_order: number;
 }
 
-/** How many months a term runs. Null for `lifetime`, which does not end. */
-export const PLAN_MONTHS: Record<Plan, number | null> = {
-  three_months: 3,
-  six_months: 6,
-  one_year: 12,
-  lifetime: null,
-};
-
-/** `three_months` → `3 months`, for anywhere a plan is named to a person. */
-export const PLAN_LABELS: Record<Plan, string> = {
-  three_months: '3 months',
-  six_months: '6 months',
-  one_year: '1 year',
-  lifetime: 'Lifetime',
-};
-
 /**
- * When a term bought on `from` runs out, or null for one that never does.
+ * When a term of `months` bought on `from` runs out, or null for one that never does.
+ *
+ * Takes the length rather than looking a plan up, because there is no longer a table to look in —
+ * the caller has the plan row and passes what it says.
  *
  * Month arithmetic, not 90 days: somebody who buys three months on the 15th expects it to end on
  * the 15th. JavaScript rolls 31 January + 1 month into 3 March, so a day that does not exist in
  * the target month is pulled back to that month's last day — 31 Jan + 1 month is 28 Feb, which is
- * what anybody selling a subscription means by it.
+ * what anybody selling a term means by it.
  */
-export function planExpiryFrom(plan: Plan, from: Date): Date | null {
-  const months = PLAN_MONTHS[plan];
-  if (months === null) return null;
+export function expiryAfterMonths(months: number | null | undefined, from: Date): Date | null {
+  if (months === null || months === undefined) return null;
 
   const day = from.getUTCDate();
   const target = new Date(from);
@@ -141,16 +135,24 @@ export function planStanding(
 }
 
 /**
- * Monthly recurring revenue across a set of subscribed tenants, in paise.
+ * Monthly recurring revenue, in paise.
  *
- * Counts only what is actually being billed. A tenant on a trial, past due, cancelled or suspended
- * is not revenue, and an MRR that includes them is the number that makes a business think it is
- * twice the size it is.
+ * A term is bought whole, so its monthly value is the price divided by its length: a ₹9,999 year
+ * is ₹833 a month, not ₹9,999. Summing whole-term prices — which this did while plans were tiers
+ * and prices monthly — would report a business four times the size it is the moment anybody bought
+ * a year.
+ *
+ * **Lifetime contributes nothing.** It is real money and it is not recurring, and folding a
+ * one-off into MRR is how a company talks itself into a run rate it does not have. Count those
+ * separately.
+ *
+ * Integer division, floored, because the alternative is a float in a money figure.
  */
 export function monthlyRecurringPaise(
-  tenants: ReadonlyArray<{ plan: Plan; billing_status: string }>,
+  tenants: ReadonlyArray<{ price: bigint; months: number | null; billing_status: string }>,
 ): bigint {
   return tenants
     .filter((tenant) => tenant.billing_status === 'active')
-    .reduce((sum, tenant) => sum + planPricePaise(tenant.plan), 0n);
+    .filter((tenant) => tenant.months !== null && tenant.months > 0)
+    .reduce((sum, tenant) => sum + tenant.price / BigInt(tenant.months as number), 0n);
 }

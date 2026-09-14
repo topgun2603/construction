@@ -3,7 +3,7 @@ import { effectiveModules, monthlyRecurringPaise, type Plan } from '@sitebook/sh
 import { randomUUID } from 'node:crypto';
 import {
   defaultModulesForPlan,
-  planExpiryFrom,
+  expiryAfterMonths,
   permissionsForSystemRole,
   systemRoleSeesAllProjects,
   toE164Indian,
@@ -11,6 +11,7 @@ import {
   type UserRole,
 } from '@sitebook/shared';
 import { ApiError } from '../../common/errors/api-error';
+import { PlansService } from '../plans/plans.service';
 import { SYSTEM_ROLE_NAMES } from '../tenants/tenants.service';
 import { PlatformDb } from './platform-db.service';
 
@@ -40,7 +41,10 @@ export interface TenantRow {
  */
 @Injectable()
 export class PlatformService {
-  constructor(private readonly db: PlatformDb) {}
+  constructor(
+    private readonly db: PlatformDb,
+    private readonly plans: PlansService,
+  ) {}
 
   /**
    * The numbers on the console's front page.
@@ -84,8 +88,17 @@ export class PlatformService {
       byStatus.find((row) => row.status === status)?._count._all ?? 0;
     const planCount = (plan: string) => byPlan.find((row) => row.plan === plan)?._count._all ?? 0;
 
+    /*
+     * MRR needs each subscription's price and term length, which now live in the catalogue rather
+     * than in code. One query for the whole catalogue and a lookup per row — there are four plans,
+     * not four thousand, and a join per subscription would be the slower answer.
+     */
+    const catalogue = new Map(
+      (await this.plans.listAll()).map((plan) => [plan.code, plan] as const),
+    );
     const billable = subscriptions.map((row) => ({
-      plan: row.plan,
+      price: BigInt(catalogue.get(row.plan)?.price ?? '0'),
+      months: catalogue.get(row.plan)?.months ?? null,
       billing_status: row.status,
     }));
 
@@ -354,9 +367,12 @@ export class PlatformService {
          */
         ...(input.plan
           ? {
-              plan: input.plan as never,
+              plan: input.plan,
               planStartedOn: new Date(),
-              planExpiresOn: planExpiryFrom(input.plan as Plan, new Date()),
+              planExpiresOn: expiryAfterMonths(
+                await this.plans.monthsFor(input.plan),
+                new Date(),
+              ),
             }
           : {}),
         ...(input.status ? { status: input.status as never } : {}),
@@ -386,6 +402,16 @@ export class PlatformService {
       status: after.status,
       enabled_modules: after.enabledModules,
     };
+  }
+
+  /**
+   * How many accounts are on a plan code.
+   *
+   * Here rather than in `PlansService` because the answer needs a connection that can read every
+   * tenant, and the catalogue is otherwise served on the tenant-facing one. See `PlansService.remove`.
+   */
+  async tenantsOnPlan(code: string): Promise<number> {
+    return this.db.client.tenant.count({ where: { plan: code } });
   }
 
   /** The console's own trail, newest first, across every tenant. */
@@ -658,7 +684,7 @@ export class PlatformService {
           name: input.name,
           plan: input.plan,
           planStartedOn: new Date(),
-          planExpiresOn: planExpiryFrom(input.plan, new Date()),
+          planExpiresOn: expiryAfterMonths(await this.plans.monthsFor(input.plan), new Date()),
           enabledModules: defaultModulesForPlan(input.plan),
         },
         select: { id: true, name: true, plan: true, status: true, enabledModules: true },

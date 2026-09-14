@@ -1,3 +1,4 @@
+import type { PlanView } from '@sitebook/shared';
 import { platformFetch, type PlatformTenantRow } from '@/lib/platform-session';
 import { FadeIn } from '@/components/motion';
 import { NewTenantDialog } from './new-tenant-dialog';
@@ -22,9 +23,10 @@ export default async function PlatformTenantsPage({
   if (params.plan) query.set('plan', params.plan);
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
-  const [list, me] = await Promise.all([
+  const [list, me, catalogue] = await Promise.all([
     platformFetch<{ tenants: PlatformTenantRow[] }>(`/tenants${suffix}`),
     platformFetch<{ phone: string; root: boolean }>('/me'),
+    platformFetch<{ items: PlanView[] }>('/plans'),
   ]);
 
   return (
@@ -37,13 +39,14 @@ export default async function PlatformTenantsPage({
             {suffix ? ' matching these filters' : ' on the platform'}.
           </p>
         </div>
-        <NewTenantDialog canCreate={me.root} />
+        <NewTenantDialog canCreate={me.root} plans={catalogue.items.filter((p) => p.is_active)} />
       </div>
 
       <TenantFilters
         search={params.search ?? ''}
         status={params.status ?? ''}
         plan={params.plan ?? ''}
+        plans={catalogue.items}
       />
 
       <TenantsTable tenants={list.tenants} />
