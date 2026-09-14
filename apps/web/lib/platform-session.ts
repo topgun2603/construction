@@ -118,6 +118,11 @@ export interface PlatformAnalytics {
     percent: number;
     dropped: number;
   }>;
+  /**
+   * Tenants with more than one login, reported beside the funnel rather than inside it — working
+   * alone is not dropping out of anything.
+   */
+  invited: number;
   activity: Array<{ week: string; active: number; existing: number; percent: number }>;
   volume: Array<{ day: string; attendance: number; reports: number; expenses: number }>;
   dormant: Array<{
@@ -136,5 +141,11 @@ export interface PlatformAnalytics {
     attendance: number;
     reports: number;
   }>;
-  plan_mix: Array<{ week: string; starter: number; pro: number }>;
+  plan_mix: Array<{
+    week: string;
+    three_months: number;
+    six_months: number;
+    one_year: number;
+    lifetime: number;
+  }>;
 }

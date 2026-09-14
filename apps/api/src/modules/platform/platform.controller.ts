@@ -16,11 +16,13 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
+  createTenantPlatformSchema,
   deleteTenantSchema,
   grantOperatorSchema,
   listTenantsQuerySchema,
   platformLoginSchema,
   updateTenantPlatformSchema,
+  type CreateTenantPlatformInput,
   type DeleteTenantInput,
   type GrantOperatorInput,
   type ListTenantsQuery,
@@ -90,6 +92,24 @@ export class PlatformController {
   @ApiOperation({ summary: 'Every tenant, with usage counts' })
   tenants(@Query(zodBody(listTenantsQuerySchema)) query: ListTenantsQuery) {
     return this.platform.listTenants(query);
+  }
+
+  /**
+   * Only a root operator. Creating an account is the one console action that makes a customer
+   * rather than changing one, and it is not support work.
+   */
+  @UseGuards(PlatformGuard)
+  @Post('tenants')
+  @ApiOperation({ summary: 'Create an account without anybody signing up' })
+  createTenant(
+    @Req() request: PlatformRequest,
+    @Body(zodBody(createTenantPlatformSchema)) body: CreateTenantPlatformInput,
+  ) {
+    const phone = actor(request);
+    if (!this.operators.isRoot(phone)) {
+      throw ApiError.forbidden('Only an operator named in the deployment config can do that');
+    }
+    return this.platform.createTenant(phone, body);
   }
 
   @UseGuards(PlatformGuard)

@@ -9,7 +9,7 @@ import { MODULES } from '../plans';
 export const createTenantSchema = z.object({
   name: z.string().trim().min(2).max(160),
   owner_name: z.string().trim().min(1).max(120),
-  plan: z.enum(PLANS).default('starter'),
+  plan: z.enum(PLANS).default('three_months'),
 });
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 

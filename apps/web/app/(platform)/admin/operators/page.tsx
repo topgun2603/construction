@@ -1,5 +1,6 @@
 import { ShieldCheck } from 'lucide-react';
 import { platformFetch } from '@/lib/platform-session';
+import { FadeIn } from '@/components/motion';
 import { OperatorControls } from './operator-controls';
 
 export const dynamic = 'force-dynamic';
@@ -35,9 +36,11 @@ export default async function OperatorsPage() {
   const granted = items.filter((item) => !item.root);
 
   return (
-    <div className="flex flex-col gap-6">
+    // The same wrapper every other console page uses. The layout deliberately supplies no padding
+    // of its own, so a page without this one sits flush against the window edge.
+    <FadeIn className="mx-auto flex max-w-[1400px] flex-col gap-5 px-6 pb-12 pt-5">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[22px] font-semibold tracking-tight">Operators</h1>
+        <h1 className="text-[22px] font-semibold leading-tight">Operators</h1>
         <p className="text-[13.5px] text-ink-muted">
           Everyone who can sign in to this console.
         </p>
@@ -64,6 +67,6 @@ export default async function OperatorsPage() {
       </section>
 
       <OperatorControls granted={granted} canManage={me.root} />
-    </div>
+    </FadeIn>
   );
 }

@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { planStanding } from '@sitebook/shared';
+import { env } from '../../config/env';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
@@ -16,6 +18,8 @@ export interface SelfView {
     name: string;
     logo_url: string | null;
     plan: string;
+    plan_expires_on: string | null;
+    plan_standing: string;
   };
   enabled_modules: string[];
   /**
@@ -45,7 +49,13 @@ export class UsersService {
       }),
       db.tenant.findUnique({
         where: { id: actor.tenantId },
-        select: { id: true, name: true, logoUrl: true, plan: true },
+        select: {
+          id: true,
+          name: true,
+          logoUrl: true,
+          plan: true,
+          planExpiresOn: true,
+        },
       }),
       db.notification.count({ where: { userId: actor.userId, readAt: null } }),
     ]);
@@ -62,6 +72,13 @@ export class UsersService {
         name: tenant.name,
         logo_url: tenant.logoUrl,
         plan: tenant.plan,
+        /*
+         * Both clients show what a builder has bought and how long is left, and the app decides
+         * what to warn about from the standing rather than from the date — so the standing is
+         * computed here, once, against the same grace window the guard enforces.
+         */
+        plan_expires_on: tenant.planExpiresOn?.toISOString() ?? null,
+        plan_standing: planStanding(tenant.planExpiresOn, new Date(), env().BILLING_GRACE_DAYS),
       },
       enabled_modules: actor.enabledModules,
       permissions: [...actor.permissions],

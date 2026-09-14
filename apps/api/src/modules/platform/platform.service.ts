@@ -1,6 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { effectiveModules, monthlyRecurringPaise, type Plan } from '@sitebook/shared';
+import { randomUUID } from 'node:crypto';
+import {
+  defaultModulesForPlan,
+  planExpiryFrom,
+  permissionsForSystemRole,
+  systemRoleSeesAllProjects,
+  toE164Indian,
+  type CreateTenantPlatformInput,
+  type UserRole,
+} from '@sitebook/shared';
 import { ApiError } from '../../common/errors/api-error';
+import { SYSTEM_ROLE_NAMES } from '../tenants/tenants.service';
 import { PlatformDb } from './platform-db.service';
 
 export interface TenantRow {
@@ -333,7 +344,21 @@ export class PlatformService {
     const after = await prisma.tenant.update({
       where: { id: tenantId },
       data: {
-        ...(input.plan ? { plan: input.plan as never } : {}),
+        /*
+         * Changing the term restarts it from today.
+         *
+         * An operator setting a plan is recording that somebody has paid for that length of time,
+         * and they have paid for it starting now — carrying the old end date forward would sell
+         * six months and deliver whatever was left of the last one. `lifetime` clears the date,
+         * which is what makes it never expire.
+         */
+        ...(input.plan
+          ? {
+              plan: input.plan as never,
+              planStartedOn: new Date(),
+              planExpiresOn: planExpiryFrom(input.plan as Plan, new Date()),
+            }
+          : {}),
         ...(input.status ? { status: input.status as never } : {}),
         ...(modules ? { enabledModules: modules } : {}),
       },
@@ -599,6 +624,100 @@ export class PlatformService {
 
     await prisma.tenant.delete({ where: { id: tenantId } });
     return { deleted: tenant.name };
+  }
+
+  /**
+   * Creates an account without anybody signing up for it.
+   *
+   * Deliberately the same shape onboarding produces — the tenant, its built-in role rows, and an
+   * owner — so a console-made account is indistinguishable from a self-served one afterwards. A
+   * tenant missing its role rows would work until its owner tried to build a custom role and found
+   * nothing to base it on.
+   *
+   * The owner is `pending`: no session is issued and no OTP has been passed. They become active
+   * the first time they sign in with the number given here, which is the same route a team invite
+   * takes.
+   */
+  async createTenant(actorPhone: string, input: CreateTenantPlatformInput) {
+    const phone = toE164Indian(input.owner_phone);
+    if (!phone) throw ApiError.validationFailed(undefined, 'That is not an Indian mobile number');
+
+    const prisma = this.db.client;
+
+    // One phone, one account. `auth_identities` is what `/auth/exchange` reads to decide which
+    // tenant a number belongs to, and a number in two would make that lookup a coin toss.
+    const existing = await prisma.authIdentity.findFirst({ where: { phone } });
+    if (existing) throw ApiError.conflict('That number already belongs to an account');
+
+    const tenantId = randomUUID();
+
+    const tenant = await prisma.$transaction(async (tx) => {
+      const created = await tx.tenant.create({
+        data: {
+          id: tenantId,
+          name: input.name,
+          plan: input.plan,
+          planStartedOn: new Date(),
+          planExpiresOn: planExpiryFrom(input.plan, new Date()),
+          enabledModules: defaultModulesForPlan(input.plan),
+        },
+        select: { id: true, name: true, plan: true, status: true, enabledModules: true },
+      });
+
+      const roleIdByBase = new Map<UserRole, string>();
+      for (const [base, name] of SYSTEM_ROLE_NAMES) {
+        const role = await tx.role.create({
+          data: {
+            tenantId,
+            name,
+            baseRole: base,
+            permissions: [...permissionsForSystemRole(base)],
+            seesAllProjects: systemRoleSeesAllProjects(base),
+            isSystem: true,
+          },
+          select: { id: true },
+        });
+        roleIdByBase.set(base, role.id);
+      }
+
+      // The row is created for its side effects: the owner exists, and a trigger on `users` writes
+      // the `auth_identities` entry that lets `/auth/exchange` resolve this number to this tenant.
+      await tx.user.create({
+        data: {
+          tenantId,
+          phone,
+          name: input.owner_name,
+          role: 'owner',
+          roleId: roleIdByBase.get('owner') ?? null,
+          status: 'pending',
+        },
+        select: { id: true },
+      });
+
+      // `auth_identities` is not written here. A trigger on `users` keeps it in step — see the
+      // init migration — precisely so application code cannot let the two drift. Inserting it by
+      // hand collides with what the trigger has already done a moment earlier.
+
+      return created;
+    });
+
+    await prisma.platformAuditLog.create({
+      data: {
+        actorPhone,
+        action: 'tenant.created',
+        tenantId,
+        after: { name: tenant.name, plan: tenant.plan, owner_phone: phone },
+      },
+    });
+
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      plan: tenant.plan,
+      status: tenant.status,
+      enabled_modules: tenant.enabledModules,
+      owner_phone: phone,
+    };
   }
 
   /** Records a console sign-in, so the trail shows who was looking and when. */

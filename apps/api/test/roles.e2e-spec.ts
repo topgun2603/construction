@@ -22,7 +22,7 @@ describe('roles', () => {
 
   beforeAll(async () => {
     test = await createTestApp();
-    tenant = await onboardTenant(test, { name: 'Role Builders', phone: uniquePhone(), plan: 'pro' });
+    tenant = await onboardTenant(test, { name: 'Role Builders', phone: uniquePhone(), plan: 'one_year' });
     owner = { Authorization: `Bearer ${tenant.accessToken}` };
   });
 

@@ -1,4 +1,5 @@
 import {
+  disableModule,
   createTestApp,
   destroyTenant,
   onboardTenant,
@@ -29,7 +30,7 @@ describe('client portal', () => {
     tenant = await onboardTenant(test, {
       name: 'Portal Builders',
       phone: uniquePhone(),
-      plan: 'pro',
+      plan: 'one_year',
     });
     owner = { Authorization: `Bearer ${tenant.accessToken}` };
 
@@ -712,8 +713,12 @@ describe('client portal', () => {
     });
   });
 
-  it('is refused entirely on a Starter plan', async () => {
-    const starter = await onboardTenant(test, { name: 'Starter Portal', phone: uniquePhone() });
+  it('is refused when the module is withdrawn from the account', async () => {
+    const starter = await onboardTenant(test, { name: 'Documents Off', phone: uniquePhone() });
+    // The route under test is `/documents`, which is gated on `documents` rather than on
+    // `client_portal` — the two used to arrive together with the tier, and no longer do.
+    await disableModule(test, starter.tenantId, 'documents');
+
     try {
       const refused = await test
         .http()

@@ -163,7 +163,7 @@ describe('platform console', () => {
         .http()
         .post('/v1/billing/subscribe')
         .set({ Authorization: `Bearer ${tenantA.accessToken}` })
-        .send({ plan: 'pro' })
+        .send({ plan: 'one_year' })
         .expect(201);
 
       const afterTrial = await test.http().get('/v1/admin/metrics').set(adminAuth).expect(200);
@@ -419,6 +419,69 @@ describe('platform console', () => {
     });
   });
 
+  describe('creating a tenant', () => {
+    it('makes an account nobody signed up for, ready for its owner', async () => {
+      const phone = uniquePhone();
+      const created = await test
+        .http()
+        .post('/v1/admin/tenants')
+        .set(adminAuth)
+        .send({
+          name: 'Cheque Payers LLP',
+          owner_name: 'Ravi K',
+          owner_phone: phone,
+          plan: 'one_year',
+        })
+        .expect(201);
+
+      expect(created.body.name).toBe('Cheque Payers LLP');
+      expect(created.body.plan).toBe('one_year');
+
+      // The whole point: the owner can now sign in with that number and land in this tenant,
+      // without anybody having onboarded them.
+      const session = await test
+        .http()
+        .post('/v1/auth/exchange')
+        // 200, not 201: the owner already exists, so this signs them in rather than creating them.
+        .send({ firebase_token: `dev:${phone}`, device_id: 'console-made' })
+        .expect(200);
+      expect(session.body.onboarding_required).toBeUndefined();
+
+      const me = await test
+        .http()
+        .get('/v1/me')
+        .set({ Authorization: `Bearer ${session.body.access_token}` })
+        .expect(200);
+      expect(me.body.tenant.id).toBe(created.body.id);
+      expect(me.body.user.role).toBe('owner');
+
+      // And the built-in roles exist as rows, so the owner can base a custom role on one. A tenant
+      // without them works until somebody tries exactly that.
+      const roles = await test
+        .http()
+        .get('/v1/roles')
+        .set({ Authorization: `Bearer ${session.body.access_token}` })
+        .expect(200);
+      expect(roles.body.length).toBeGreaterThanOrEqual(5);
+
+      await destroyTenant(test, created.body.id);
+    });
+
+    it('refuses a number that already belongs to an account', async () => {
+      await test
+        .http()
+        .post('/v1/admin/tenants')
+        .set(adminAuth)
+        .send({
+          name: 'Duplicate Builders',
+          owner_name: 'Someone',
+          owner_phone: tenantA.phone,
+          plan: 'three_months',
+        })
+        .expect(409);
+    });
+  });
+
   describe('deleting a tenant', () => {
     it('refuses unless the name is typed back', async () => {
       const doomed = await onboardTenant(test, {
@@ -509,39 +572,70 @@ describe('platform console', () => {
         .expect(200);
     });
 
-    it('resets the module list when the plan changes', async () => {
-      const upgraded = await test
+    it('restarts the term when the plan changes, and leaves the modules alone', async () => {
+      const yearly = await test
         .http()
         .patch(`/v1/admin/tenants/${tenantA.tenantId}`)
         .set(adminAuth)
-        .send({ plan: 'pro' })
+        .send({ plan: 'one_year' })
         .expect(200);
-      expect(upgraded.body.plan).toBe('pro');
-      expect(upgraded.body.enabled_modules).toContain('expenses');
+      expect(yearly.body.plan).toBe('one_year');
 
-      // The downgrade must actually take the Pro modules away. Leaving them on would
-      // let a tenant keep features they stopped paying for while the plan field claimed
-      // otherwise.
-      const downgraded = await test
+      // Modules no longer follow the plan. Every account has every one of them, and an operator
+      // withdrawing one is a separate, deliberate act.
+      expect(yearly.body.enabled_modules).toContain('expenses');
+
+      const shortened = await test
         .http()
         .patch(`/v1/admin/tenants/${tenantA.tenantId}`)
         .set(adminAuth)
-        .send({ plan: 'starter' })
+        .send({ plan: 'three_months' })
         .expect(200);
-      expect(downgraded.body.plan).toBe('starter');
-      expect(downgraded.body.enabled_modules).not.toContain('expenses');
+      expect(shortened.body.plan).toBe('three_months');
+      expect(shortened.body.enabled_modules).toContain('expenses');
+    });
+
+    it('gives a lifetime account no expiry at all', async () => {
+      // Its own tenant rather than one of the shared fixtures: this changes a plan, and the audit
+      // test below reads the *previous* plan of the account it touches.
+      const forever = await onboardTenant(test, {
+        name: 'Forever Builders',
+        phone: uniquePhone(),
+      });
+
+      try {
+        await test
+          .http()
+          .patch(`/v1/admin/tenants/${forever.tenantId}`)
+          .set(adminAuth)
+          .send({ plan: 'lifetime' })
+          .expect(200);
+
+        // Null expiry is what makes it never end. Read as "expired at the epoch" it would lock out
+        // the customers who paid the most, which is the failure this asserts against.
+        const session = await test
+          .http()
+          .get('/v1/me')
+          .set({ Authorization: `Bearer ${forever.accessToken}` })
+          .expect(200);
+        expect(session.body.tenant.plan).toBe('lifetime');
+        expect(session.body.tenant.plan_expires_on).toBeNull();
+        expect(session.body.tenant.plan_standing).toBe('active');
+      } finally {
+        await destroyTenant(test, forever.tenantId);
+      }
     });
 
     it('makes the gate follow the module list', async () => {
+      // Withdrawing a module is now an explicit act rather than a side effect of a cheaper plan,
+      // which makes this the only way a module can be off — and so the only thing worth proving.
       await test
         .http()
         .patch(`/v1/admin/tenants/${tenantA.tenantId}`)
         .set(adminAuth)
-        .send({ plan: 'starter' })
+        .send({ enabled_modules: ['projects', 'dpr', 'attendance', 'labour'] })
         .expect(200);
 
-      // Starter has no expenses module, so PlanGuard refuses — proving the console's
-      // write is the same switch the tenant API reads.
       const refused = await test
         .http()
         .get('/v1/expenses')
@@ -564,7 +658,7 @@ describe('platform console', () => {
         .http()
         .patch(`/v1/admin/tenants/${tenantB.tenantId}`)
         .set(adminAuth)
-        .send({ plan: 'pro' })
+        .send({ plan: 'one_year' })
         .expect(200);
 
       const audit = await test.http().get('/v1/admin/audit').set(adminAuth).expect(200);
@@ -574,8 +668,8 @@ describe('platform console', () => {
       );
       expect(entry).toBeDefined();
       expect(entry.actor_phone).toBe(ADMIN_PHONE);
-      expect(entry.before.plan).toBe('starter');
-      expect(entry.after.plan).toBe('pro');
+      expect(entry.before.plan).toBe('three_months');
+      expect(entry.after.plan).toBe('one_year');
     });
   });
 });

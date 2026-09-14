@@ -1,4 +1,5 @@
 import {
+  disableModule,
   createTestApp,
   destroyTenant,
   onboardTenant,
@@ -27,7 +28,7 @@ describe('expenses', () => {
     tenant = await onboardTenant(test, {
       name: 'Petty Cash Builders',
       phone: uniquePhone(),
-      plan: 'pro',
+      plan: 'one_year',
     });
     ownerAuth = { Authorization: `Bearer ${tenant.accessToken}` };
 
@@ -165,8 +166,10 @@ describe('expenses', () => {
     expect(BigInt(response.body.pending) > 0n).toBe(true);
   });
 
-  it('refuses the module entirely on a Starter plan', async () => {
-    const starter = await onboardTenant(test, { name: 'Starter Builders', phone: uniquePhone() });
+  it('is refused when the module is withdrawn from the account', async () => {
+    const starter = await onboardTenant(test, { name: 'Expenses Off', phone: uniquePhone() });
+    await disableModule(test, starter.tenantId, 'expenses');
+
     const response = await test
       .http()
       .get('/v1/expenses')

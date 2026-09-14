@@ -8,6 +8,8 @@ export interface TenantGateInfo {
   status: TenantStatus;
   plan: Plan;
   enabledModules: string[];
+  /** Null for a lifetime plan, which never runs out. */
+  planExpiresOn: Date | null;
 }
 
 interface CacheEntry {
@@ -39,7 +41,7 @@ export class TenantCache {
 
     const tenant = await this.tenantDb.clientFor(tenantId).tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, status: true, plan: true, enabledModules: true },
+      select: { id: true, status: true, plan: true, enabledModules: true, planExpiresOn: true },
     });
     if (!tenant) {
       this.entries.delete(tenantId);
@@ -47,6 +49,7 @@ export class TenantCache {
     }
 
     const value: TenantGateInfo = {
+      planExpiresOn: tenant.planExpiresOn,
       id: tenant.id,
       status: tenant.status,
       plan: tenant.plan,

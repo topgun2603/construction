@@ -38,7 +38,17 @@ export class PlatformAnalytics {
       this.planMixByWeek(sinceWeeks),
     ]);
 
-    return { weeks, signups, funnel, activity, volume, dormant, leaders, plan_mix: planMix };
+    return {
+      weeks,
+      signups,
+      funnel: funnel.steps,
+      invited: funnel.invited,
+      activity,
+      volume,
+      dormant,
+      leaders,
+      plan_mix: planMix,
+    };
   }
 
   /** New tenants per week, with a running total so the shape of growth is visible. */
@@ -69,33 +79,63 @@ export class PlatformAnalytics {
    * Every step is a `count(DISTINCT tenant_id)`, so the numbers only ever fall from one
    * step to the next and the drop-off between them is real.
    */
+  /**
+   * How far accounts get, as a funnel that is actually one.
+   *
+   * Each step counts tenants that reached *this* step **and every step before it**, which is what
+   * makes the sequence fall and `dropped` mean something. Counting each step independently — as
+   * this did — produced a "funnel" that could rise, and a drop figure that was the difference
+   * between two unrelated numbers. An operator reading "14 dropped at Invited" would go and fix a
+   * problem that was not there.
+   *
+   * "Invited a colleague" is reported separately rather than as a step. A one-man builder with six
+   * sites and a year of attendance has not dropped out of anything by working alone, and putting
+   * it in the path said they had.
+   */
   private async funnel() {
     const [row] = await this.db.client.$queryRaw<
       Array<{
         signed_up: number;
-        invited: number;
         created_site: number;
         added_workers: number;
         took_roll_call: number;
         filed_report: number;
+        invited: number;
       }>
     >(Prisma.sql`
+      WITH sites AS (
+        SELECT DISTINCT tenant_id FROM projects WHERE deleted_at IS NULL
+      ),
+      workers AS (
+        SELECT DISTINCT tenant_id FROM workers WHERE deleted_at IS NULL
+      ),
+      roll_calls AS (
+        SELECT DISTINCT tenant_id FROM attendance
+      ),
+      reports AS (
+        SELECT DISTINCT tenant_id FROM daily_reports
+         WHERE deleted_at IS NULL AND status = 'submitted'
+      ),
+      -- Each stage is the one before it, narrowed. That is what makes the counts fall.
+      s1 AS (SELECT id AS tenant_id FROM tenants),
+      s2 AS (SELECT s1.tenant_id FROM s1 JOIN sites       USING (tenant_id)),
+      s3 AS (SELECT s2.tenant_id FROM s2 JOIN workers     USING (tenant_id)),
+      s4 AS (SELECT s3.tenant_id FROM s3 JOIN roll_calls  USING (tenant_id)),
+      s5 AS (SELECT s4.tenant_id FROM s4 JOIN reports     USING (tenant_id))
       SELECT
-        (SELECT count(*)::int FROM tenants)                                               AS signed_up,
+        (SELECT count(*)::int FROM s1) AS signed_up,
+        (SELECT count(*)::int FROM s2) AS created_site,
+        (SELECT count(*)::int FROM s3) AS added_workers,
+        (SELECT count(*)::int FROM s4) AS took_roll_call,
+        (SELECT count(*)::int FROM s5) AS filed_report,
         (SELECT count(*)::int FROM (
            SELECT tenant_id FROM users WHERE deleted_at IS NULL
            GROUP BY tenant_id HAVING count(*) > 1
-         ) invited_more_than_owner)                                                       AS invited,
-        (SELECT count(DISTINCT tenant_id)::int FROM projects WHERE deleted_at IS NULL)     AS created_site,
-        (SELECT count(DISTINCT tenant_id)::int FROM workers  WHERE deleted_at IS NULL)     AS added_workers,
-        (SELECT count(DISTINCT tenant_id)::int FROM attendance)                            AS took_roll_call,
-        (SELECT count(DISTINCT tenant_id)::int FROM daily_reports
-           WHERE deleted_at IS NULL AND status = 'submitted')                              AS filed_report
+         ) more_than_owner) AS invited
     `);
 
     const steps = [
       { key: 'signed_up', label: 'Signed up', count: row?.signed_up ?? 0 },
-      { key: 'invited', label: 'Invited a colleague', count: row?.invited ?? 0 },
       { key: 'created_site', label: 'Created a site', count: row?.created_site ?? 0 },
       { key: 'added_workers', label: 'Added workers', count: row?.added_workers ?? 0 },
       { key: 'took_roll_call', label: 'Took a roll call', count: row?.took_roll_call ?? 0 },
@@ -103,7 +143,7 @@ export class PlatformAnalytics {
     ];
 
     const top = steps[0]?.count ?? 0;
-    return steps.map((step, index) => {
+    const withShare = steps.map((step, index) => {
       const previous = index === 0 ? step.count : (steps[index - 1]?.count ?? 0);
       return {
         ...step,
@@ -113,24 +153,11 @@ export class PlatformAnalytics {
         dropped: Math.max(previous - step.count, 0),
       };
     });
+
+    // Alongside the funnel rather than inside it: working alone is not a drop-out.
+    return { steps: withShare, invited: row?.invited ?? 0 };
   }
 
-  /**
-   * Tenants that did real work each week, against the number that existed by then.
-   *
-   * "Active" means attendance or a daily report — work someone had to be on a site to
-   * produce. Deliberately not sign-ins: an owner opening the dashboard, seeing nothing
-   * and closing it would otherwise count as an active account, which is precisely the
-   * tenant this chart needs to expose.
-   *
-   * The denominator is tenants that existed by the end of that week *or* did work in it,
-   * which keeps early weeks from being flattered by dividing by today's tenant count.
-   *
-   * The "or did work in it" half is not defensive padding. Attendance carries the date it
-   * happened, not the date it was typed, and back-entering a fortnight of muster rolls
-   * after signing up is ordinary behaviour on a building site. Without it the numerator
-   * could exceed the denominator and the percentage would be nonsense — which it was.
-   */
   private async activeTenantsByWeek(since: string) {
     const rows = await this.db.client.$queryRaw<
       Array<{ week: Date; active: number; existing: number }>
@@ -289,14 +316,23 @@ export class PlatformAnalytics {
   /**
    * Plan mix as it stood at the end of each week.
    *
-   * Built from `tenants.created_at` against today's plan, so it answers "how many
-   * tenants existed then, split by the plan they are on now" — not a true history of
-   * upgrades. Recording that properly needs a plan-change log, which arrives with
-   * billing; until then this is honest about being a snapshot view.
+   * Built from `tenants.created_at` against today's plan, so it answers "how many tenants existed
+   * then, split by the term they are on now" — not a true history of changes. Recording that
+   * properly needs a plan-change log; until then this is honest about being a snapshot view.
+   *
+   * One column per term rather than the two tiers this replaced. The interesting number for an
+   * operator is no longer who is paying more, it is who committed for how long: a wall of three
+   * month accounts and a wall of lifetime ones are very different businesses.
    */
   private async planMixByWeek(since: string) {
     const rows = await this.db.client.$queryRaw<
-      Array<{ week: Date; starter: number; pro: number }>
+      Array<{
+        week: Date;
+        three_months: number;
+        six_months: number;
+        one_year: number;
+        lifetime: number;
+      }>
     >(Prisma.sql`
       WITH weeks AS (
         SELECT generate_series(
@@ -306,19 +342,24 @@ export class PlatformAnalytics {
         )::date AS week
       )
       SELECT w.week,
-             (SELECT count(*)::int FROM tenants
-               WHERE plan = 'starter'
-                 AND date_trunc('week', created_at AT TIME ZONE 'Asia/Kolkata')::date <= w.week
-             ) AS starter,
-             (SELECT count(*)::int FROM tenants
-               WHERE plan = 'pro'
-                 AND date_trunc('week', created_at AT TIME ZONE 'Asia/Kolkata')::date <= w.week
-             ) AS pro
+             count(*) FILTER (WHERE t.plan = 'three_months')::int AS three_months,
+             count(*) FILTER (WHERE t.plan = 'six_months')::int   AS six_months,
+             count(*) FILTER (WHERE t.plan = 'one_year')::int     AS one_year,
+             count(*) FILTER (WHERE t.plan = 'lifetime')::int     AS lifetime
       FROM weeks w
+      LEFT JOIN tenants t
+        ON date_trunc('week', t.created_at AT TIME ZONE 'Asia/Kolkata')::date <= w.week
+      GROUP BY w.week
       ORDER BY w.week
     `);
 
-    return rows.map((row) => ({ week: iso(row.week), starter: row.starter, pro: row.pro }));
+    return rows.map((row) => ({
+      week: iso(row.week),
+      three_months: row.three_months,
+      six_months: row.six_months,
+      one_year: row.one_year,
+      lifetime: row.lifetime,
+    }));
   }
 }
 

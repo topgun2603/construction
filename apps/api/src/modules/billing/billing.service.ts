@@ -192,7 +192,7 @@ export class BillingService {
     });
 
     // An immediate cancel has no "period end" webhook coming, so the downgrade happens now.
-    if (immediate) await this.applyPlan(actor.tenantId, 'starter', 'cancelled immediately');
+    if (immediate) await this.lapseTerm(actor.tenantId, 'cancelled immediately');
 
     return this.current(actor);
   }
@@ -350,7 +350,7 @@ export class BillingService {
 
     // Already past the paid period, so there is nothing left to honour.
     if (periodEnd.getTime() <= Date.now()) {
-      await this.applyPlan(resolved.tenantId, 'starter', 'subscription cancelled');
+      await this.lapseTerm(resolved.tenantId, 'subscription cancelled', periodEnd);
     }
   }
 
@@ -480,6 +480,40 @@ export class BillingService {
    * The tenant cache is invalidated so the change takes effect on the next request instead of when a
    * TTL happens to expire — a builder who has just paid should not watch the feature stay locked.
    */
+  /**
+   * Ends a term now, rather than moving the account to a cheaper one.
+   *
+   * There is no cheaper one any more: a plan is a length of time and every account has every
+   * module. Lapsing therefore means the paid period is over, which `plan_expires_on` already
+   * expresses — and the grace period and read-only behaviour follow from it without this code
+   * having to know about either.
+   *
+   * The plan itself is left alone deliberately. "They were on a year and it ran out" is a more
+   * useful thing for an operator to read than an account silently relabelled.
+   */
+  private async lapseTerm(tenantId: string, reason: string, endedOn?: Date): Promise<void> {
+    const db = this.tenantDb.clientFor(tenantId);
+    const current = await db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { planExpiresOn: true },
+    });
+    if (!current) return;
+
+    /*
+     * Ended when the paid period ended, not when we noticed.
+     *
+     * The nightly sweep can find a subscription that lapsed two months ago, and dating the expiry
+     * to today would hand that account a fresh grace period every time the job ran — an account
+     * that had not paid since June would never leave grace.
+     */
+    const ended = endedOn ?? new Date();
+    if (current.planExpiresOn && current.planExpiresOn <= ended) return;
+
+    await db.tenant.update({ where: { id: tenantId }, data: { planExpiresOn: ended } });
+    this.tenantCache.invalidate(tenantId);
+    this.logger.log(`Tenant ${tenantId} term ended (${reason})`);
+  }
+
   private async applyPlan(tenantId: string, plan: Plan, reason: string): Promise<void> {
     const db = this.tenantDb.clientFor(tenantId);
     const current = await db.tenant.findUnique({ where: { id: tenantId }, select: { plan: true } });
@@ -530,10 +564,10 @@ export class BillingService {
       if (subscription.status !== 'past_due' && subscription.status !== 'cancelled') continue;
       if (!subscription.currentPeriodEnd || subscription.currentPeriodEnd >= cutoff) continue;
 
-      await this.applyPlan(
+      await this.lapseTerm(
         candidate.tenantId,
-        'starter',
         'subscription lapsed past the grace period',
+        subscription.currentPeriodEnd,
       );
       dropped.push(candidate.tenantId);
     }

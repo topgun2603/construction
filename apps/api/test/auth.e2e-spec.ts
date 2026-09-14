@@ -16,7 +16,7 @@ describe('auth and plan gating', () => {
     tenant = await onboardTenant(test, {
       name: 'Gating Constructions',
       phone: uniquePhone(),
-      plan: 'starter',
+      plan: 'three_months',
     });
   });
 
@@ -65,11 +65,17 @@ describe('auth and plan gating', () => {
       .expect(200);
 
     expect(response.body.user.role).toBe('owner');
-    expect(response.body.tenant.plan).toBe('starter');
+    expect(response.body.tenant.plan).toBe('three_months');
+    // Every account gets every module. The plan is a length of time, so a three-month account and
+    // a lifetime one differ in when they end, not in what they can do.
     expect(response.body.enabled_modules).toContain('attendance');
-    // Starter must not carry the Phase 2 modules (spec §3, §6.3).
-    expect(response.body.enabled_modules).not.toContain('expenses');
+    expect(response.body.enabled_modules).toContain('expenses');
+    expect(response.body.enabled_modules).toContain('client_portal');
     expect(response.body.sees_all_projects).toBe(true);
+
+    // And the term is on `/me`, because both clients warn from it.
+    expect(response.body.tenant.plan_standing).toBe('active');
+    expect(typeof response.body.tenant.plan_expires_on).toBe('string');
   });
 
   it('signs an existing owner straight in on the second exchange', async () => {

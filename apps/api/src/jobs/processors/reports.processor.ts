@@ -169,7 +169,7 @@ export class ReportsProcessor extends WorkerHost {
       permissions: permissionsForSystemRole('accounts'),
       projectIds: [],
       seesAllProjects: true,
-      plan: 'pro',
+      plan: 'one_year',
       enabledModules: ['labour'],
     };
 

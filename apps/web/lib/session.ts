@@ -8,7 +8,16 @@ export const REFRESH_COOKIE = 'sb_refresh';
 
 export interface SelfResponse {
   user: { id: string; name: string; phone: string; role: string; status: string };
-  tenant: { id: string; name: string; logo_url: string | null; plan: string };
+  tenant: {
+    id: string;
+    name: string;
+    logo_url: string | null;
+    plan: string;
+    /** Null for a lifetime plan. */
+    plan_expires_on: string | null;
+    /** `active`, `grace` or `expired` — computed by the API against the same grace window it enforces. */
+    plan_standing: string;
+  };
   enabled_modules: string[];
   /** What this person may do. Gate UI on these, never on the role name. */
   permissions: string[];

@@ -1,4 +1,5 @@
 import {
+  disableModule,
   createTestApp,
   destroyTenant,
   onboardTenant,
@@ -28,7 +29,7 @@ describe('stock', () => {
     tenant = await onboardTenant(test, {
       name: 'Stock Builders',
       phone: uniquePhone(),
-      plan: 'pro',
+      plan: 'one_year',
     });
     owner = { Authorization: `Bearer ${tenant.accessToken}` };
 
@@ -334,11 +335,13 @@ describe('stock', () => {
     });
   });
 
-  it('is refused entirely on a Starter plan', async () => {
+  it('is refused when the module is withdrawn from the account', async () => {
     const starter = await onboardTenant(test, {
-      name: 'Starter Stock',
+      name: 'Stock Off',
       phone: uniquePhone(),
     });
+    await disableModule(test, starter.tenantId, 'stock');
+
     try {
       const refused = await test
         .http()

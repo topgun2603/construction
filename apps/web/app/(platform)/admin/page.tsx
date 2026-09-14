@@ -151,6 +151,15 @@ export default async function PlatformOverviewPage({
             <span className="font-mono text-[13px] text-ink-muted">all time</span>
           </div>
           <FunnelChart steps={analytics.funnel} />
+          {/*
+            Beside the funnel, not in it. A one-man builder with six sites has not dropped out by
+            working alone, and a step that said so sent an operator chasing a problem that was not
+            there.
+          */}
+          <p className="mt-3 text-[12.5px] text-ink-muted">
+            {analytics.invited} {analytics.invited === 1 ? 'account has' : 'accounts have'} invited
+            a colleague.
+          </p>
         </Card>
       </div>
 
@@ -186,7 +195,14 @@ export default async function PlatformOverviewPage({
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
             Plan mix
           </span>
-          <PlanMixBar starter={latestMix?.starter ?? 0} pro={latestMix?.pro ?? 0} />
+          <PlanMixBar
+            mix={{
+              three_months: latestMix?.three_months ?? 0,
+              six_months: latestMix?.six_months ?? 0,
+              one_year: latestMix?.one_year ?? 0,
+              lifetime: latestMix?.lifetime ?? 0,
+            }}
+          />
           <div className="mt-auto flex flex-col gap-1.5 border-t border-line-soft pt-3 text-[12.5px]">
             <Row label="Active" value={metrics.tenants.active} />
             <Row label="Suspended" value={metrics.tenants.suspended} tone="blocked" />
@@ -222,7 +238,7 @@ export default async function PlatformOverviewPage({
                     >
                       {leader.name}
                     </Link>
-                    <Badge tone={leader.plan === 'pro' ? 'accent' : 'neutral'} dot={false}>
+                    <Badge tone={leader.plan === 'lifetime' ? 'accent' : 'neutral'} dot={false}>
                       {titleCase(leader.plan)}
                     </Badge>
                   </div>
@@ -272,7 +288,7 @@ export default async function PlatformOverviewPage({
                   >
                     {row.name}
                   </Link>
-                  <Badge tone={row.plan === 'pro' ? 'accent' : 'neutral'} dot={false}>
+                  <Badge tone={row.plan === 'lifetime' ? 'accent' : 'neutral'} dot={false}>
                     {titleCase(row.plan)}
                   </Badge>
                 </div>

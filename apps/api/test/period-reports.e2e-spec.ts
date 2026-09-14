@@ -25,7 +25,7 @@ describe('period reports', () => {
     tenant = await onboardTenant(test, {
       name: 'Register Builders',
       phone: uniquePhone(),
-      plan: 'pro',
+      plan: 'one_year',
     });
     owner = { Authorization: `Bearer ${tenant.accessToken}` };
 

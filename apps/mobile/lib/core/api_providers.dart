@@ -159,9 +159,13 @@ final teamProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref
 });
 
 /// The roles a company has defined, on top of the built-in ones.
+///
+/// `/roles` answers with a bare array rather than the `{items: []}` every other list uses. Reading
+/// it as a page would find no `items` key and show a company with no roles at all.
 final rolesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  return _items(await api.get('/roles'));
+  final payload = await api.get('/roles') as List<dynamic>;
+  return payload.map((row) => Map<String, dynamic>.from(row as Map)).toList(growable: false);
 });
 
 /// Every permission, grouped, in the words a builder would use.

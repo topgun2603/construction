@@ -28,7 +28,7 @@ Build order per spec §16:
 | 8d | Permissions model and owner-defined roles | **done** |
 | 9 | Stock: ledger, GRN on receipt, estimates, material overrun report | **done** |
 | 9b | Site photos and videos, location capture and map | **done** |
-| 12 | Razorpay subscriptions, webhook, plan downgrade, MRR in the console | **done** |
+| 12 | Plans as terms (3 / 6 / 12 months, lifetime), read-only on expiry, Razorpay wiring, MRR in the console | **done** — payment collected offline for now |
 | 13 | Client portal: the site conversation, read receipts, direct messages, payment schedule, approvals | **done** |
 | 14 | Documents: drawings, contracts and approvals with revisions | **done** |
 | 7 | Flutter supervisor app | **done** — sign-in, offline sync, sites, DPR, roll call, workers, advances, indents, expenses, stock, documents, the conversation, push, wage runs, client payments, and the set-up lists (contractors, materials, team, roles) |
@@ -212,22 +212,48 @@ date, and dropping it to make the page prettier would have removed the one thing
 
 ---
 
-## Billing
+## Plans and billing
 
-Razorpay Subscriptions. Prices live in `PLAN_PRICES_PAISE` as paise integers like all money here —
-Starter ₹999, Pro ₹2,499 a month.
+**A plan is a length of time, not a set of features.** Every account gets every module; what a
+builder buys is three months, six months, a year, or lifetime. The tiered model this replaced hid
+the product's best half — expenses, stock, reports, the client portal — from the customers most
+likely to need it, and turned every support call into a conversation about which tier somebody was
+on.
+
+Prices live in `PLAN_PRICES_PAISE` as paise integers like all money here, and are for the whole
+term rather than per month. `lifetime` has no expiry; the rest set `tenants.plan_expires_on`, and
+`planExpiryFrom` counts in months so a term bought on the 15th ends on the 15th — pulling back to
+the last day where the target month is shorter.
+
+**Running out makes an account read-only, not dead.** Past `plan_expires_on` plus
+`BILLING_GRACE_DAYS`, `JwtAuthGuard` refuses anything that is not a `GET` with `PLAN_EXPIRED`.
+Reads keep working on purpose: a builder whose plan lapsed can still open last month's wage sheet
+and show a client the drawings, and the data was theirs before the term ran out. Taking it away
+makes renewing feel like paying a ransom.
+
+`enabled_modules` and `@RequiresModule` still exist and still work — an operator can withdraw a
+module from an account that is misbehaving. What no longer happens is a module being off because of
+what somebody paid.
+
+**Payment is arranged outside the product for now.** A term is bought outright rather than
+subscribed to — a recurring mandate cannot express "lifetime" at all — and an operator sets the
+term from the console until that is built. The Razorpay subscription code below still stands and
+still passes its tests; it is simply not the path a term takes today.
 
 The trust boundary is the whole design: **a browser may ask to start or cancel, and nothing more.**
 What plan a tenant is on, whether it is paid, and until when are set only from a signature-verified
 webhook. Four consequences, each with a test:
 
-1. **Checkout does not grant the plan.** No money has moved yet, and upgrading there would hand Pro to
-   anyone who opened the dialog and walked away. `subscription.activated` does it, and the module gate
-   follows on the next request because the tenant cache is invalidated rather than left to expire.
+1. **Checkout does not grant the term.** No money has moved yet, and granting there would hand a
+   year to anyone who opened the dialog and walked away. `subscription.activated` does it, and it
+   takes effect on the next request because the tenant cache is invalidated rather than left to
+   expire.
 2. **A failed payment does not cut access.** The period is already paid for, and taking the roll call
-   away from site staff mid-shift over an expired card is not a collections strategy. The plan drops
+   away from site staff mid-shift over an expired card is not a collections strategy. The term ends
    after the paid period plus `BILLING_GRACE_DAYS`, found by a nightly sweep — nothing arrives to
-   announce that, it is the absence of a payment.
+   announce that, it is the absence of a payment. The expiry is dated to when the period actually
+   ended rather than to when the sweep noticed, or an account that had not paid since June would be
+   handed a fresh grace period every night.
 3. **Replays are no-ops.** Razorpay retries until it gets a 2xx, so every event arrives more than once.
    The event id is inserted first and a duplicate returns 200 having done nothing; without it a
    retried `subscription.charged` raises a second invoice and extends the period twice.

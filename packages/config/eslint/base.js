@@ -18,6 +18,15 @@ module.exports = [
     },
   },
   {
-    ignores: ['**/dist/**', '**/.next/**', '**/node_modules/**', '**/*.config.js'],
+    // `dist-worker` is the worker's own build output — it compiles separately because two Nest
+    // watchers sharing one `dist` with `deleteOutDir` raced and died. It is gitignored, and
+    // linting emitted JavaScript only produces noise about `exports` not being defined.
+    ignores: [
+      '**/dist/**',
+      '**/dist-worker/**',
+      '**/.next/**',
+      '**/node_modules/**',
+      '**/*.config.js',
+    ],
   },
 ];

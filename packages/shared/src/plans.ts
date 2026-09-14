@@ -23,26 +23,16 @@ export const MODULES = [
 
 export type ModuleName = (typeof MODULES)[number];
 
-/** Modules every tenant gets regardless of plan — the Phase 1 core. */
-const CORE_MODULES: readonly ModuleName[] = [
-  'projects',
-  'dpr',
-  'attendance',
-  'labour',
-  'indents',
-  'materials',
-  'notifications',
-  'dashboard',
-];
-
-/** Plan → default enabled modules. Source of truth for onboarding and upgrades. */
-export const PLAN_MODULES: Record<Plan, readonly ModuleName[]> = {
-  starter: CORE_MODULES,
-  pro: [...CORE_MODULES, 'expenses', 'stock', 'reports', 'client_portal', 'documents'],
-};
-
-export function defaultModulesForPlan(plan: Plan): ModuleName[] {
-  return [...PLAN_MODULES[plan]];
+/**
+ * Every module, for every plan.
+ *
+ * Kept as a function of the plan rather than inlined, because `@RequiresModule` and the console's
+ * per-tenant toggles both still exist and still work: an operator can turn a module off for one
+ * account that is misbehaving, and the guard will honour it. What no longer happens is a module
+ * being off because of what somebody paid.
+ */
+export function defaultModulesForPlan(_plan: Plan): ModuleName[] {
+  return [...MODULES];
 }
 
 export function isModuleName(value: string): value is ModuleName {
@@ -75,13 +65,79 @@ export function hasModule(enabled: readonly string[], moduleName: ModuleName): b
  * trusts an amount from the client.
  */
 export const PLAN_PRICES_PAISE: Record<Plan, bigint> = {
-  starter: 99_900n,
-  pro: 249_900n,
+  three_months: 299_900n,
+  six_months: 549_900n,
+  one_year: 999_900n,
+  lifetime: 2_499_900n,
 };
 
-/** Monthly price for a plan, in paise. */
+/** What a term costs outright, in paise. Not a monthly rate — a term is bought whole. */
 export function planPricePaise(plan: Plan): bigint {
   return PLAN_PRICES_PAISE[plan] ?? 0n;
+}
+
+/** How many months a term runs. Null for `lifetime`, which does not end. */
+export const PLAN_MONTHS: Record<Plan, number | null> = {
+  three_months: 3,
+  six_months: 6,
+  one_year: 12,
+  lifetime: null,
+};
+
+/** `three_months` → `3 months`, for anywhere a plan is named to a person. */
+export const PLAN_LABELS: Record<Plan, string> = {
+  three_months: '3 months',
+  six_months: '6 months',
+  one_year: '1 year',
+  lifetime: 'Lifetime',
+};
+
+/**
+ * When a term bought on `from` runs out, or null for one that never does.
+ *
+ * Month arithmetic, not 90 days: somebody who buys three months on the 15th expects it to end on
+ * the 15th. JavaScript rolls 31 January + 1 month into 3 March, so a day that does not exist in
+ * the target month is pulled back to that month's last day — 31 Jan + 1 month is 28 Feb, which is
+ * what anybody selling a subscription means by it.
+ */
+export function planExpiryFrom(plan: Plan, from: Date): Date | null {
+  const months = PLAN_MONTHS[plan];
+  if (months === null) return null;
+
+  const day = from.getUTCDate();
+  const target = new Date(from);
+  target.setUTCDate(1);
+  target.setUTCMonth(target.getUTCMonth() + months);
+
+  const lastDayOfTarget = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  target.setUTCDate(Math.min(day, lastDayOfTarget));
+  return target;
+}
+
+/** Where an account stands against its term. */
+export type PlanStanding = 'active' | 'grace' | 'expired';
+
+/**
+ * Whether a term still entitles the account to write.
+ *
+ * Three states rather than two, because the day after a term ends is not the day somebody loses
+ * their site's attendance. Within the grace period everything still works and the app says so;
+ * past it the account reads but does not write.
+ */
+export function planStanding(
+  expiresOn: Date | null | undefined,
+  now: Date,
+  graceDays: number,
+): PlanStanding {
+  // No expiry is lifetime, which is always active.
+  if (!expiresOn) return 'active';
+  if (now <= expiresOn) return 'active';
+
+  const graceEnds = new Date(expiresOn);
+  graceEnds.setUTCDate(graceEnds.getUTCDate() + graceDays);
+  return now <= graceEnds ? 'grace' : 'expired';
 }
 
 /**

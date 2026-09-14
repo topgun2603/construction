@@ -1,4 +1,5 @@
 import {
+  disableModule,
   createTestApp,
   destroyTenant,
   onboardTenant,
@@ -44,7 +45,7 @@ describe('client billing and approvals', () => {
     tenant = await onboardTenant(test, {
       name: 'Billing Builders',
       phone: uniquePhone(),
-      plan: 'pro',
+      plan: 'one_year',
     });
     owner = { Authorization: `Bearer ${tenant.accessToken}` };
 
@@ -480,8 +481,10 @@ describe('client billing and approvals', () => {
     });
   });
 
-  it('is refused entirely on a Starter plan', async () => {
-    const starter = await onboardTenant(test, { name: 'Starter Billing', phone: uniquePhone() });
+  it('is refused when the module is withdrawn from the account', async () => {
+    const starter = await onboardTenant(test, { name: 'Billing Off', phone: uniquePhone() });
+    await disableModule(test, starter.tenantId, 'client_portal');
+
     try {
       const project = await test
         .http()

@@ -173,7 +173,7 @@ export function LoginForm() {
         body: JSON.stringify({
           name: String(form.get('company') ?? ''),
           owner_name: String(form.get('owner') ?? ''),
-          plan: 'starter',
+          plan: 'three_months',
         }),
       });
       const payload = (await response.json()) as { tokens?: TokenPair; message?: string };

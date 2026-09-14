@@ -330,49 +330,51 @@ function Key({ className, label }: { className: string; label: string }) {
 }
 
 /**
- * Plan mix as a single proportional bar.
+ * Plan mix as one proportional bar.
  *
- * A donut was the obvious choice and the wrong one: with two segments a ring is harder to
- * read than a bar, and it wastes a square of space that a wide card does not have to
- * spare.
+ * A donut was the obvious choice and the wrong one: with a handful of segments a ring is harder to
+ * read than a bar, and it wastes a square of space a wide card does not have.
+ *
+ * Ordered shortest term to longest, left to right, so the bar reads as commitment increasing
+ * rather than as four unrelated colours. The number worth watching is the right-hand end.
  */
 export function PlanMixBar({
-  starter,
-  pro,
+  mix,
   className,
 }: {
-  starter: number;
-  pro: number;
+  mix: { three_months: number; six_months: number; one_year: number; lifetime: number };
   className?: string;
 }) {
-  const total = starter + pro;
-  const proShare = total === 0 ? 0 : Math.round((pro / total) * 100);
+  const segments = [
+    { key: 'three_months', label: '3 months', count: mix.three_months, tone: 'bg-ink/20' },
+    { key: 'six_months', label: '6 months', count: mix.six_months, tone: 'bg-ink/40' },
+    { key: 'one_year', label: '1 year', count: mix.one_year, tone: 'bg-accent/70' },
+    { key: 'lifetime', label: 'Lifetime', count: mix.lifetime, tone: 'bg-accent' },
+  ];
+  const total = segments.reduce((sum, segment) => sum + segment.count, 0);
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="flex h-3 overflow-hidden rounded-full bg-track">
-        <div
-          className="bg-accent transition-all"
-          style={{ width: `${total === 0 ? 0 : (pro / total) * 100}%` }}
-          title={`${pro} on Pro`}
-        />
-        <div
-          className="bg-ink/25 transition-all"
-          style={{ width: `${total === 0 ? 100 : (starter / total) * 100}%` }}
-          title={`${starter} on Starter`}
-        />
+        {total === 0
+          ? null
+          : segments.map((segment) => (
+              <div
+                key={segment.key}
+                className={cn('transition-all', segment.tone)}
+                style={{ width: `${(segment.count / total) * 100}%` }}
+                title={`${segment.count} on ${segment.label}`}
+              />
+            ))}
       </div>
-      <div className="flex items-center justify-between text-[12.5px]">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-3 rounded-[2px] bg-accent" />
-          <span className="font-semibold">{pro}</span>
-          <span className="text-ink-muted">Pro · {proShare}%</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-3 rounded-[2px] bg-ink/25" />
-          <span className="font-semibold">{starter}</span>
-          <span className="text-ink-muted">Starter</span>
-        </span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px]">
+        {segments.map((segment) => (
+          <span key={segment.key} className="flex items-center gap-1.5">
+            <span className={cn('h-2 w-3 rounded-[2px]', segment.tone)} />
+            <span className="font-semibold">{segment.count}</span>
+            <span className="text-ink-muted">{segment.label}</span>
+          </span>
+        ))}
       </div>
     </div>
   );

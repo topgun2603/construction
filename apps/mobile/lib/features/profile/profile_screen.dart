@@ -62,7 +62,7 @@ class ProfileScreen extends ConsumerWidget {
                     label: 'Role',
                     value: me.roleName.isEmpty ? titleCase(me.role) : me.roleName,
                   ),
-                  _Row(label: 'Plan', value: titleCase(me.plan)),
+                  _Row(label: 'Plan', value: me.planLabel),
                   _Row(
                     label: 'Sites',
                     value: me.seesAllProjects ? 'All sites' : 'Only the ones you are on',

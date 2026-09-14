@@ -23,7 +23,7 @@ function userWith(modules: string[]): RequestUser {
     permissions: permissionsForSystemRole('owner'),
     projectIds: [],
     seesAllProjects: true,
-    plan: 'starter',
+    plan: 'three_months',
     enabledModules: modules,
   };
 }

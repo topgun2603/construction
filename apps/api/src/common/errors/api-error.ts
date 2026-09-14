@@ -71,6 +71,21 @@ export class ApiError extends HttpException {
     );
   }
 
+  /**
+   * The term ran out and the grace period with it.
+   *
+   * Deliberately not `tenantSuspended`: the account works, it can still be read, and the fix is a
+   * renewal rather than a phone call to support. A client that cannot tell the two apart will show
+   * the wrong thing to somebody standing on a site wondering why the roll call will not save.
+   */
+  static planExpired(): ApiError {
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.PLAN_EXPIRED,
+      'This plan has run out. The account can still be read, but nothing new can be saved until it is renewed.',
+    );
+  }
+
   static tenantSuspended(): ApiError {
     return new ApiError(
       HttpStatus.FORBIDDEN,

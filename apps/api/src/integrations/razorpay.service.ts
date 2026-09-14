@@ -34,11 +34,18 @@ export class RazorpayService {
     return Boolean(this.config.RAZORPAY_KEY_ID && this.config.RAZORPAY_SECRET);
   }
 
-  /** The Razorpay plan id one of our plans maps to. */
+  /**
+   * The Razorpay plan id one of our terms maps to.
+   *
+   * Unwired for now. Terms are bought outright rather than subscribed to — a recurring mandate
+   * cannot express "lifetime" at all — and the money is collected outside the product while that
+   * is built. The two env ids remain so the existing subscription paths still compile and their
+   * tests still describe what they always did.
+   */
   planId(plan: Plan): string | null {
-    return plan === 'pro'
-      ? (this.config.RAZORPAY_PLAN_ID_PRO ?? null)
-      : (this.config.RAZORPAY_PLAN_ID_STARTER ?? null);
+    return plan === 'lifetime'
+      ? null
+      : (this.config.RAZORPAY_PLAN_ID_PRO ?? this.config.RAZORPAY_PLAN_ID_STARTER ?? null);
   }
 
   /**

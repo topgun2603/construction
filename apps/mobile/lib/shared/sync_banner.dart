@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api_providers.dart';
 import '../core/db/sync.dart';
+import '../core/auth_controller.dart';
 import '../core/theme.dart';
 
 /// What the phone is still holding.
@@ -19,6 +20,24 @@ class SyncBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(syncStateProvider).value ?? const SyncState();
+    final me = ref.watch(authControllerProvider).me;
+
+    /*
+     * Above the queue, because it explains the queue.
+     *
+     * Once a term has run out the server refuses every write, so a supervisor marking a roll call
+     * sees it fail and has no way to know why — the request looks exactly like a bad connection
+     * from where they are standing. This is the only place in the app that says otherwise, and it
+     * has to outrank a sync message that would otherwise be blaming the network.
+     */
+    if (me?.planExpired ?? false) {
+      return const _Strip(
+        background: Palette.blockedBg,
+        foreground: Palette.blocked,
+        icon: Icons.lock_clock,
+        text: 'The plan has run out — you can read everything, but nothing new will save.',
+      );
+    }
 
     if (state.blocked > 0) {
       return _Strip(

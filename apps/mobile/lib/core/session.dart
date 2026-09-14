@@ -39,6 +39,8 @@ class Me {
     required this.roleName,
     required this.companyName,
     required this.plan,
+    this.planExpiresOn,
+    this.planStanding = 'active',
     required this.permissions,
     required this.enabledModules,
     required this.seesAllProjects,
@@ -56,10 +58,30 @@ class Me {
   final String roleName;
   final String companyName;
   final String plan;
+
+  /// Null on a lifetime plan, which does not end.
+  final String? planExpiresOn;
+
+  /// `active`, `grace` or `expired`, decided by the API against the grace window it enforces —
+  /// not recomputed here, so the two can never disagree about whether somebody may still work.
+  final String planStanding;
   final List<String> permissions;
   final List<String> enabledModules;
   final bool seesAllProjects;
   final int unreadNotifications;
+
+  /// `three_months` → `3 months`. A plan is a length of time now, and the raw value reads as a
+  /// database column if it is ever shown as one.
+  String get planLabel => switch (plan) {
+    'three_months' => '3 months',
+    'six_months' => '6 months',
+    'one_year' => '1 year',
+    'lifetime' => 'Lifetime',
+    _ => plan,
+  };
+
+  /// Past the grace period: everything can be read, nothing can be saved.
+  bool get planExpired => planStanding == 'expired';
 
   bool can(String permission) => permissions.contains(permission);
   bool hasModule(String module) => enabledModules.contains(module);
@@ -75,6 +97,8 @@ class Me {
       roleName: json['role_name'] as String? ?? '',
       companyName: tenant['name'] as String? ?? '',
       plan: tenant['plan'] as String? ?? '',
+      planExpiresOn: tenant['plan_expires_on'] as String?,
+      planStanding: tenant['plan_standing'] as String? ?? 'active',
       permissions: (json['permissions'] as List<dynamic>? ?? const []).cast<String>(),
       enabledModules: (json['enabled_modules'] as List<dynamic>? ?? const []).cast<String>(),
       seesAllProjects: json['sees_all_projects'] as bool? ?? false,

@@ -453,9 +453,7 @@ class _Drawer extends ConsumerWidget {
                   ),
                   const Spacer(),
                   Text(
-                    me.plan.isEmpty
-                        ? ''
-                        : '${me.plan[0].toUpperCase()}${me.plan.substring(1)} plan',
+                    me.plan.isEmpty ? '' : me.planLabel,
                     style: const TextStyle(fontSize: 12, color: Palette.inkFaint),
                   ),
                 ],

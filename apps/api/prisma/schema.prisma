@@ -22,9 +22,13 @@ datasource db {
 // Enums
 // ---------------------------------------------------------------------------
 
+/// What a builder buys is a length of time, not a set of features — every account gets every
+/// module. `lifetime` never expires; the rest set `tenants.plan_expires_on`.
 enum Plan {
-  starter
-  pro
+  three_months
+  six_months
+  one_year
+  lifetime
 
   @@map("plan")
 }
@@ -170,7 +174,12 @@ model Tenant {
   id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name               String
   logoUrl            String?      @map("logo_url")
-  plan               Plan         @default(starter)
+  plan               Plan         @default(three_months)
+  /// When the current term began. Null on an account that has never had one set.
+  planStartedOn      DateTime?    @map("plan_started_on") @db.Timestamptz(6)
+  /// When it runs out. Null means lifetime — not "already expired", which is the reading that
+  /// would lock out exactly the customers who paid the most.
+  planExpiresOn      DateTime?    @map("plan_expires_on") @db.Timestamptz(6)
   enabledModules     String[]     @default([]) @map("enabled_modules")
   razorpayCustomerId String?      @map("razorpay_customer_id")
   status             TenantStatus @default(active)

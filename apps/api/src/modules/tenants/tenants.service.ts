@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   defaultModulesForPlan,
+  planExpiryFrom,
   permissionsForSystemRole,
   systemRoleSeesAllProjects,
   type CreateTenantInput,
@@ -66,6 +67,10 @@ export class TenantsService {
           id: tenantId,
           name: input.name,
           plan: input.plan,
+          // The term starts the moment the account does. Without these two an account would have
+          // no expiry at all, which reads as lifetime — the most expensive plan, given away.
+          planStartedOn: new Date(),
+          planExpiresOn: planExpiryFrom(input.plan, new Date()),
           enabledModules: defaultModulesForPlan(input.plan),
         },
         select: selectTenant,
@@ -333,7 +338,13 @@ function toView(tenant: TenantRow): TenantView {
  * The permission lists come from `permissionsForSystemRole`, so there is exactly one
  * definition of what each built-in role can do.
  */
-const SYSTEM_ROLE_NAMES: ReadonlyArray<[UserRole, string]> = [
+/**
+ * The built-in roles every tenant gets as rows, and what they are called.
+ *
+ * Exported because the platform console creates tenants too, and a second copy of this list would
+ * mean an account made from the console had differently-named roles from one made by signing up.
+ */
+export const SYSTEM_ROLE_NAMES: ReadonlyArray<[UserRole, string]> = [
   ['owner', 'Owner'],
   ['project_manager', 'Project manager'],
   ['site_supervisor', 'Site supervisor'],

@@ -1,3 +1,4 @@
+import type { Plan } from '@sitebook/shared';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -5,6 +6,7 @@ import { AppModule } from '../../src/app.module';
 import { APP_OPTIONS, configureApp } from '../../src/app-setup';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { TenantDb } from '../../src/common/prisma/tenant-db.service';
+import { TenantCache } from '../../src/common/auth/tenant-cache.service';
 
 export interface TestApp {
   app: INestApplication;
@@ -50,7 +52,7 @@ export interface OnboardedTenant {
 /** Signs in a fresh phone and completes onboarding, returning a usable session. */
 export async function onboardTenant(
   test: TestApp,
-  options: { name: string; phone: string; ownerName?: string; plan?: 'starter' | 'pro' },
+  options: { name: string; phone: string; ownerName?: string; plan?: Plan },
 ): Promise<OnboardedTenant> {
   const exchange = await test
     .http()
@@ -67,7 +69,7 @@ export async function onboardTenant(
     .send({
       name: options.name,
       owner_name: options.ownerName ?? 'Owner',
-      plan: options.plan ?? 'starter',
+      plan: options.plan ?? 'three_months',
     })
     .expect(201);
 
@@ -87,6 +89,36 @@ export async function onboardTenant(
 }
 
 /** Removes a tenant and everything cascading from it. */
+/**
+ * Turns a module off for one tenant, the way the console does.
+ *
+ * Plans no longer decide this — every account gets every module, and a plan is a length of time.
+ * The module gate itself still exists and still matters: an operator can withdraw a module from an
+ * account that is misbehaving, and `@RequiresModule` has to honour it. Tests that used to arrange
+ * a refusal by picking the cheap tier arrange it here instead.
+ */
+export async function disableModule(
+  test: TestApp,
+  tenantId: string,
+  module: string,
+): Promise<void> {
+  await test.tenantDb.transaction(tenantId, async (tx) => {
+    const tenant = await tx.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { enabledModules: true },
+    });
+    await tx.tenant.update({
+      where: { id: tenantId },
+      data: { enabledModules: tenant.enabledModules.filter((name) => name !== module) },
+    });
+  });
+
+  // The guard reads the tenant from a cache with a 30-second life, so a row changed underneath it
+  // is a row it will not see. The console invalidates on every write for exactly this reason; a
+  // test writing directly has to do the same or it is testing the cache, not the gate.
+  test.app.get(TenantCache).invalidate(tenantId);
+}
+
 export async function destroyTenant(test: TestApp, tenantId: string): Promise<void> {
   await test.tenantDb.transaction(tenantId, async (tx) => {
     await tx.tenant.deleteMany({ where: { id: tenantId } });

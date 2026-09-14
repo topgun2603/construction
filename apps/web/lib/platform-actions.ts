@@ -107,3 +107,22 @@ export async function deleteTenant(input: {
   }
   return result;
 }
+
+/**
+ * Creates an account from the console. Root operators only; the API enforces that.
+ */
+export async function createTenantFromConsole(input: {
+  name: string;
+  owner_name: string;
+  owner_phone: string;
+  plan: string;
+}): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch('/tenants', { method: 'POST', body: input }),
+  );
+  if (result.ok) {
+    revalidatePath('/admin');
+    revalidatePath('/admin/tenants');
+  }
+  return result;
+}

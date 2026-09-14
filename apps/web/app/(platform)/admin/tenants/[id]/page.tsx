@@ -42,7 +42,7 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[22px] font-semibold leading-tight">{tenant.name}</h1>
           <Badge tone={STATUS_TONE[tenant.status] ?? 'neutral'}>{titleCase(tenant.status)}</Badge>
-          <Badge tone={tenant.plan === 'pro' ? 'accent' : 'neutral'} dot={false}>
+          <Badge tone={tenant.plan === 'lifetime' ? 'accent' : 'neutral'} dot={false}>
             {titleCase(tenant.plan)}
           </Badge>
         </div>

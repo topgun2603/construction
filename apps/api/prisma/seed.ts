@@ -1,7 +1,13 @@
 /* eslint-disable no-console */
 import 'dotenv/config';
 import { PrismaClient, type Prisma } from '@prisma/client';
-import { addDays, defaultModulesForPlan, isoDateToUtcDate, todayInIst } from '@sitebook/shared';
+import {
+  addDays,
+  defaultModulesForPlan,
+  isoDateToUtcDate,
+  planExpiryFrom,
+  todayInIst,
+} from '@sitebook/shared';
 
 /**
  * Demo data for local development (spec §14): one tenant, two projects, a user for
@@ -41,8 +47,10 @@ async function main(): Promise<void> {
       data: {
         id: DEMO_TENANT_ID,
         name: 'ARK Constructions',
-        plan: 'pro',
-        enabledModules: defaultModulesForPlan('pro'),
+        plan: 'one_year',
+        planStartedOn: new Date(),
+        planExpiresOn: planExpiryFrom('one_year', new Date()),
+        enabledModules: defaultModulesForPlan('one_year'),
         status: 'active',
       },
     });

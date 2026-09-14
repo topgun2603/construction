@@ -126,7 +126,7 @@ describe('billing', () => {
         .http()
         .post('/v1/billing/subscribe')
         .set(owner)
-        .send({ plan: 'pro' })
+        .send({ plan: 'one_year' })
         .expect(201);
 
       const first = await send(chargedEvent(subscriptionId, currentEnd), { eventId }).expect(200);
@@ -171,36 +171,36 @@ describe('billing', () => {
           .http()
           .post('/v1/billing/subscribe')
           .set(auth)
-          .send({ plan: 'pro' })
+          .send({ plan: 'one_year' })
           .expect(201);
-        expect(response.body.plan).toBe('pro');
+        expect(response.body.plan).toBe('one_year');
 
         /*
          * Razorpay has taken no money yet. Granting Pro here would hand it to anybody who opened the
          * dialog and walked away, so the tenant is still on Starter and the subscription is trialing.
          */
         const billing = await test.http().get('/v1/billing').set(auth).expect(200);
-        expect(billing.body.plan).toBe('starter');
+        expect(billing.body.plan).toBe('three_months');
         expect(billing.body.status).toBe('trialing');
 
-        // And the Pro features are still locked.
-        await test.http().get('/v1/stock').set(auth).expect(403);
+        // Nothing is locked by a plan any more, so there is no feature to check for. What the
+        // checkout must not do is claim the term has been bought before the money arrives — which
+        // is what the two assertions above are for.
+        await test.http().get('/v1/stock').set(auth).expect(200);
       } finally {
         await destroyTenant(test, starter.tenantId);
       }
     });
 
-    it('grants the plan when the charge clears, and unlocks the modules', async () => {
+    it('grants the term when the charge clears', async () => {
       const builder = await onboardTenant(test, { name: 'Paid Up', phone: uniquePhone() });
       const auth = { Authorization: `Bearer ${builder.accessToken}` };
       try {
-        await test.http().get('/v1/stock').set(auth).expect(403);
-
         await test
           .http()
           .post('/v1/billing/subscribe')
           .set(auth)
-          .send({ plan: 'pro' })
+          .send({ plan: 'one_year' })
           .expect(201);
 
         const subscriptionId = `sub_paid_${Date.now()}`;
@@ -223,13 +223,15 @@ describe('billing', () => {
         ).expect(200);
 
         const billing = await test.http().get('/v1/billing').set(auth).expect(200);
-        expect(billing.body.plan).toBe('pro');
+        expect(billing.body.plan).toBe('one_year');
         expect(billing.body.status).toBe('active');
 
-        // The module gate follows the plan on the very next request — the tenant cache is
-        // invalidated rather than left to expire, because somebody who has just paid should not
-        // watch the feature stay locked.
-        await test.http().get('/v1/stock').set(auth).expect(200);
+        // The term is what a payment buys, and it takes effect on the very next request — the
+        // tenant cache is invalidated rather than left to expire, because somebody who has just
+        // paid should not spend thirty seconds still looking at the old plan.
+        const me = await test.http().get('/v1/me').set(auth).expect(200);
+        expect(me.body.tenant.plan).toBe('one_year');
+        expect(me.body.tenant.plan_standing).toBe('active');
       } finally {
         await destroyTenant(test, builder.tenantId);
       }
@@ -245,7 +247,7 @@ describe('billing', () => {
           .http()
           .post('/v1/billing/subscribe')
           .set(auth)
-          .send({ plan: 'pro' })
+          .send({ plan: 'one_year' })
           .expect(201);
 
         const subscriptionId = `sub_fail_${Date.now()}`;
@@ -288,14 +290,14 @@ describe('billing', () => {
          * mid-shift over an expired card is not a collections strategy. The plan drops when the paid
          * period plus the grace window has passed.
          */
-        expect(billing.body.plan).toBe('pro');
+        expect(billing.body.plan).toBe('one_year');
         await test.http().get('/v1/stock').set(auth).expect(200);
       } finally {
         await destroyTenant(test, builder.tenantId);
       }
     });
 
-    it('drops the plan once the paid period and grace window have passed', async () => {
+    it('goes read-only once the paid period and grace window have passed', async () => {
       const builder = await onboardTenant(test, { name: 'Lapsed', phone: uniquePhone() });
       const auth = { Authorization: `Bearer ${builder.accessToken}` };
       try {
@@ -303,7 +305,7 @@ describe('billing', () => {
           .http()
           .post('/v1/billing/subscribe')
           .set(auth)
-          .send({ plan: 'pro' })
+          .send({ plan: 'one_year' })
           .expect(201);
 
         const subscriptionId = `sub_lapsed_${Date.now()}`;
@@ -339,9 +341,26 @@ describe('billing', () => {
         // other test file.
         await test.app.get(BillingService).dropLapsedSubscriptions();
 
-        const billing = await test.http().get('/v1/billing').set(auth).expect(200);
-        expect(billing.body.plan).toBe('starter');
-        await test.http().get('/v1/stock').set(auth).expect(403);
+        /*
+         * The term ends; the plan is left alone.
+         *
+         * There is no cheaper plan to fall back to — every account has every feature, and a plan
+         * is a length of time. "They were on a year and it ran out" is also a more useful thing
+         * for an operator to read than an account silently relabelled.
+         */
+        const me = await test.http().get('/v1/me').set(auth).expect(200);
+        expect(me.body.tenant.plan).toBe('one_year');
+        expect(me.body.tenant.plan_standing).toBe('expired');
+
+        // Reads keep working. Writes do not — which is the whole of what expiry means now.
+        await test.http().get('/v1/stock').set(auth).expect(200);
+        const refused = await test
+          .http()
+          .post('/v1/projects')
+          .set(auth)
+          .send({ name: 'Should not be created' })
+          .expect(403);
+        expect(refused.body.code).toBe('PLAN_EXPIRED');
       } finally {
         await destroyTenant(test, builder.tenantId);
       }
@@ -358,7 +377,7 @@ describe('billing', () => {
 
     // Cancelled in future, not now: they have paid for this period.
     expect(response.body.cancel_at).toBeTruthy();
-    expect(response.body.plan).toBe('pro');
+    expect(response.body.plan).toBe('one_year');
   });
 
   it('refuses billing to somebody without tenant.manage', async () => {
@@ -377,6 +396,6 @@ describe('billing', () => {
     const auth = { Authorization: `Bearer ${login.body.access_token}` };
 
     await test.http().get('/v1/billing').set(auth).expect(403);
-    await test.http().post('/v1/billing/subscribe').set(auth).send({ plan: 'pro' }).expect(403);
+    await test.http().post('/v1/billing/subscribe').set(auth).send({ plan: 'one_year' }).expect(403);
   });
 });

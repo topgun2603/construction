@@ -59,3 +59,23 @@ export const grantOperatorSchema = z.object({
   name: z.string().trim().max(120).optional(),
 });
 export type GrantOperatorInput = z.infer<typeof grantOperatorSchema>;
+
+/**
+ * Creating an account from the console.
+ *
+ * The path a builder takes is OTP then onboarding, and it stays the primary one. This exists for
+ * the calls that do not go that way: a customer who paid by cheque and wants the account ready
+ * before they first sign in, a demo for a sales conversation, an account being recreated after a
+ * mistake.
+ *
+ * The owner is named by phone and created `pending` — nobody is signed in, and the number becomes
+ * a working login the first time its owner passes OTP. No password is set because the product has
+ * none.
+ */
+export const createTenantPlatformSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  owner_name: z.string().trim().min(1).max(120),
+  owner_phone: z.string().trim().min(6).max(20),
+  plan: z.enum(PLANS).default('three_months'),
+});
+export type CreateTenantPlatformInput = z.infer<typeof createTenantPlatformSchema>;

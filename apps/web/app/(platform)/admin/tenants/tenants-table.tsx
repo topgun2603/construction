@@ -47,7 +47,7 @@ const columns: ColumnDef<PlatformTenantRow>[] = [
     accessorKey: 'plan',
     header: 'Plan',
     cell: ({ row }) => (
-      <Badge tone={row.original.plan === 'pro' ? 'accent' : 'neutral'} dot={false}>
+      <Badge tone={row.original.plan === 'lifetime' ? 'accent' : 'neutral'} dot={false}>
         {titleCase(row.original.plan)}
       </Badge>
     ),

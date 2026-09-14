@@ -179,7 +179,7 @@ class _RoleFormState extends ConsumerState<_RoleForm> {
   /// adjustments somebody made months ago, which is worse than making them tick boxes.
   Future<void> _startFrom(String base, List<Map<String, dynamic>> roles) async {
     for (final role in roles) {
-      if (role['is_system'] == true && role['key'] == base) {
+      if (role['is_system'] == true && role['base_role'] == base) {
         setState(() {
           _baseRole = base;
           _permissions = {
@@ -241,7 +241,7 @@ class _RoleFormState extends ConsumerState<_RoleForm> {
                   items: [
                     for (final role in rows.where((row) => row['is_system'] == true))
                       DropdownMenuItem(
-                        value: role['key'] as String,
+                        value: role['base_role'] as String,
                         child: Text(role['name'] as String? ?? ''),
                       ),
                   ],

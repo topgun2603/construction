@@ -6,6 +6,7 @@ import { Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { PLANS, PLAN_LABELS } from '@sitebook/shared';
 
 /**
  * Filters for the tenant list.
@@ -91,8 +92,7 @@ export function TenantFilters({
         value={plan}
         options={[
           { value: '', label: 'All' },
-          { value: 'starter', label: 'Starter' },
-          { value: 'pro', label: 'Pro' },
+          ...PLANS.map((option) => ({ value: option, label: PLAN_LABELS[option] })),
         ]}
         onChange={(value) => push({ plan: value })}
       />

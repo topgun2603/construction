@@ -7,6 +7,7 @@ import { updateTenantPlan } from '@/lib/platform-actions';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { PLANS, PLAN_LABELS } from '@sitebook/shared';
 import { cn } from '@/lib/utils';
 import { MODULES, moduleLabel } from './modules';
 
@@ -66,8 +67,16 @@ export function TenantControls({
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
             Plan
           </span>
-          <div className="flex gap-1 rounded-btn bg-neutral-bg p-1">
-            {['starter', 'pro'].map((option) => (
+          {/*
+            Said out loud because it is not obvious and it is not reversible by clicking back: an
+            operator picking a term is recording that somebody has paid for that long, starting
+            today. The old end date does not carry over.
+          */}
+          <span className="text-[12px] text-ink-faint">
+            Starts the term again from today
+          </span>
+          <div className="flex flex-wrap gap-1 rounded-btn bg-neutral-bg p-1">
+            {PLANS.map((option) => (
               <button
                 key={option}
                 type="button"
@@ -75,17 +84,17 @@ export function TenantControls({
                 onClick={() =>
                   apply(
                     { plan: option },
-                    `${tenantName} moved to ${option === 'pro' ? 'Pro' : 'Starter'}`,
+                    `${tenantName} moved to ${PLAN_LABELS[option]}`,
                   )
                 }
                 className={cn(
-                  'min-h-0 rounded-[7px] px-3.5 py-2 text-[13px] font-medium capitalize transition',
+                  'min-h-0 rounded-[7px] px-3 py-2 text-[13px] font-medium transition',
                   plan === option
                     ? 'bg-surface font-semibold text-ink shadow-seg'
                     : 'text-ink-soft hover:text-ink',
                 )}
               >
-                {option}
+                {PLAN_LABELS[option]}
               </button>
             ))}
           </div>
