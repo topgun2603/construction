@@ -1,0 +1,43 @@
+# The only thing on the public internet.
+#
+# Caddy gets and renews the certificate itself over ACME — no certbot, no cron, no renewal that
+# somebody forgets until the day it expires. `SITE_HOST` comes from .env.prod.
+#
+# With no domain of your own, an sslip.io name built from the instance's public IP works and Let's
+# Encrypt will issue for it: 13.234.56.78 becomes 13-234-56-78.sslip.io. AWS's own
+# ec2-….compute.amazonaws.com name will *not* work — Let's Encrypt refuses to issue for it, and the
+# failure looks like a Caddy problem rather than a policy one.
+
+{$SITE_HOST} {
+	encode zstd gzip
+
+	# One origin for both halves of the product.
+	#
+	# The browser talks to the same host for the dashboard and for the API, so there is no
+	# cross-origin preflight on every request and one certificate covers both. It also means
+	# CORS_ORIGINS and NEXT_PUBLIC_API_URL are both just this hostname.
+	handle /v1/* {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		reverse_proxy web:3001
+	}
+
+	# Enough of a log to answer "was it even reaching us", and no more. Request bodies are not
+	# logged: they carry session tokens, phone numbers and whatever a supervisor typed into a report.
+	log {
+		output stdout
+		format console
+	}
+
+	header {
+		# HSTS. Only once the certificate is known good — turning this on with a broken certificate
+		# locks browsers out of the site for the max-age, and there is no way to take it back.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

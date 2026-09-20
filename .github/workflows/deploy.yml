@@ -1,0 +1,102 @@
+name: Build images
+
+# Manual, not on push.
+#
+# A deploy is a decision, and CI going green is not the same as wanting it live. This builds both
+# images and pushes them to ECR; the box pulls them when you say so (docs/deploy-aws.md, step 7).
+#
+# The web image is built here rather than on the instance because a 2 GB box cannot build a Next.js
+# app — the OOM killer arrives silently part way through and leaves a half-written layer.
+on:
+  workflow_dispatch:
+    inputs:
+      site_host:
+        description: 'Public hostname, e.g. 13-234-56-78.sslip.io'
+        required: true
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-south-1
+
+permissions:
+  # For the OIDC token below. No long-lived AWS keys live in this repository.
+  id-token: write
+  contents: read
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assume the deployment role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Set AWS_DEPLOY_ROLE to a role trusting this repository through GitHub's OIDC provider.
+          # An access key in a secret would be a standing credential; this one lasts minutes.
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: API and worker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile.api
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/buildr-api:latest
+            ${{ steps.ecr.outputs.registry }}/buildr-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile.web
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/buildr-web:latest
+            ${{ steps.ecr.outputs.registry }}/buildr-web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Everything NEXT_PUBLIC_ is compiled into the browser bundle, so it has to be supplied
+          # here. Passing these at run time does nothing: the strings are already baked in, and what
+          # ships is whatever they were when `next build` ran — `undefined`, if nothing was passed.
+          # The failure is quiet and late: the site renders, the server half works, and then sign-in
+          # throws because the Firebase config is empty and every browser fetch goes to `undefined/v1`.
+          #
+          # None of these are secrets. They are identifiers that travel to every browser anyway; the
+          # protection is the allowed-origins list on each key, not concealment. The real Firebase
+          # credential is the Admin SDK service account, which belongs to the API and never comes
+          # near this image.
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://${{ inputs.site_host }}/v1
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ vars.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+            NEXT_PUBLIC_MAPTILER_KEY=${{ vars.NEXT_PUBLIC_MAPTILER_KEY }}
+
+      - name: What to run on the box
+        run: |
+          echo "Images pushed. On the instance:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "cd /opt/sitebook && git pull" >> $GITHUB_STEP_SUMMARY
+          echo "export IMAGE_API=${{ steps.ecr.outputs.registry }}/buildr-api:latest" >> $GITHUB_STEP_SUMMARY
+          echo "export IMAGE_WEB=${{ steps.ecr.outputs.registry }}/buildr-web:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose -f infra/docker-compose.prod.yml pull" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose -f infra/docker-compose.prod.yml run --rm api npx prisma migrate deploy --schema prisma/schema.prisma" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose -f infra/docker-compose.prod.yml up -d" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

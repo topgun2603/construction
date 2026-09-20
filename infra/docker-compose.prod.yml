@@ -1,10 +1,57 @@
 name: sitebook
 
-# Production-ish single-host compose: app containers only. Postgres, Redis and
-# object storage are managed services in prod (spec §4, "Hosting (initial)").
+# One host, everything on it.
+#
+# This is the shape for a first deployment: a single EC2 instance (or any VPS) running the whole
+# stack behind Caddy, which gets a real certificate on its own. It is deliberately not the shape for
+# a business with customers — the database lives on the same disk as the app, so the backups are
+# yours to run (`infra/backup.sh`) and a lost instance is a lost database. Moving Postgres to RDS is
+# a change of two environment variables and deleting one service from this file.
+#
+# Postgres runs here rather than on RDS for a reason beyond cost: the tenancy model needs
+# `sitebook_app` as NOSUPERUSER NOBYPASSRLS and, for the platform console, a second role *with*
+# BYPASSRLS. Granting that needs real superuser, which managed Postgres generally does not hand out.
+# On this box you have it.
+#
+# Images: built locally with `--build`, or pulled from a registry by setting IMAGE_API/IMAGE_WEB.
+# Building a Next.js app on a 2 GB instance is a good way to meet the OOM killer, so on a small box
+# build in CI and pull.
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sitebook
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: sitebook
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Creates sitebook_app (NOBYPASSRLS, owns the schema) and sitebook_admin (BYPASSRLS, for the
+      # console). Runs once, on an empty volume — the same hook the development compose uses.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sitebook -d sitebook']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    # The same image as development. BullMQ holds queued jobs here, so it is given a disk: a
+    # restart with `--appendonly no` and no snapshot would silently drop whatever was waiting.
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   api:
+    image: ${IMAGE_API:-sitebook-api:local}
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
@@ -14,8 +61,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: '3000'
-    ports:
-      - '3000:3000'
+    # No published port: Caddy reaches it over the compose network, and nothing else should.
+    expose:
+      - '3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'node', '-e', "require('http').get('http://127.0.0.1:3000/v1/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 15s
@@ -23,6 +76,7 @@ services:
       retries: 5
 
   worker:
+    image: ${IMAGE_API:-sitebook-api:local}
     build:
       context: ..
       dockerfile: infra/Dockerfile.api
@@ -32,18 +86,68 @@ services:
       - ../.env.prod
     environment:
       NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   web:
+    image: ${IMAGE_WEB:-sitebook-web:local}
     build:
       context: ..
       dockerfile: infra/Dockerfile.web
+      # Everything NEXT_PUBLIC_ is compiled into the browser bundle, so it has to be here rather
+      # than in the environment below. See the comment in Dockerfile.web.
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID}
+        NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID}
+        NEXT_PUBLIC_MAPTILER_KEY: ${NEXT_PUBLIC_MAPTILER_KEY}
     restart: unless-stopped
     env_file:
       - ../.env.prod
     environment:
       NODE_ENV: production
       PORT: '3001'
-    ports:
-      - '3001:3001'
+      HOSTNAME: '0.0.0.0'
+    expose:
+      - '3001'
     depends_on:
       - api
+
+  # The only thing on the public internet.
+  #
+  # Terminates TLS with a certificate it fetches and renews itself, and routes by path: /v1 to the
+  # API, everything else to the web app. One origin for both halves means no CORS preflight on every
+  # request from the browser, and one certificate instead of two.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      # The hostname the certificate is issued for. With no domain, an sslip.io name built from the
+      # instance's public IP works: 13.234.56.78 becomes 13-234-56-78.sslip.io.
+      SITE_HOST: ${SITE_HOST:?set SITE_HOST in .env.prod}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Losing this volume means asking Let's Encrypt for a new certificate
+      # on every restart, which is how an account meets their rate limit.
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - api
+      - web
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:
