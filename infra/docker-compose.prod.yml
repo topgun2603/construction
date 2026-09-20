@@ -64,6 +64,11 @@ services:
     # No published port: Caddy reaches it over the compose network, and nothing else should.
     expose:
       - '3000'
+    volumes:
+      # The Firebase Admin credential, mounted read-only at run time rather than copied into the
+      # image. Layers survive the deletion of a file, so an image that ever contained this private
+      # key carries it to every registry it is pushed to.
+      - ../secrets/firebase.json:/run/secrets/firebase.json:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,6 +91,9 @@ services:
       - ../.env.prod
     environment:
       NODE_ENV: production
+    volumes:
+      # The worker sends push notifications, so it needs the same credential the API does.
+      - ../secrets/firebase.json:/run/secrets/firebase.json:ro
     depends_on:
       postgres:
         condition: service_healthy
