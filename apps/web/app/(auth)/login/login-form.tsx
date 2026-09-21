@@ -6,13 +6,30 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { toE164Indian } from '@sitebook/shared';
-import { DEV_AUTH_BYPASS, firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3000/v1';
+/**
+ * Whether to skip Firebase and post a `dev:<phone>` token straight to the API.
+ *
+ * Written out here, rather than imported from a shared module, so that both halves are literals in
+ * this file's scope and the bundler folds the whole thing to `false` — which deletes the branch
+ * below instead of shipping it behind a condition that happens to be false. An exported `const`
+ * does not survive that: webpack leaves the import as a runtime lookup.
+ *
+ * `NODE_ENV` is the half that matters. `next build` always sets it to `production`, so a deployed
+ * bundle is immune no matter where the flag came from — and it came from somewhere unexpected once
+ * already: an `apps/web/.env.local` that reached a Docker build context and turned the real
+ * sign-in into dead code. The API refused the tokens, but all a user saw was "Could not verify the
+ * sign-in token", which describes the wrong half of the problem.
+ */
+const DEV_AUTH_BYPASS =
+  process.env.NODE_ENV !== 'production' && process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
+
 const OTP_LENGTH = 6;
 const EASE = [0.22, 0.61, 0.36, 1] as const;
 
@@ -280,7 +297,11 @@ export function LoginForm() {
                       aria-label={`Digit ${index + 1}`}
                       disabled={busy}
                       className={cn(
-                        'h-14 flex-1 rounded-btn border bg-surface text-center font-mono text-[22px] font-semibold outline-none transition',
+                        // Capped rather than purely `flex-1`: six boxes sharing a 400px card come
+                        // out 60px wide against 56px tall, which reads as a row of text fields
+                        // rather than a row of digits. 48px keeps each one slightly taller than it
+                        // is wide, and the flex basis still lets them shrink on a narrow phone.
+                        'h-14 min-w-0 max-w-[48px] flex-1 rounded-btn border bg-surface text-center font-mono text-[20px] font-semibold outline-none transition',
                         digit ? 'border-accent' : 'border-line-strong',
                         'focus:border-accent focus:ring-2 focus:ring-accent/20',
                       )}

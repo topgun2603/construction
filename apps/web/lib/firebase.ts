@@ -38,22 +38,6 @@ export function isFirebaseConfigured(): boolean {
 }
 
 /**
- * Whether to skip Firebase and post a `dev:<phone>` token straight to the API.
- *
- * Two conditions, both statically resolvable, so a production build compiles this to `false` and
- * drops the development branch entirely rather than shipping it behind an untaken `if`.
- *
- * The `NODE_ENV` half is the one that matters. `next build` always sets it to `production`, which
- * makes a deployed bundle immune to the flag no matter where the flag came from — and it came from
- * somewhere unexpected once already: an `apps/web/.env.local` that reached a Docker build context
- * and turned the real sign-in into dead code. The API would still have refused the token, but the
- * only symptom a user saw was "Could not verify the sign-in token", which describes the wrong half
- * of the problem.
- */
-export const DEV_AUTH_BYPASS =
-  process.env.NODE_ENV !== 'production' && process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
-
-/**
  * Analytics is deliberately not initialised here. `getAnalytics` throws during SSR
  * and on unsupported browsers, and it has no part in authentication — wire it up in
  * a client-only effect behind `isSupported()` if it is ever wanted.

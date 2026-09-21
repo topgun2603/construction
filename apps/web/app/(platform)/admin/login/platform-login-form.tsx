@@ -5,11 +5,28 @@ import { useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Loader2, Lock } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { toE164Indian } from '@sitebook/shared';
-import { DEV_AUTH_BYPASS, firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { platformLogin } from '@/lib/platform-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+
+/**
+ * Whether to skip Firebase and post a `dev:<phone>` token straight to the API.
+ *
+ * Written out here, rather than imported from a shared module, so that both halves are literals in
+ * this file's scope and the bundler folds the whole thing to `false` — which deletes the branch
+ * below instead of shipping it behind a condition that happens to be false. An exported `const`
+ * does not survive that: webpack leaves the import as a runtime lookup.
+ *
+ * `NODE_ENV` is the half that matters. `next build` always sets it to `production`, so a deployed
+ * bundle is immune no matter where the flag came from — and it came from somewhere unexpected once
+ * already: an `apps/web/.env.local` that reached a Docker build context and turned the real
+ * sign-in into dead code. The API refused the tokens, but all a user saw was "Could not verify the
+ * sign-in token", which describes the wrong half of the problem.
+ */
+const DEV_AUTH_BYPASS =
+  process.env.NODE_ENV !== 'production' && process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
 
 /**
  * Phone OTP for the console.
