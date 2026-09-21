@@ -37,3 +37,6 @@ infra/.data/
 Thumbs.db
 *.log
 .claude/settings.json
+
+# Kotlin compiler daemon session files, written during an Android build.
+apps/mobile/android/.kotlin/
