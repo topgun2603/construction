@@ -6,14 +6,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { toE164Indian } from '@sitebook/shared';
-import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { DEV_AUTH_BYPASS, firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3000/v1';
-const DEV_BYPASS = process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
 const OTP_LENGTH = 6;
 const EASE = [0.22, 0.61, 0.36, 1] as const;
 
@@ -89,7 +88,7 @@ export function LoginForm() {
       if (!e164) throw new Error('Enter a 10-digit mobile number');
       const digits = e164.slice(2);
 
-      if (DEV_BYPASS || !isFirebaseConfigured()) {
+      if (DEV_AUTH_BYPASS || !isFirebaseConfigured()) {
         await exchange(`dev:91${digits}`);
         return;
       }
@@ -239,9 +238,9 @@ export function LoginForm() {
                   </div>
                 </Field>
 
-                <Submit busy={busy}>{DEV_BYPASS ? 'Sign in' : 'Send code'}</Submit>
+                <Submit busy={busy}>{DEV_AUTH_BYPASS ? 'Sign in' : 'Send code'}</Submit>
 
-                {DEV_BYPASS && (
+                {DEV_AUTH_BYPASS && (
                   <p className="rounded-btn border border-pending-line bg-pending-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-pending-fg">
                     Dev sign-in is on — no SMS is sent. Try{' '}
                     <span className="font-mono font-semibold">9000000001</span> (owner) or{' '}

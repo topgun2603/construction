@@ -26,6 +26,17 @@ export class PhoneAuthService {
       }
     }
 
+    // A `dev:` token arriving at a server with the bypass off means the *client* was built for
+    // development and shipped anyway. Saying so is worth the extra branch: otherwise Firebase
+    // rejects the string like any other malformed token and the error blames the token, which sends
+    // whoever is debugging it to the service account instead of to the bundle. That happened.
+    if (idToken.startsWith('dev:')) {
+      this.logger.warn('A development sign-in token reached a server with DEV_AUTH_BYPASS off');
+      throw ApiError.invalidToken(
+        'This app was built for development and cannot sign in here. Reinstall the release build.',
+      );
+    }
+
     const decoded = await this.verifyWithFirebase(idToken);
     const phone = decoded.phone_number;
     if (!phone) throw ApiError.invalidToken('Firebase token carries no phone number');

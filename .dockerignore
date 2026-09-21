@@ -35,9 +35,17 @@ coverage/
 **/*.tsbuildinfo
 
 # --- secrets -----------------------------------------------------------------
+# `.env.*` alone matches only the context root. `apps/web/.env.local` slipped past it and was
+# copied into the build, where Next read NEXT_PUBLIC_DEV_AUTH_BYPASS=true out of it and compiled
+# the development sign-in into a production bundle — the real Firebase path eliminated as dead
+# code. The `**/` forms are the ones that actually matter.
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!.env.prod.example
+!**/.env.example
 *service-account*.json
 *serviceaccount*.json
 *-firebase-adminsdk-*.json

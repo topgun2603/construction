@@ -5,12 +5,11 @@ import { useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Loader2, Lock } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { toE164Indian } from '@sitebook/shared';
-import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { DEV_AUTH_BYPASS, firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { platformLogin } from '@/lib/platform-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-const DEV_BYPASS = process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
 
 /**
  * Phone OTP for the console.
@@ -51,7 +50,7 @@ export function PlatformLoginForm() {
       const e164 = toE164Indian(phone);
       if (!e164) throw new Error('Enter a 10-digit mobile number');
 
-      if (DEV_BYPASS || !isFirebaseConfigured()) {
+      if (DEV_AUTH_BYPASS || !isFirebaseConfigured()) {
         await exchange(`dev:${e164}`);
         return;
       }
@@ -122,7 +121,7 @@ export function PlatformLoginForm() {
 
           <Button type="submit" size="lg" disabled={busy} className="w-full">
             {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-            {DEV_BYPASS ? 'Sign in' : 'Send code'}
+            {DEV_AUTH_BYPASS ? 'Sign in' : 'Send code'}
             {!busy && <ArrowRight className="size-4" />}
           </Button>
         </form>

@@ -38,8 +38,6 @@ ARG NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 # Map tiles. Without it every site map renders as a placeholder telling the reader a key is missing
 # — which is exactly the quiet, late failure this block exists to prevent.
 ARG NEXT_PUBLIC_MAPTILER_KEY
-# Deliberately not an ARG. The development sign-in must never be compiled into a deployed build,
-# and the surest way to guarantee that is to leave no lever for it here.
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY \
@@ -50,6 +48,19 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID \
     NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID \
     NEXT_PUBLIC_MAPTILER_KEY=$NEXT_PUBLIC_MAPTILER_KEY
+
+# Nailed to false, and not an ARG, so nothing can turn it on.
+#
+# Leaving it merely unset was not enough. Next resolves `process.env.NEXT_PUBLIC_*` at build time,
+# falling back to any `.env.local` it finds in the app directory — and one was reaching the build
+# context, carrying `true` from a developer's machine. The result compiled the development sign-in
+# into a production bundle and eliminated the real Firebase path as dead code: sign-in posted
+# `dev:91XXXXXXXXXX` and only the API's own refusal stopped it working.
+#
+# `process.env` outranks every `.env` file in Next's precedence, so setting it here wins even if
+# such a file gets in again. .dockerignore now excludes them too; this is the half that does not
+# depend on remembering.
+ENV NEXT_PUBLIC_DEV_AUTH_BYPASS=false
 
 # Opt in to Next's standalone output here only; see apps/web/next.config.mjs.
 ENV NEXT_OUTPUT_STANDALONE=true

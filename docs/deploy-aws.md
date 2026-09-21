@@ -240,10 +240,19 @@ the disk, then:
 aws ecr get-login-password --region ap-south-1 \
   | docker login --username AWS --password-stdin "$ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com"
 
-export IMAGE_API=$ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com/buildr-api:latest
-export IMAGE_WEB=$ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com/buildr-web:latest
+cat >> .env.prod <<EOF
+IMAGE_API=$ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com/buildr-api:latest
+IMAGE_WEB=$ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com/buildr-web:latest
+EOF
+
 docker compose --env-file .env.prod -f infra/docker-compose.prod.yml pull
 ```
+
+Into the file, not `export`ed. Exported variables last as long as the shell, and the next `docker
+compose up -d` — a month later, over a fresh SSH session — falls back to the `sitebook-*:local`
+default and tries to **build** the images on this instance. `next build` on a t3.micro meets the
+OOM killer, so what looked like a one-line restart becomes a failed build and a service that never
+comes back up. Putting them in `.env.prod` makes every invocation agree, including yours in a hurry.
 
 ## 8. Start it
 
