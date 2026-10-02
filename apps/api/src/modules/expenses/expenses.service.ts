@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   APPROVER_ROLES,
   isoDateToUtcDate,
+  parseBillDate,
   utcDateToIsoDate,
   type CreateExpenseInput,
   type DecideExpenseInput,
@@ -71,20 +72,25 @@ export class ExpensesService {
    */
   async scanBill(actor: RequestUser, input: ScanBillInput): Promise<ScanBillResult> {
     const file = await this.uploads.readObject(actor, input.s3_key, MAX_BILL_BYTES);
-    if (!file.contentType.startsWith('image/')) {
+    // A photograph or an emailed PDF — the two shapes a bill actually arrives in. The reader turns
+    // the second into the first.
+    if (!file.contentType.startsWith('image/') && file.contentType !== 'application/pdf') {
       throw ApiError.validationFailed(
-        { s3_key: 'not an image' },
-        'Only a photograph of a bill can be scanned. A PDF has to be entered by hand.',
+        { s3_key: 'not a bill' },
+        'That file is neither a photograph nor a PDF, so there is nothing to read.',
       );
     }
 
     const draft = await this.bills.read(file.body, file.contentType);
 
     const amount = draft.amount === null ? null : rupeeStringToPaise(draft.amount);
+    // Transcribed by the model, interpreted here: a date is the field a vision model gets wrong
+    // most quietly, and a month out is an expense in the wrong month's spend.
+    const spentOn = draft.date_printed === null ? null : parseBillDate(draft.date_printed, new Date());
     const result: ScanBillResult = {
       amount: amount === null ? null : amount.toString(),
       vendor: draft.vendor,
-      spent_on: draft.spent_on,
+      spent_on: spentOn,
       category: draft.category,
       gstin: draft.gstin,
       summary: draft.summary,
@@ -92,7 +98,9 @@ export class ExpensesService {
       unread: Object.entries({
         amount: draft.amount,
         vendor: draft.vendor,
-        spent_on: draft.spent_on,
+        // `spent_on` rather than `date_printed`: an unreadable date and a date that parsed to
+        // something impossible are the same thing to whoever has to fill the field in.
+        spent_on: spentOn,
         category: draft.category,
       })
         .filter(([, value]) => value === null)

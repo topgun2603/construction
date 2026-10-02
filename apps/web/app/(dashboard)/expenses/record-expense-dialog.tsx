@@ -174,8 +174,7 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
             <input
               ref={fileInput}
               type="file"
-              accept="image/*"
-              capture="environment"
+              accept="image/*,application/pdf"
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0];

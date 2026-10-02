@@ -143,7 +143,15 @@ const envSchema = z
      * it is a spending credential, not a public identifier like the Firebase web config.
      */
     OPENAI_API_KEY: z.string().optional(),
-    OPENAI_VISION_MODEL: z.string().default('gpt-4o-mini'),
+    /*
+     * Default to the better reader, not the cheaper one.
+     *
+     * `gpt-4o-mini` read an invoice printed 25/09/2026 as 25/08/2026 — the rasterised page was
+     * crisp, so the digit was not the problem. A date a month out files an expense against the
+     * wrong month's spend, and nothing downstream can tell. A deployment that scans mostly
+     * photographs with large print can set the cheaper model here.
+     */
+    OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
 
     /**
      * Map tiles and geocoding. Without it the geocoder falls back to Nominatim's volunteer

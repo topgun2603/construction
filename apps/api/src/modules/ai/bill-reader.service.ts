@@ -37,14 +37,29 @@ export class BillReader {
     return Boolean(this.config.OPENAI_API_KEY);
   }
 
-  async read(image: Buffer, contentType: string): Promise<BillDraft> {
+  async read(file: Buffer, contentType: string): Promise<BillDraft> {
     if (!this.enabled) {
       throw ApiError.conflict('Bill scanning is not configured on this deployment');
     }
 
+    /*
+     * A PDF becomes a picture of a PDF.
+     *
+     * Half the bills a builder receives are emailed as PDFs — a supplier's accounting package
+     * prints them — and refusing those sent the person who most wanted this feature back to typing.
+     * Rendering the page here rather than handing the file to the vendor keeps the model's input
+     * one shape, so the prompt, the validation and the next vendor all stay as they are.
+     *
+     * The first page only. An invoice's total is on page one; later pages are terms and conditions,
+     * and sending them is paying to read the small print.
+     */
+    const image =
+      contentType === 'application/pdf' ? await this.firstPageAsImage(file) : file;
+    const imageType = contentType === 'application/pdf' ? 'image/png' : contentType;
+
     // A data URL rather than a public link: the bucket is private, and handing a vendor a signed
     // URL would put somebody's invoice behind a credential we do not control the lifetime of.
-    const dataUrl = `data:${contentType};base64,${image.toString('base64')}`;
+    const dataUrl = `data:${imageType};base64,${image.toString('base64')}`;
 
     let raw: string;
     try {
@@ -96,6 +111,31 @@ export class BillReader {
     return parsed.data;
   }
 
+  /**
+   * The first page of a PDF, rendered to a PNG.
+   *
+   * Scale 2 rather than 1: a bill printed at A4 and rendered at 72 dpi has line items a model
+   * squints at, and the difference between reading 2,70,314.40 and 2,70,314.49 is the difference
+   * between this feature working and being a liability.
+   *
+   * `pdf-to-img` is imported where it is used, not at the top of the file. It pulls in pdfjs and a
+   * canvas binding — several megabytes of module graph — and an API that never scans a PDF should
+   * not pay for them at boot.
+   */
+  private async firstPageAsImage(file: Buffer): Promise<Buffer> {
+    try {
+      const { pdf } = await import('pdf-to-img');
+      const document = await pdf(file, { scale: 2 });
+      const first = await document.getPage(1);
+      return Buffer.from(first);
+    } catch (error) {
+      this.logger.warn({ err: error }, 'Could not render the PDF');
+      throw ApiError.conflict(
+        'Could not read that PDF. It may be a scan with no page we can render — try a photograph.',
+      );
+    }
+  }
+
   private openai(): OpenAI {
     this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
     return this.client;
@@ -127,7 +167,7 @@ function normalise(value: unknown): Record<string, unknown> {
   return {
     amount: amount && /^\d{1,9}(\.\d{1,2})?$/.test(amount) ? amount : null,
     vendor: field('vendor'),
-    spent_on: field('spent_on'),
+    date_printed: field('date_printed'),
     category:
       category && (EXPENSE_CATEGORIES as readonly string[]).includes(category) ? category : null,
     /*
@@ -155,7 +195,7 @@ const SYSTEM_PROMPT = `You read photographs of Indian supplier bills, invoices a
 Return exactly these keys, and nothing else:
   amount    - the final payable total as printed, digits and at most two decimals, no symbols. Not a subtotal, not a line item.
   vendor    - the supplier's name as printed.
-  spent_on  - the bill's own date as YYYY-MM-DD. Indian bills are usually DD/MM/YYYY or DD-MM-YY; read them that way.
+  date_printed - the bill's own date copied exactly as it is printed, character for character: "25/09/2026", "25 Sep 2026". Do not convert it to another format and do not reorder it.
   category  - one of: ${EXPENSE_CATEGORIES.join(', ')}.
   gstin     - the 15-character GSTIN if one is printed.
   summary   - up to 15 words on what was bought, in the bill's own words.

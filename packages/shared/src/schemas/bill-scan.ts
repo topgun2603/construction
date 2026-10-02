@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { EXPENSE_CATEGORIES } from './expenses';
-import { isoDateSchema } from './common';
 
 /**
  * Reading a photographed bill into the fields an expense needs.
@@ -30,8 +29,15 @@ export const billDraftSchema = z.object({
     .regex(/^\d{1,9}(\.\d{1,2})?$/, 'an amount as it is printed on the bill')
     .nullable(),
   vendor: z.string().trim().max(120).nullable(),
-  /** The bill's own date, not today. */
-  spent_on: isoDateSchema.nullable(),
+  /**
+   * The bill's date **exactly as printed** — "25/09/2026", "25 Sep 2026" — not an interpretation
+   * of it.
+   *
+   * Asking for ISO got one wrong in the first week: an invoice printed 25/09/2026 came back as
+   * 2026-08-25, which would have put the expense in the wrong month with nothing to show for it.
+   * The model transcribes; `parseBillDate` decides what it means, in code with tests.
+   */
+  date_printed: z.string().trim().max(40).nullable(),
   category: z.enum(EXPENSE_CATEGORIES).nullable(),
   /** The GSTIN if the bill carries one — fifteen characters, and worth keeping for the accountant. */
   gstin: z
