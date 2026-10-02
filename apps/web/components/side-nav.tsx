@@ -311,7 +311,9 @@ export function SideNav({
       <div className="flex flex-none flex-col gap-3 border-t border-white/[0.06] p-3">
         {!collapsed && (
           <div className="flex flex-col gap-1 rounded-[10px] bg-nav-card px-3 py-2.5">
-            <span className="text-[12.5px] font-semibold capitalize leading-tight text-accent-onDark">
+            {/* No `capitalize`: the catalogue decides how a plan is written — "3 months",
+                not "3 Months" — and the rail should not restyle somebody's wording. */}
+            <span className="text-[12.5px] font-semibold leading-tight text-accent-onDark">
               {plan} plan
             </span>
             <span className="text-[11.5px] leading-snug text-ink-faint">

@@ -13,6 +13,8 @@ export interface SelfResponse {
     name: string;
     logo_url: string | null;
     plan: string;
+    /** What the catalogue calls it — "3 months". Null if the plan has since been deleted. */
+    plan_name: string | null;
     /** Null for a lifetime plan. */
     plan_expires_on: string | null;
     /** `active`, `grace` or `expired` — computed by the API against the same grace window it enforces. */

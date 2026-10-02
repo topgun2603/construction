@@ -36,7 +36,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <SideNav
         tenantName={self.tenant.name}
         logoUrl={self.tenant.logo_url}
-        plan={self.tenant.plan}
+        plan={self.tenant.plan_name ?? self.tenant.plan}
         role={self.user.role}
         permissions={self.permissions}
         enabledModules={self.enabled_modules}
