@@ -8,13 +8,17 @@ import { ApiError } from '../../common/errors/api-error';
 /**
  * Translation, behind one method.
  *
- * Two vendors, because of what is actually installed. Google's Cloud Translation API is the right
- * answer — it is cheap, it is fast, and its Tamil is better than a general model's — but it has to
- * be switched on in a Google Cloud project and given its own key. So this prefers it when a key is
- * configured and falls back to the model that is already working, which means the feature is useful
- * on the day it ships rather than on the day somebody remembers to enable an API.
+ * OpenAI, on price. Google's Cloud Translation API was the obvious choice and turned out to be the
+ * expensive one: it bills $20 per million characters of input, where `gpt-4o-mini` does the same
+ * million for about 65 cents — roughly thirty times less. At one builder that is $30 a month
+ * against $1.30, which is nothing either way; at fifty tenants it is the difference between a line
+ * item and a rounding error.
  *
- * Behind one method, so nothing else in the product knows or cares which one answered.
+ * What Google would have bought is latency — 100-300ms against the 1-3s measured here — and Tamil
+ * that needs no glossary. Neither is worth thirty times the price for a panel that appears under a
+ * field rather than blocking anything, so `TAMIL_GLOSSARY` below closes the quality gap instead.
+ *
+ * Still behind one method. If that trade changes, this file is the only thing that changes.
  */
 @Injectable()
 export class TranslateService {
@@ -34,7 +38,7 @@ export class TranslateService {
   private static readonly CACHE_LIMIT = 500;
 
   get enabled(): boolean {
-    return Boolean(this.config.GOOGLE_TRANSLATE_API_KEY || this.config.OPENAI_API_KEY);
+    return Boolean(this.config.OPENAI_API_KEY);
   }
 
   async translate(input: TranslateInput): Promise<TranslateResult> {
@@ -46,9 +50,7 @@ export class TranslateService {
     const hit = this.recent.get(key);
     if (hit) return hit;
 
-    const result = this.config.GOOGLE_TRANSLATE_API_KEY
-      ? await this.viaGoogle(input)
-      : await this.viaModel(input);
+    const result = await this.viaModel(input);
 
     // Oldest out first. A Map iterates in insertion order, which is the only reason this is five
     // lines rather than an LRU library.
@@ -60,50 +62,8 @@ export class TranslateService {
     return result;
   }
 
-  /** Google Cloud Translation v2. One POST, an API key, no SDK. */
-  private async viaGoogle(input: TranslateInput): Promise<TranslateResult> {
-    const url = `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(
-      this.config.GOOGLE_TRANSLATE_API_KEY!,
-    )}`;
-
-    let payload: GoogleResponse;
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          q: input.text,
-          target: input.to,
-          ...(input.from ? { source: input.from } : {}),
-          // Plain text, not HTML: a site note is prose, and asking for HTML means getting `&#39;`
-          // back in the middle of somebody's sentence.
-          format: 'text',
-        }),
-      });
-      if (!response.ok) {
-        // The body carries the reason that matters — "API has not been used in project ... before
-        // or it is disabled" is the one somebody can act on.
-        const body = await response.text();
-        this.logger.warn({ status: response.status, body: body.slice(0, 300) }, 'Translate refused');
-        throw ApiError.conflict('Could not translate that just now.');
-      }
-      payload = (await response.json()) as GoogleResponse;
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
-      this.logger.warn({ err: error }, 'Translate failed at the vendor');
-      throw ApiError.conflict('Could not translate that just now.');
-    }
-
-    const first = payload.data?.translations?.[0];
-    if (!first?.translatedText) throw ApiError.conflict('Could not translate that just now.');
-    return {
-      text: decodeEntities(first.translatedText),
-      detected: first.detectedSourceLanguage ?? input.from ?? null,
-    };
-  }
-
   /**
-   * The fallback: the model that is already configured.
+   * The translation itself.
    *
    * Prompted hard to return the translation and nothing else — no preamble, no transliteration, no
    * explanation of what it did. A chat model's instinct here is to be helpful, and "Here is the
@@ -151,14 +111,14 @@ ${input.to === 'ta' ? TAMIL_GLOSSARY : ''}`,
 /**
  * The words a general model gets wrong, pinned.
  *
- * Not a nice-to-have. The first real pass translated "column" as "கோலம்" — which is the pattern
- * drawn on a doorstep at dawn, not a structural member — and "sand" as "மண்", soil. Both are
- * plausible dictionary matches and both are wrong on a site, and a note saying "the soil did not
- * arrive" is a note somebody acts on incorrectly.
+ * Load-bearing, not a nice-to-have — this is what stands in for a dedicated translation service.
+ * The first real pass rendered "column" as "கோலம்", the pattern drawn on a doorstep at dawn rather
+ * than a structural member, and "sand" as "மண்", soil. Both are plausible dictionary matches and
+ * both are wrong on a site: "the soil did not arrive" is a note somebody acts on incorrectly.
  *
  * Only the terms that appear in site notes constantly, and only where the general answer is
- * misleading rather than merely formal. This is also the clearest argument for configuring the
- * Cloud Translation API, whose construction Tamil needs none of this.
+ * misleading rather than merely formal. Anything added here is paid for on every Tamil call, so
+ * the bar is "a site would misread this", not "a purist would phrase it differently".
  */
 const TAMIL_GLOSSARY = `
 Use these words, which are what a Tamil site actually says:
@@ -178,29 +138,8 @@ Use these words, which are what a Tamil site actually says:
   beam -> பீம்
   footing -> அடித்தளம்`;
 
-interface GoogleResponse {
-  data?: {
-    translations?: { translatedText?: string; detectedSourceLanguage?: string }[];
-  };
-}
-
 function cacheKey(input: TranslateInput): string {
   return createHash('sha1')
     .update(`${input.to}|${input.from ?? ''}|${input.text}`)
     .digest('base64url');
-}
-
-/**
- * Google returns `&#39;` and `&amp;` even with `format: 'text'`.
- *
- * Only the five that appear. A full HTML entity decoder here would be a dependency earning its
- * keep on a problem that is five characters wide.
- */
-function decodeEntities(text: string): string {
-  return text
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
 }
