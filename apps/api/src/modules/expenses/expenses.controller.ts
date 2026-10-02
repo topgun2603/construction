@@ -17,16 +17,19 @@ import {
   decideExpenseSchema,
   expenseSummaryQuerySchema,
   listExpensesQuerySchema,
+  scanBillSchema,
   updateExpenseSchema,
   type CreateExpenseInput,
   type DecideExpenseInput,
   type ExpenseSummaryQuery,
   type ListExpensesQuery,
+  type ScanBillInput,
   type UpdateExpenseInput,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
 import { CurrentUser, RequiresModule, RequiresPermission } from '../../common/decorators';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
+import { Throttle } from '@nestjs/throttler';
 import { ExpensesService } from './expenses.service';
 
 @ApiTags('expenses')
@@ -34,6 +37,25 @@ import { ExpensesService } from './expenses.service';
 @Controller('expenses')
 export class ExpensesController {
   constructor(private readonly expenses: ExpensesService) {}
+
+  /**
+   * Reads a photographed bill into a draft. Saves nothing.
+   *
+   * `expenses.record` rather than `expenses.view`: this is the first half of recording one, and it
+   * spends money at a vendor per call — somebody who may only read expenses has no reason to be
+   * able to run it.
+   *
+   * Rate limited harder than the rest of this controller for the same reason. Twenty an hour is
+   * more bills than anybody photographs in a day and far fewer than a loop would send.
+   */
+  @Throttle({ default: { limit: 20, ttl: 3_600_000 } })
+  @RequiresPermission('expenses.record')
+  @Post('scan')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Read an uploaded bill photo into an expense draft' })
+  scan(@CurrentUser() user: RequestUser, @Body(zodBody(scanBillSchema)) body: ScanBillInput) {
+    return this.expenses.scanBill(user, body);
+  }
 
   @RequiresPermission('expenses.view')
   @Get()

@@ -1,11 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
-import { Receipt } from 'lucide-react';
+import { useRef, useState, useTransition } from 'react';
+import { Loader2, Receipt, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { EXPENSE_CATEGORIES, expenseCategoryLabel } from '@sitebook/shared';
-import { recordExpense } from '@/lib/actions';
+import { presignUpload, recordExpense, scanBill } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -31,6 +31,77 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
+  // The bill, and what reading it produced. `billKey` is kept so the photograph is filed with the
+  // expense: the scan is a convenience, the picture is the evidence.
+  const fileInput = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [billKey, setBillKey] = useState<string | null>(null);
+  const [unread, setUnread] = useState<string[]>([]);
+  const [scanned, setScanned] = useState(false);
+
+  /**
+   * Upload the photo, read it, and fill in the form.
+   *
+   * Nothing here submits anything. The fields are populated and the person checks them — a model
+   * reading ₹1,250 as ₹12.50 has to be a visible mistake somebody corrects, not a silent one.
+   */
+  async function onBillChosen(file: File) {
+    setError(null);
+    setScanning(true);
+    try {
+      const presigned = await presignUpload({
+        kind: 'bill',
+        content_type: file.type || 'image/jpeg',
+        content_length: file.size,
+        ...(projectId ? { project_id: projectId } : {}),
+      });
+      if (!presigned.ok || !presigned.data) {
+        setError(presigned.error ?? 'Could not prepare the upload');
+        return;
+      }
+
+      const put = await fetch(presigned.data.url, {
+        method: 'PUT',
+        headers: presigned.data.headers,
+        body: file,
+      });
+      if (!put.ok) {
+        setError('The upload failed');
+        return;
+      }
+      setBillKey(presigned.data.s3_key);
+
+      const read = await scanBill(presigned.data.s3_key);
+      if (!read.ok || !read.data) {
+        // The photograph is uploaded and attached either way — only the reading failed, and the
+        // form still works by hand.
+        setError(read.error ?? 'Could not read that bill. Fill it in by hand.');
+        return;
+      }
+
+      const draft = read.data;
+      const form = formRef.current;
+      if (form) {
+        const amount = form.elements.namedItem('amount') as HTMLInputElement | null;
+        const spentOn = form.elements.namedItem('spent_on') as HTMLInputElement | null;
+        const note = form.elements.namedItem('note') as HTMLTextAreaElement | null;
+        // Rupees back out of paise for the field, which is what a person is reading.
+        if (amount && draft.amount) amount.value = (Number(draft.amount) / 100).toFixed(2);
+        if (spentOn && draft.spent_on) spentOn.value = draft.spent_on;
+        if (note) {
+          note.value = [draft.vendor, draft.summary].filter(Boolean).join(' — ');
+        }
+      }
+      if (draft.category) setCategory(draft.category);
+      setUnread(draft.unread);
+      setScanned(true);
+    } finally {
+      setScanning(false);
+      if (fileInput.current) fileInput.current.value = '';
+    }
+  }
+
   function onSubmit(formData: FormData) {
     setError(null);
     if (!projectId) {
@@ -44,6 +115,7 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
         category,
         spent_on: String(formData.get('spent_on') ?? todayIso()),
         note: String(formData.get('note') ?? '').trim() || undefined,
+        ...(billKey ? { bill_s3_key: billKey } : {}),
       });
       if (!result.ok) {
         setError(result.error ?? 'Could not record the expense');
@@ -71,7 +143,50 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
           </DialogDescription>
         </DialogHeader>
 
-        <form action={onSubmit} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 rounded-card border border-line-soft bg-raised p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col">
+              <span className="text-[13.5px] font-medium">Photograph of the bill</span>
+              <span className="text-[12.5px] text-ink-muted">
+                {scanned
+                  ? 'Read from the photo — check it before recording.'
+                  : 'Optional. We read the total, date and supplier off it.'}
+              </span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={scanning || pending}
+              onClick={() => fileInput.current?.click()}
+            >
+              {scanning ? <Loader2 className="size-4 animate-spin" /> : <ScanLine className="size-4" />}
+              {scanning ? 'Reading…' : billKey ? 'Use another photo' : 'Scan a bill'}
+            </Button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void onBillChosen(file);
+              }}
+            />
+          </div>
+
+          {scanned && unread.length > 0 && (
+            // Saying what it could not read is the honest half of this feature. A form that looks
+            // filled in but has a wrong date is worse than one with an obvious gap.
+            <p className="text-[12.5px] text-pending-fg">
+              Could not read the {unread.join(', ')} — fill {unread.length === 1 ? 'it' : 'them'} in
+              yourself.
+            </p>
+          )}
+        </div>
+
+        <form ref={formRef} action={onSubmit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Site">
               <Select value={projectId} onValueChange={setProjectId}>

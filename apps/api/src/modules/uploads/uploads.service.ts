@@ -122,6 +122,41 @@ export class UploadsService {
     }
   }
 
+  /**
+   * The object's bytes, for server-side callers that need to look inside it.
+   *
+   * Same authorisation as `viewUrl` — the tenant prefix — and a size ceiling, because this loads
+   * the whole object into memory. Everything that reaches here is a photograph of a piece of
+   * paper; anything larger than a few megabytes is not that, and should not be read into the API's
+   * heap on an unauthenticated guess at what the file is.
+   */
+  async readObject(
+    actor: RequestUser,
+    s3Key: string,
+    maxBytes: number,
+  ): Promise<{ body: Buffer; contentType: string }> {
+    const prefix = `${actor.tenantId}/`;
+    if (!s3Key.startsWith(prefix) || s3Key.includes('..')) {
+      throw ApiError.forbidden('That file does not belong to this account');
+    }
+
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: this.config.S3_BUCKET, Key: s3Key }),
+    );
+    if (!result.Body) throw ApiError.notFound('File');
+
+    const length = result.ContentLength ?? 0;
+    if (length > maxBytes) {
+      throw ApiError.validationFailed(
+        { s3_key: 'file is too large to read' },
+        `That file is ${Math.round(length / 1_000_000)} MB; the limit is ${Math.round(maxBytes / 1_000_000)} MB`,
+      );
+    }
+
+    const body = Buffer.from(await result.Body.transformToByteArray());
+    return { body, contentType: result.ContentType ?? 'application/octet-stream' };
+  }
+
   private buildKey(actor: RequestUser, input: PresignInput): string {
     const now = new Date();
     const yyyymm = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}`;

@@ -178,4 +178,60 @@ describe('expenses', () => {
     expect(response.body.code).toBe('MODULE_NOT_ENABLED');
     await destroyTenant(test, starter.tenantId);
   });
+  describe('scanning a bill', () => {
+    /*
+     * The vendor is never called here. What these cover is everything around the call — the parts
+     * that decide whether a misread or a malicious key can do damage — because those are the parts
+     * that are ours. The reading itself is the vendor's problem and cannot be asserted on.
+     */
+    it('refuses a key belonging to another account', async () => {
+      const other = await onboardTenant(test, { name: 'Other Builders', phone: uniquePhone() });
+      try {
+        const response = await test
+          .http()
+          .post('/v1/expenses/scan')
+          .set(ownerAuth)
+          .send({ s3_key: `${other.tenantId}/bill/tenant/202610/stolen.jpg` })
+          .expect(403);
+        expect(response.body.code).toBe('FORBIDDEN');
+      } finally {
+        await destroyTenant(test, other.tenantId);
+      }
+    });
+
+    it('refuses a key that climbs out of the tenant prefix', async () => {
+      await test
+        .http()
+        .post('/v1/expenses/scan')
+        .set(ownerAuth)
+        .send({ s3_key: `${tenant.tenantId}/../secrets/key.jpg` })
+        .expect(403);
+    });
+
+    it('is not open to somebody who may only read expenses', async () => {
+      // A scan costs money at a vendor on every call, so it sits behind recording an expense
+      // rather than behind seeing one.
+      const phone = uniquePhone();
+      await test
+        .http()
+        .post('/v1/tenants/current/invite')
+        .set(ownerAuth)
+        .send({ phone, name: 'Read Only', role: 'client', project_ids: [] })
+        .expect(201);
+
+      const session = await test
+        .http()
+        .post('/v1/auth/exchange')
+        .send({ firebase_token: `dev:${phone}` })
+        .expect(200);
+
+      await test
+        .http()
+        .post('/v1/expenses/scan')
+        .set({ Authorization: `Bearer ${session.body.access_token}` })
+        .send({ s3_key: `${tenant.tenantId}/bill/tenant/202610/any.jpg` })
+        .expect(403);
+    });
+  });
+
 });

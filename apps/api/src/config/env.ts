@@ -135,6 +135,16 @@ const envSchema = z
      */
     GEOCODER_CONTACT: z.string().optional(),
 
+    /*
+     * Reading photographed bills into expense drafts.
+     *
+     * Optional: with no key the scan endpoint answers "not configured" and the rest of the product
+     * is unaffected. The key is server-side only and must never reach a browser bundle or an APK —
+     * it is a spending credential, not a public identifier like the Firebase web config.
+     */
+    OPENAI_API_KEY: z.string().optional(),
+    OPENAI_VISION_MODEL: z.string().default('gpt-4o-mini'),
+
     /**
      * Map tiles and geocoding. Without it the geocoder falls back to Nominatim's volunteer
      * service, which is fine for a checkout and not fine for a deployment - their usage policy is

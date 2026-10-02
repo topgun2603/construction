@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import type { ScanBillResult } from '@sitebook/shared';
 import { runAction, serverFetch, type ActionResult } from './server-api';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from './session';
 import type {
@@ -810,6 +811,21 @@ export async function deleteDocument(
   const result = await runAction(() => serverFetch(`/documents/${id}`, { method: 'DELETE' }));
   if (result.ok && projectId) revalidatePath(`/projects/${projectId}`);
   return result;
+}
+
+/**
+ * Reads an uploaded bill photo into a draft for the expense form.
+ *
+ * Returns the draft; saves nothing. The person at the keyboard is what turns it into an expense,
+ * which is the point — a misread total should be a correction, not an entry in the ledger.
+ */
+export async function scanBill(s3Key: string): Promise<ActionResult<ScanBillResult>> {
+  return runAction(() =>
+    serverFetch<ScanBillResult>('/expenses/scan', {
+      method: 'POST',
+      body: { s3_key: s3Key },
+    }),
+  );
 }
 
 export async function presignUpload(input: {

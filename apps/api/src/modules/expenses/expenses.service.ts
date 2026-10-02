@@ -8,6 +8,8 @@ import {
   type ExpenseSummaryQuery,
   type ListExpensesQuery,
   type Page,
+  type ScanBillInput,
+  type ScanBillResult,
   type UpdateExpenseInput,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
@@ -15,6 +17,23 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { BillReader } from '../ai/bill-reader.service';
+import { UploadsService } from '../uploads/uploads.service';
+
+/** A photograph of a piece of paper. Anything bigger is not one. */
+const MAX_BILL_BYTES = 8_000_000;
+
+/**
+ * "1250" or "1250.5" to integer paise, without a float in the middle.
+ *
+ * `Number(rupees) * 100` is wrong for exactly the amounts a bill carries: 1250.29 becomes
+ * 125028.99999999999, and a rounding there is a rupee out on somebody's accounts.
+ */
+function rupeeStringToPaise(rupees: string): bigint {
+  const [whole = '0', fraction = ''] = rupees.split('.');
+  const paise = (fraction + '00').slice(0, 2);
+  return BigInt(whole) * 100n + BigInt(paise);
+}
 
 const SELECT = {
   id: true,
@@ -38,7 +57,49 @@ export class ExpensesService {
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
+    private readonly bills: BillReader,
+    private readonly uploads: UploadsService,
   ) {}
+
+  /**
+   * Reads a photographed bill into a draft for the form. Writes nothing.
+   *
+   * The rupees-to-paise conversion happens here rather than in the model's answer. Money in this
+   * product is an integer number of paise and nothing else is allowed to produce one — a model
+   * asked for "the amount in paise" would occasionally multiply by a hundred wrong, and the
+   * arithmetic is three lines of code that can be tested.
+   */
+  async scanBill(actor: RequestUser, input: ScanBillInput): Promise<ScanBillResult> {
+    const file = await this.uploads.readObject(actor, input.s3_key, MAX_BILL_BYTES);
+    if (!file.contentType.startsWith('image/')) {
+      throw ApiError.validationFailed(
+        { s3_key: 'not an image' },
+        'Only a photograph of a bill can be scanned. A PDF has to be entered by hand.',
+      );
+    }
+
+    const draft = await this.bills.read(file.body, file.contentType);
+
+    const amount = draft.amount === null ? null : rupeeStringToPaise(draft.amount);
+    const result: ScanBillResult = {
+      amount: amount === null ? null : amount.toString(),
+      vendor: draft.vendor,
+      spent_on: draft.spent_on,
+      category: draft.category,
+      gstin: draft.gstin,
+      summary: draft.summary,
+      // Named rather than counted, so the form can mark the fields somebody still has to fill.
+      unread: Object.entries({
+        amount: draft.amount,
+        vendor: draft.vendor,
+        spent_on: draft.spent_on,
+        category: draft.category,
+      })
+        .filter(([, value]) => value === null)
+        .map(([field]) => field),
+    };
+    return result;
+  }
 
   async list(actor: RequestUser, query: ListExpensesQuery) {
     if (query.project_id) await this.access.assertAccess(actor, query.project_id);

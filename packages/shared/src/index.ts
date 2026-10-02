@@ -19,5 +19,6 @@ export * from './schemas/site';
 export * from './schemas/portal';
 export * from './schemas/billing-client';
 export * from './schemas/stock';
+export * from './schemas/bill-scan';
 export * from './schemas/expenses';
 export * from './schemas/platform';
