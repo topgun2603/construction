@@ -90,7 +90,15 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
         if (amount && draft.amount) amount.value = (Number(draft.amount) / 100).toFixed(2);
         if (spentOn && draft.spent_on) spentOn.value = draft.spent_on;
         if (note) {
-          note.value = [draft.vendor, draft.summary].filter(Boolean).join(' — ');
+          // The GSTIN only reaches here if its check digit validated, so it is worth keeping for
+          // whoever reconciles the input credit. Expenses have no column for it; the note does.
+          note.value = [
+            draft.vendor,
+            draft.summary,
+            draft.gstin ? `GSTIN ${draft.gstin}` : null,
+          ]
+            .filter(Boolean)
+            .join(' — ');
         }
       }
       if (draft.category) setCategory(draft.category);

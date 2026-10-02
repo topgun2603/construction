@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
-import { billDraftSchema, EXPENSE_CATEGORIES, type BillDraft } from '@sitebook/shared';
+import {
+  billDraftSchema,
+  EXPENSE_CATEGORIES,
+  isValidGstin,
+  type BillDraft,
+} from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
 
@@ -125,9 +130,24 @@ function normalise(value: unknown): Record<string, unknown> {
     spent_on: field('spent_on'),
     category:
       category && (EXPENSE_CATEGORIES as readonly string[]).includes(category) ? category : null,
-    gstin: field('gstin')?.toUpperCase() ?? null,
+    /*
+     * Checked, not just shaped.
+     *
+     * A GSTIN's last character is a check digit over the other fourteen, which makes this one of
+     * the few fields on a bill that can be verified rather than merely pattern-matched. It earned
+     * its place immediately: the first real scan returned fifteen plausible characters that were
+     * nobody's GSTIN — an `S` read as a `J` — and the shape alone could not tell. A failed
+     * checksum becomes null, so the form asks rather than files a wrong number against a supplier.
+     */
+    gstin: gstinOrNull(field('gstin')),
     summary: field('summary'),
   };
+}
+
+function gstinOrNull(candidate: string | null): string | null {
+  if (!candidate) return null;
+  const gstin = candidate.toUpperCase().replace(/\s+/g, '');
+  return isValidGstin(gstin) ? gstin : null;
 }
 
 const SYSTEM_PROMPT = `You read photographs of Indian supplier bills, invoices and cash receipts for a construction company, and return JSON.
