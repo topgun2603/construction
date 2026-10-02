@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_client.dart';
 import '../core/theme.dart';
+import '../core/i18n.dart';
 
 /// The small pieces every screen is built from.
 ///
@@ -390,7 +391,7 @@ Future<bool> confirm(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Keep it'),
+          child: Text(t('Keep it')),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),

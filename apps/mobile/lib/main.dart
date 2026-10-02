@@ -10,6 +10,7 @@ import 'features/onboarding/onboarding_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'shared/animated_logo.dart';
 import 'shared/loading_lines.dart';
+import 'core/i18n.dart';
 
 Future<void> main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,9 @@ class _BuildrAppState extends ConsumerState<BuildrApp> {
       title: 'BUILDR',
       debugShowCheckedModeBanner: false,
       theme: buildrTheme(),
+      // Everything below here is rebuilt when the language changes. `t()` reads a plain variable,
+      // so nothing re-renders on its own — the tree has to be told it is stale.
+      builder: (context, child) => LanguageScope(child: child ?? const SizedBox.shrink()),
       home: switch (auth.status) {
         // Reading the keystore. One frame usually, but on a cold start with a locked keychain it can
         // be longer — the native splash is still covering this.

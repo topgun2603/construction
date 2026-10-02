@@ -7,6 +7,7 @@ import '../../core/auth_controller.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 /// What is on site, per material: received, used, what is left — and the booking of both.
 ///
@@ -34,9 +35,9 @@ class _StockScreenState extends ConsumerState<StockScreen> {
       onRetry: () => ref.invalidate(sitesProvider),
       builder: (siteRows) {
         if (siteRows.isEmpty) {
-          return const EmptyNote(
+          return EmptyNote(
             icon: Icons.inventory_2_outlined,
-            title: 'No sites',
+            title: t('No sites'),
             body: 'Stock is counted per site, so there is nothing to show yet.',
           );
         }
@@ -61,7 +62,7 @@ class _StockScreenState extends ConsumerState<StockScreen> {
                     onPressed: () =>
                         _openMovement(context, projectId: projectId, siteName: siteName),
                     icon: const Icon(Icons.add),
-                    label: const Text('Book stock'),
+                    label: Text(t('Book stock')),
                   ),
                 )
               : null,
@@ -150,7 +151,7 @@ class _StockScreenState extends ConsumerState<StockScreen> {
                             child: KpiStrip(
                               tiles: [
                                 StatTile(
-                                  label: 'Materials tracked',
+                                  label: t('Materials tracked'),
                                   value: '${totals['material_count'] ?? items.length}',
                                   note: empty > 0 ? '$empty at zero' : 'All have stock',
                                 ),
@@ -168,7 +169,7 @@ class _StockScreenState extends ConsumerState<StockScreen> {
                                   note: 'Across every material',
                                 ),
                                 StatTile(
-                                  label: 'Booked out',
+                                  label: t('Booked out'),
                                   value: _sum(items, 'used'),
                                   note: 'What the site has drawn',
                                 ),
@@ -325,8 +326,8 @@ class _MovementFormState extends ConsumerState<_MovementForm> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Book stock',
+                      Text(
+                        t('Book stock'),
                         style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                       ),
                       Text(
@@ -342,20 +343,20 @@ class _MovementFormState extends ConsumerState<_MovementForm> {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             // In or out first: it changes what every field below means, and getting it wrong is the
             // error that matters here.
             SegmentedButton<String>(
-              segments: const [
+              segments: [
                 ButtonSegment(
                   value: 'in',
                   icon: Icon(Icons.south_west, size: 17),
-                  label: Text('Received'),
+                  label: Text(t('Received')),
                 ),
                 ButtonSegment(
                   value: 'out',
                   icon: Icon(Icons.north_east, size: 17),
-                  label: Text('Used'),
+                  label: Text(t('Used')),
                 ),
               ],
               selected: {_type},
@@ -368,8 +369,8 @@ class _MovementFormState extends ConsumerState<_MovementForm> {
               error: (error, _) => ErrorNote(error: error),
               data: (rows) {
                 if (rows.isEmpty) {
-                  return const EmptyNote(
-                    title: 'No materials yet',
+                  return EmptyNote(
+                    title: t('No materials yet'),
                     body: 'Materials are set up once for the company, then booked per site.',
                   );
                 }

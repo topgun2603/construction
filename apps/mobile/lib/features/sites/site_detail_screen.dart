@@ -11,6 +11,7 @@ import '../../shared/widgets.dart';
 import 'payment_schedule.dart';
 import '../documents/documents_list.dart';
 import '../portal/site_conversation_screen.dart';
+import '../../core/i18n.dart';
 
 /// One site: what it is, where it has got to, and who is on it.
 class SiteDetailScreen extends ConsumerWidget {
@@ -155,7 +156,7 @@ class _Header extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _Pair(label: 'Started', value: start == null ? '—' : shortDate(start)),
+                  child: _Pair(label: t('Started'), value: start == null ? '—' : shortDate(start)),
                 ),
                 Expanded(
                   child: _Pair(label: 'Handover', value: end == null ? '—' : shortDate(end)),
@@ -163,7 +164,7 @@ class _Header extends StatelessWidget {
                 if (canSeeMoney)
                   Expanded(
                     child: _Pair(
-                      label: 'Budget',
+                      label: t('Budget'),
                       value: site['budget_amount'] == null
                           ? '—'
                           : formatInrCompact(site['budget_amount'] as String),

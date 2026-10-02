@@ -9,6 +9,7 @@ import 'contractors_screen.dart';
 import 'materials_screen.dart';
 import 'roles_screen.dart';
 import 'team_screen.dart';
+import '../../core/i18n.dart';
 
 /// The lists a company sets up once and edits rarely.
 ///
@@ -39,7 +40,7 @@ class SettingsScreen extends ConsumerWidget {
       _Entry(
         id: 'materials',
         icon: Icons.category_outlined,
-        label: 'Materials',
+        label: t('Materials'),
         blurb: 'What can be indented and booked into stock',
         allowed: me.can('materials.manage'),
         builder: MaterialsScreen.new,
@@ -47,7 +48,7 @@ class SettingsScreen extends ConsumerWidget {
       _Entry(
         id: 'team',
         icon: Icons.badge_outlined,
-        label: 'Team',
+        label: t('Team'),
         blurb: 'Who has a login, and what they can do',
         allowed: me.can('team.manage'),
         builder: TeamScreen.new,
@@ -55,7 +56,7 @@ class SettingsScreen extends ConsumerWidget {
       _Entry(
         id: 'roles',
         icon: Icons.lock_outline,
-        label: 'Roles',
+        label: t('Roles'),
         blurb: 'Permissions, for jobs the built-in roles do not fit',
         allowed: me.can('roles.manage'),
         builder: RolesScreen.new,

@@ -7,6 +7,7 @@ import '../../core/auth_controller.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 /// Material indents: asking for material, and saying yes or no to the asking.
 ///
@@ -175,10 +176,10 @@ class _IndentCard extends ConsumerWidget {
                 if (canWithdraw)
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 20, color: Palette.inkFaint),
-                    itemBuilder: (_) => const [
+                    itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'withdraw',
-                        child: Text('Withdraw', style: TextStyle(color: Palette.blocked)),
+                        child: Text(t('Withdraw'), style: TextStyle(color: Palette.blocked)),
                       ),
                     ],
                     onSelected: (_) async {
@@ -259,7 +260,7 @@ class _IndentCard extends ConsumerWidget {
                         foregroundColor: Palette.blocked,
                       ),
                       onPressed: () => _decide(context, ref, 'rejected'),
-                      child: const Text('Reject'),
+                      child: Text(t('Reject')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -267,7 +268,7 @@ class _IndentCard extends ConsumerWidget {
                     child: FilledButton(
                       style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(46)),
                       onPressed: () => _decide(context, ref, 'approved'),
-                      child: const Text('Approve'),
+                      child: Text(t('Approve')),
                     ),
                   ),
                 ],
@@ -301,14 +302,14 @@ class _IndentCard extends ConsumerWidget {
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Why is it rejected?'),
+        title: Text(t('Why is it rejected?')),
         content: TextField(
           controller: controller,
           autofocus: true,
           maxLines: 3,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'Too much for this stage — raise for 50 bags',
+          decoration: InputDecoration(
+            hintText: t('Too much for this stage — raise for 50 bags'),
           ),
         ),
         actions: [
@@ -316,7 +317,7 @@ class _IndentCard extends ConsumerWidget {
           FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(100, 44)),
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Reject'),
+            child: Text(t('Reject')),
           ),
         ],
       ),
@@ -386,8 +387,8 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
             else if (materials.hasError)
               ErrorNote(error: materials.error!)
             else if ((materials.value ?? []).isEmpty)
-              const EmptyNote(
-                title: 'No materials set up',
+              EmptyNote(
+                title: t('No materials set up'),
                 body:
                     'The material list is managed from the web app. Add cement, steel and the rest '
                     'there, then indents can name them.',
@@ -402,7 +403,7 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
 
   Widget _form(List<Map<String, dynamic>> sites, List<Map<String, dynamic>> materials) {
     if (sites.isEmpty) {
-      return const EmptyNote(title: 'No sites', body: 'Nothing to raise an indent against.');
+      return EmptyNote(title: t('No sites'), body: 'Nothing to raise an indent against.');
     }
     final projectId = _projectId ?? sites.first['id'] as String;
     final materialId = _materialId ?? materials.first['id'] as String;
@@ -414,7 +415,7 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _Label('Site'),
+        _Label(t('Site')),
         DropdownButtonFormField<String>(
           initialValue: projectId,
           items: [
@@ -427,7 +428,7 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
           onChanged: (value) => setState(() => _projectId = value),
         ),
         const SizedBox(height: 16),
-        const _Label('Material'),
+        _Label(t('Material')),
         DropdownButtonFormField<String>(
           initialValue: materialId,
           isExpanded: true,
@@ -450,16 +451,16 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
         const SizedBox(height: 16),
         const _Label('How urgent'),
         SegmentedButton<String>(
-          segments: const [
+          segments: [
             ButtonSegment(value: 'normal', label: Text('Normal')),
-            ButtonSegment(value: 'high', label: Text('High')),
+            ButtonSegment(value: 'high', label: Text(t('High'))),
             ButtonSegment(value: 'urgent', label: Text('Urgent')),
           ],
           selected: {_urgency},
           onSelectionChanged: (value) => setState(() => _urgency = value.first),
         ),
         const SizedBox(height: 16),
-        const _Label('Notes'),
+        _Label(t('Notes')),
         TextField(
           controller: _notes,
           maxLines: 2,

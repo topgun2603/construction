@@ -7,6 +7,7 @@ import '../../core/auth_controller.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
 import 'settings_screen.dart';
+import '../../core/i18n.dart';
 
 /// Everything that can be indented or booked into stock.
 ///
@@ -33,7 +34,7 @@ class _MaterialsScreenState extends ConsumerState<MaterialsScreen> {
     final canManage = ref.watch(authControllerProvider).me?.can('materials.manage') ?? false;
 
     return AdminScaffold(
-      title: 'Materials',
+      title: t('Materials'),
       addLabel: 'Add material',
       onAdd: canManage ? () => adminSheet(context, const _MaterialForm()) : null,
       child: Column(
@@ -42,8 +43,8 @@ class _MaterialsScreenState extends ConsumerState<MaterialsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
               onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
-              decoration: const InputDecoration(
-                hintText: 'Search materials',
+              decoration: InputDecoration(
+                hintText: t('Search materials'),
                 prefixIcon: Icon(Icons.search, size: 20),
                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
@@ -129,7 +130,7 @@ class _MaterialsScreenState extends ConsumerState<MaterialsScreen> {
                                     size: 20,
                                     color: Palette.inkFaint,
                                   ),
-                                  tooltip: 'Remove',
+                                  tooltip: t('Remove'),
                                   onPressed: () async {
                                     final messenger = ScaffoldMessenger.of(context);
                                     final sure = await confirm(
@@ -147,7 +148,7 @@ class _MaterialsScreenState extends ConsumerState<MaterialsScreen> {
                                           .read(apiProvider)
                                           .removeMaterial(material['id'] as String);
                                       messenger.showSnackBar(
-                                        const SnackBar(content: Text('Removed')),
+                                        SnackBar(content: Text(t('Removed'))),
                                       );
                                     } on ApiException catch (error) {
                                       messenger.showSnackBar(
@@ -209,9 +210,9 @@ class _MaterialFormState extends ConsumerState<_MaterialForm> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Add material',
+                    t('Add material'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -260,7 +261,7 @@ class _MaterialFormState extends ConsumerState<_MaterialForm> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                     )
-                  : const Text('Add material'),
+                  : Text(t('Add material')),
             ),
           ],
         ),

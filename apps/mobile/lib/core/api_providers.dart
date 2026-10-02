@@ -948,7 +948,7 @@ class Api {
       'category': category,
       'spent_on': spentOn,
       if (note != null && note.isNotEmpty) 'note': note,
-      if (billS3Key != null) 'bill_s3_key': billS3Key,
+      'bill_s3_key': ?billS3Key,
     };
 
     final sent = await _sendOrQueue(

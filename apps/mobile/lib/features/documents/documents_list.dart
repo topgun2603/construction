@@ -11,6 +11,7 @@ import '../../core/format.dart';
 import '../../core/photo_upload.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 const documentCategories = <String>[
   'drawing',
@@ -210,7 +211,7 @@ class _DocumentsListState extends ConsumerState<DocumentsList> {
                           _to = null;
                           _shown = _pageSize;
                         }),
-                        child: const Text('Clear'),
+                        child: Text(t('Clear')),
                       ),
                     ],
                   ),
@@ -414,7 +415,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                 widget.onApply(_category, _from, _to, _sort);
                 Navigator.of(context).pop();
               },
-              child: const Text('Show results'),
+              child: Text(t('Show results')),
             ),
           ],
         ),
@@ -534,7 +535,7 @@ class _Row extends ConsumerWidget {
             ),
             if (canManage)
               IconButton(
-                tooltip: 'More',
+                tooltip: t('More'),
                 onPressed: () => _actions(context, ref),
                 icon: const Icon(Icons.more_vert, size: 20, color: Palette.inkFaint),
               )
@@ -823,10 +824,10 @@ Future<String?> _askWhichSite(BuildContext context, WidgetRef ref) async {
       child: ListView(
         shrinkWrap: true,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(20, 16, 20, 6),
             child: Text(
-              'Which site is this for?',
+              t('Which site is this for?'),
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
@@ -858,13 +859,13 @@ Future<String?> _askSource(BuildContext context, {required bool revision}) {
           ),
           ListTile(
             leading: const Icon(Icons.attach_file),
-            title: const Text('Choose a file'),
+            title: Text(t('Choose a file')),
             subtitle: const Text('A PDF or an image already on this phone'),
             onTap: () => Navigator.of(context).pop('file'),
           ),
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Photograph it'),
+            title: Text(t('Photograph it')),
             subtitle: const Text('Paper that only exists on site'),
             onTap: () => Navigator.of(context).pop('camera'),
           ),
@@ -898,7 +899,7 @@ class AddDocumentButton extends ConsumerWidget {
       return FilledButton.icon(
         onPressed: () => addDocument(context, ref, projectId: projectId),
         icon: const Icon(Icons.add, size: 17),
-        label: const Text('Add'),
+        label: Text(t('Add')),
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           minimumSize: const Size(0, 34),
@@ -952,8 +953,8 @@ class _DetailsDialogState extends State<_DetailsDialog> {
               maxLength: 200,
               textCapitalization: TextCapitalization.sentences,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Name',
+              decoration: InputDecoration(
+                labelText: t('Name'),
                 counterText: '',
                 hintText: 'Ground floor slab layout',
               ),
@@ -961,7 +962,7 @@ class _DetailsDialogState extends State<_DetailsDialog> {
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               initialValue: _category,
-              decoration: const InputDecoration(labelText: 'What is it'),
+              decoration: InputDecoration(labelText: t('What is it')),
               items: [
                 for (final category in documentCategories)
                   DropdownMenuItem(value: category, child: Text(titleCase(category))),
@@ -993,7 +994,7 @@ class _DetailsDialogState extends State<_DetailsDialog> {
                   category: _category,
                   share: _share,
                 )),
-          child: const Text('File it'),
+          child: Text(t('File it')),
         ),
       ],
     );
@@ -1042,12 +1043,12 @@ class _EditDetailsDialogState extends State<_EditDetailsDialog> {
               maxLength: 200,
               textCapitalization: TextCapitalization.sentences,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(labelText: 'Name', counterText: ''),
+              decoration: InputDecoration(labelText: t('Name'), counterText: ''),
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               initialValue: _category,
-              decoration: const InputDecoration(labelText: 'What is it'),
+              decoration: InputDecoration(labelText: t('What is it')),
               items: [
                 for (final category in documentCategories)
                   DropdownMenuItem(value: category, child: Text(titleCase(category))),
@@ -1065,7 +1066,7 @@ class _EditDetailsDialogState extends State<_EditDetailsDialog> {
               : () => Navigator.of(
                   context,
                 ).pop((title: _title.text.trim(), category: _category)),
-          child: const Text('Save'),
+          child: Text(t('Save')),
         ),
       ],
     );

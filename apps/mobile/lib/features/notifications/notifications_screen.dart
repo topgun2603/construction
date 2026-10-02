@@ -6,6 +6,7 @@ import '../../core/api_providers.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 /// What happened while you were not looking.
 ///
@@ -32,7 +33,7 @@ class NotificationsScreen extends ConsumerWidget {
                   if (context.mounted) notify(context, error.message, bad: true);
                 }
               },
-              child: const Text('Mark all read'),
+              child: Text(t('Mark all read')),
             ),
           const SizedBox(width: 4),
         ],

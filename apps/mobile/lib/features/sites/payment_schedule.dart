@@ -8,6 +8,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
 import '../settings/settings_screen.dart';
+import '../../core/i18n.dart';
 
 /// What the client owes on this site, instalment by instalment.
 ///
@@ -55,13 +56,13 @@ class PaymentSchedule extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: _Figure(
-                            label: 'Scheduled',
+                            label: t('Scheduled'),
                             value: formatInr(totals['scheduled'] as String?),
                           ),
                         ),
                         Expanded(
                           child: _Figure(
-                            label: 'Received',
+                            label: t('Received'),
                             value: formatInr(totals['received'] as String?),
                           ),
                         ),
@@ -90,7 +91,7 @@ class PaymentSchedule extends ConsumerWidget {
               Card(
                 child: EmptyNote(
                   icon: Icons.request_quote_outlined,
-                  title: 'No schedule set',
+                  title: t('No schedule set'),
                   body: canManage
                       ? 'Break the contract value into instalments — on signing, on the slab, on '
                             'handover — so what is due and when stops being a conversation.'
@@ -196,8 +197,8 @@ class _StageCard extends ConsumerWidget {
                 if (canManage && !raised)
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 20, color: Palette.inkFaint),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'raise', child: Text('Mark as raised')),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(value: 'raise', child: Text(t('Mark as raised'))),
                     ],
                     onSelected: (_) async {
                       final messenger = ScaffoldMessenger.of(context);
@@ -209,7 +210,7 @@ class _StageCard extends ConsumerWidget {
                               projectId: projectId,
                               changes: {'raised': true},
                             );
-                        messenger.showSnackBar(const SnackBar(content: Text('Marked as raised')));
+                        messenger.showSnackBar(SnackBar(content: Text(t('Marked as raised'))));
                       } on ApiException catch (error) {
                         messenger.showSnackBar(
                           SnackBar(
@@ -486,10 +487,10 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
             const AdminLabel('How it came'),
             DropdownButtonFormField<String>(
               initialValue: _mode,
-              items: const [
+              items: [
                 DropdownMenuItem(value: 'bank', child: Text('Bank transfer')),
                 DropdownMenuItem(value: 'upi', child: Text('UPI')),
-                DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                DropdownMenuItem(value: 'cash', child: Text(t('Cash'))),
               ],
               onChanged: (value) => setState(() => _mode = value ?? 'bank'),
             ),
@@ -525,7 +526,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                     )
-                  : const Text('Record'),
+                  : Text(t('Record')),
             ),
           ],
         ),

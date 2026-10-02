@@ -10,6 +10,7 @@ import '../core/api_providers.dart';
 import '../core/device_location.dart';
 import '../core/map_tiles.dart';
 import '../core/theme.dart';
+import '../core/i18n.dart';
 
 /// Where a site is, chosen on a map.
 ///
@@ -135,7 +136,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Where is the site?')),
+      appBar: AppBar(title: Text(t('Where is the site?'))),
       body: SafeArea(
         child: Column(
           children: [
@@ -317,7 +318,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
                   ),
                   FilledButton(
                     onPressed: _placed ? () => Navigator.of(context).pop(_point) : null,
-                    child: const Text('Use this spot'),
+                    child: Text(t('Use this spot')),
                   ),
                 ],
               ),

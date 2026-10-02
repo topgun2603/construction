@@ -11,6 +11,7 @@ import '../../core/phone.dart';
 import '../../core/theme.dart';
 import '../../shared/animated_logo.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 /// Who you are signed in as, and the way out.
 ///
@@ -62,7 +63,7 @@ class ProfileScreen extends ConsumerWidget {
                   const SizedBox(height: 14),
                   _Row(label: 'Company', value: me.companyName),
                   _Row(
-                    label: 'Role',
+                    label: t('Role'),
                     value: me.roleName.isEmpty ? titleCase(me.role) : me.roleName,
                   ),
                   _Row(label: 'Plan', value: me.planLabel),
@@ -72,9 +73,13 @@ class ProfileScreen extends ConsumerWidget {
                       value: longDate(me.planExpiresOn!.substring(0, 10)),
                     ),
                   _Row(
-                    label: 'Sites',
+                    label: t('Sites'),
                     value: me.seesAllProjects ? 'All sites' : 'Only the ones you are on',
                   ),
+                  const SizedBox(height: 14),
+                  const Divider(height: 1),
+                  const SizedBox(height: 10),
+                  const _LanguagePicker(),
                 ],
               ),
             ),
@@ -141,7 +146,7 @@ class ProfileScreen extends ConsumerWidget {
         title: const Text('Sign out?'),
         content: const Text('You will need the code sent to your number to sign in again.'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Stay')),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(t('Stay'))),
           FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(100, 44)),
             onPressed: () => Navigator.of(context).pop(true),
@@ -371,4 +376,38 @@ class _Row extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// The language the app is in.
+///
+/// Here rather than in settings, with the rest of "things about me": a supervisor has no permission
+/// to open the settings screens, and the language is the one preference that belongs to the person
+/// rather than to the company.
+///
+/// Each language is offered in its own script, because somebody who cannot read the interface
+/// cannot read the word "Tamil" either — but they can read "தமிழ்".
+class _LanguagePicker extends ConsumerWidget {
+  const _LanguagePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(languageProvider);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(t('Language'), style: const TextStyle(fontSize: 13.5, color: Palette.inkMuted)),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final entry in supportedLanguages.entries)
+              ChoiceChip(
+                label: Text(entry.value),
+                selected: entry.key == current,
+                onSelected: (_) => ref.read(languageProvider.notifier).set(entry.key),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }

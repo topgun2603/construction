@@ -8,6 +8,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
 import 'settings_screen.dart';
+import '../../core/i18n.dart';
 
 const _paymentTerms = ['weekly', 'fortnightly', 'monthly'];
 
@@ -79,12 +80,12 @@ class ContractorsScreen extends ConsumerWidget {
                         ? PopupMenuButton<String>(
                             icon: const Icon(Icons.more_vert, color: Palette.inkFaint),
                             itemBuilder: (_) => [
-                              const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                              PopupMenuItem(value: 'edit', child: Text(t('Edit'))),
                               if (canDelete)
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'delete',
                                   child: Text(
-                                    'Remove',
+                                    t('Remove'),
                                     style: TextStyle(color: Palette.blocked),
                                   ),
                                 ),
@@ -112,7 +113,7 @@ class ContractorsScreen extends ConsumerWidget {
                                     .read(apiProvider)
                                     .removeContractor(contractor['id'] as String);
                                 messenger.showSnackBar(
-                                  const SnackBar(content: Text('Removed')),
+                                  SnackBar(content: Text(t('Removed'))),
                                 );
                               } on ApiException catch (error) {
                                 messenger.showSnackBar(

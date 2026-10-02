@@ -11,6 +11,7 @@ import '../../core/format.dart';
 import '../../core/photo_upload.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 /// How long an author has to take back what they wrote.
 ///
@@ -344,9 +345,9 @@ class _Bubble extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (team) ...[
-                    const _Marker(
+                    _Marker(
                       icon: Icons.lock_outline,
-                      label: 'TEAM ONLY',
+                      label: t('TEAM ONLY'),
                       colour: Palette.pending,
                     ),
                     const SizedBox(height: 5),
@@ -397,7 +398,7 @@ class _Bubble extends ConsumerWidget {
   Future<void> _offerRemove(BuildContext context, WidgetRef ref) async {
     final agreed = await confirm(
       context,
-      title: 'Take this back?',
+      title: t('Take this back?'),
       body:
           'It comes off the thread for everybody, and anything already read has been read. '
           'A message can only be taken back within $kMessageDeleteWindowMinutes minutes '
@@ -697,7 +698,7 @@ class _Composer extends StatelessWidget {
                     isDense: true,
                     filled: true,
                     fillColor: Palette.surface,
-                    hintText: 'Who is this for?',
+                    hintText: t('Who is this for?'),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -737,14 +738,14 @@ class _Composer extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   IconButton(
-                    tooltip: 'Take a photo',
+                    tooltip: t('Take a photo'),
                     onPressed: sending ? null : () => onAttachPhoto(fromCamera: true),
                     icon: const Icon(Icons.photo_camera_outlined),
                     color: Palette.inkSoft,
                     visualDensity: VisualDensity.compact,
                   ),
                   IconButton(
-                    tooltip: 'Attach a file',
+                    tooltip: t('Attach a file'),
                     onPressed: sending ? null : onAttachFile,
                     icon: const Icon(Icons.attach_file),
                     color: Palette.inkSoft,

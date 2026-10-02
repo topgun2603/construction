@@ -9,6 +9,7 @@ import '../../core/auth_controller.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
 import 'settings_screen.dart';
+import '../../core/i18n.dart';
 
 /// Roles a company has defined for itself.
 ///
@@ -29,7 +30,7 @@ class RolesScreen extends ConsumerWidget {
     final canManage = ref.watch(authControllerProvider).me?.can('roles.manage') ?? false;
 
     return AdminScaffold(
-      title: 'Roles',
+      title: t('Roles'),
       addLabel: 'New role',
       onAdd: canManage ? () => adminSheet(context, const _RoleForm()) : null,
       child: RefreshIndicator(
@@ -104,12 +105,12 @@ class _RoleCard extends ConsumerWidget {
         ),
         trailing: canManage && editable
             ? PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Palette.inkFaint),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                icon: Icon(Icons.more_vert, color: Palette.inkFaint),
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'edit', child: Text(t('Edit'))),
                   PopupMenuItem(
                     value: 'delete',
-                    child: Text('Remove', style: TextStyle(color: Palette.blocked)),
+                    child: Text(t('Remove'), style: TextStyle(color: Palette.blocked)),
                   ),
                 ],
                 onSelected: (choice) async {
@@ -130,7 +131,7 @@ class _RoleCard extends ConsumerWidget {
                   if (!sure) return;
                   try {
                     await ref.read(apiProvider).removeRole(role['id'] as String);
-                    messenger.showSnackBar(const SnackBar(content: Text('Removed')));
+                    messenger.showSnackBar(SnackBar(content: Text(t('Removed'))));
                   } on ApiException catch (error) {
                     messenger.showSnackBar(
                       SnackBar(content: Text(error.message), backgroundColor: Palette.blocked),
@@ -263,7 +264,7 @@ class _RoleFormState extends ConsumerState<_RoleForm> {
               value: _seesAll,
               onChanged: (value) => setState(() => _seesAll = value),
               contentPadding: EdgeInsets.zero,
-              title: const Text('Sees every site', style: TextStyle(fontSize: 14.5)),
+              title: Text(t('Sees every site'), style: TextStyle(fontSize: 14.5)),
               subtitle: const Text(
                 'Off means they see only the sites they are put on.',
                 style: TextStyle(fontSize: 12),

@@ -9,6 +9,7 @@ import '../core/ai_api.dart';
 import '../core/api_client.dart';
 import '../core/photo_upload.dart';
 import '../core/theme.dart';
+import '../core/i18n.dart';
 
 /// Records a spoken site note and hands back the report draft it became.
 ///
@@ -169,7 +170,7 @@ class _VoiceNoteButtonState extends State<VoiceNoteButton> {
         return FilledButton.tonalIcon(
           onPressed: widget.enabled ? _start : null,
           icon: const Icon(Icons.mic_rounded, size: 18),
-          label: const Text('Speak the report'),
+          label: Text(t('Speak the report')),
         );
     }
   }

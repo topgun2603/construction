@@ -11,8 +11,10 @@ import '../../core/auth_controller.dart';
 import '../../core/format.dart';
 import '../../core/photo_upload.dart';
 import '../../core/theme.dart';
+import '../../shared/bilingual_field.dart';
 import '../../shared/voice_note_button.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 /// Daily progress reports: what was read, and what gets written.
 class DprScreen extends ConsumerWidget {
@@ -48,10 +50,10 @@ class DprScreen extends ConsumerWidget {
           builder: (rows) {
             if (rows.isEmpty) {
               return ListView(
-                children: const [
+                children: [
                   EmptyNote(
                     icon: Icons.assignment_outlined,
-                    title: 'No reports yet',
+                    title: t('No reports yet'),
                     body:
                         'A daily report says what got done, who was on site and what is in the '
                         'way. It takes about a minute.',
@@ -291,9 +293,9 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Daily report',
+                    t('Daily report'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -310,8 +312,8 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
               error: (error, _) => ErrorNote(error: error),
               data: (rows) {
                 if (rows.isEmpty) {
-                  return const EmptyNote(
-                    title: 'No sites',
+                  return EmptyNote(
+                    title: t('No sites'),
                     body: 'You are not on any site, so there is nothing to report against.',
                   );
                 }
@@ -319,7 +321,7 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const _Label('Site'),
+                    _Label(t('Site')),
                     DropdownButtonFormField<String>(
                       initialValue: projectId,
                       items: [
@@ -340,24 +342,21 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
                     ),
                     if (_spoken != null) _Transcript(draft: _spoken!),
                     const SizedBox(height: 16),
-                    const _Label('What got done today'),
-                    TextField(
+                    _Label(t('What got done today')),
+                    // The two prose fields translate as you type. The date and the headcount do
+                    // not: putting a vendor call behind typing a digit buys nothing.
+                    BilingualField(
+                      api: ref.watch(apiClientProvider),
                       controller: _workDone,
-                      maxLines: 4,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText: 'Second floor slab shuttering completed, curing started on…',
-                      ),
+                      hintText: t('Second floor slab shuttering completed, curing started on…'),
                     ),
                     const SizedBox(height: 16),
-                    const _Label('Anything in the way'),
-                    TextField(
+                    _Label(t('Anything in the way')),
+                    BilingualField(
+                      api: ref.watch(apiClientProvider),
                       controller: _issues,
                       maxLines: 3,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText: 'Left blank if nothing is holding the work up',
-                      ),
+                      hintText: t('Left blank if nothing is holding the work up'),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -380,11 +379,11 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const _Label('Weather'),
+                              _Label(t('Weather')),
                               TextField(
                                 controller: _weather,
                                 textCapitalization: TextCapitalization.sentences,
-                                decoration: const InputDecoration(hintText: 'Clear'),
+                                decoration: InputDecoration(hintText: t('Clear')),
                               ),
                             ],
                           ),
@@ -392,7 +391,7 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const _Label('Photos'),
+                    _Label(t('Photos')),
                     _PhotoStrip(
                       photos: _photos,
                       onCamera: () => _addPhoto(ImageSource.camera),
@@ -570,9 +569,9 @@ class _PhotoStrip extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         children: [
           // Camera first: on a site the photo is being taken now, not found.
-          _AddButton(icon: Icons.photo_camera_outlined, label: 'Camera', onTap: onCamera),
+          _AddButton(icon: Icons.photo_camera_outlined, label: t('Camera'), onTap: onCamera),
           const SizedBox(width: 10),
-          _AddButton(icon: Icons.photo_library_outlined, label: 'Gallery', onTap: onGallery),
+          _AddButton(icon: Icons.photo_library_outlined, label: t('Gallery'), onTap: onGallery),
           for (final (index, photo) in photos.indexed) ...[
             const SizedBox(width: 10),
             Stack(

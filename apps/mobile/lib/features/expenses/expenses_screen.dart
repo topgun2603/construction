@@ -9,6 +9,7 @@ import '../../core/format.dart';
 import '../../core/photo_upload.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 const _categories = [
   'materials',
@@ -98,7 +99,7 @@ class ExpensesScreen extends ConsumerWidget {
                   return KpiStrip(
                     tiles: [
                       StatTile(
-                        label: 'Recorded',
+                        label: t('Recorded'),
                         value: formatInrCompact(total.toString()),
                         note: '${rows.length} bills',
                       ),
@@ -111,7 +112,7 @@ class ExpensesScreen extends ConsumerWidget {
                             : formatInrCompact(pendingTotal.toString()),
                       ),
                       StatTile(
-                        label: 'Categories',
+                        label: t('Categories'),
                         value: '${categories.length}',
                         note: 'Kinds of spend recorded',
                       ),
@@ -186,12 +187,12 @@ class _ExpenseCard extends ConsumerWidget {
                 ),
                 if (canAmend)
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, size: 20, color: Palette.inkFaint),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    icon: Icon(Icons.more_vert, size: 20, color: Palette.inkFaint),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(value: 'edit', child: Text(t('Edit'))),
                       PopupMenuItem(
                         value: 'delete',
-                        child: Text('Delete', style: TextStyle(color: Palette.blocked)),
+                        child: Text(t('Delete'), style: TextStyle(color: Palette.blocked)),
                       ),
                     ],
                     onSelected: (choice) async {
@@ -210,7 +211,7 @@ class _ExpenseCard extends ConsumerWidget {
                       final messenger = ScaffoldMessenger.of(context);
                       final sure = await confirm(
                         context,
-                        title: 'Delete this bill?',
+                        title: t('Delete this bill?'),
                         body:
                             'It comes off the site spend and out of the approvals queue. There is '
                             'no undo, but you can record it again.',
@@ -219,7 +220,7 @@ class _ExpenseCard extends ConsumerWidget {
                       if (!sure) return;
                       try {
                         await ref.read(apiProvider).removeExpense(expense['id'] as String);
-                        messenger.showSnackBar(const SnackBar(content: Text('Deleted')));
+                        messenger.showSnackBar(SnackBar(content: Text(t('Deleted'))));
                       } on ApiException catch (error) {
                         messenger.showSnackBar(
                           SnackBar(
@@ -256,7 +257,7 @@ class _ExpenseCard extends ConsumerWidget {
                         foregroundColor: Palette.blocked,
                       ),
                       onPressed: () => _decide(context, ref, 'rejected'),
-                      child: const Text('Reject'),
+                      child: Text(t('Reject')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -264,7 +265,7 @@ class _ExpenseCard extends ConsumerWidget {
                     child: FilledButton(
                       style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(46)),
                       onPressed: () => _decide(context, ref, 'approved'),
-                      child: const Text('Approve'),
+                      child: Text(t('Approve')),
                     ),
                   ),
                 ],
@@ -408,7 +409,7 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
               error: (error, _) => ErrorNote(error: error),
               data: (rows) {
                 if (rows.isEmpty) {
-                  return const EmptyNote(title: 'No sites', body: 'Nothing to record against.');
+                  return EmptyNote(title: t('No sites'), body: 'Nothing to record against.');
                 }
                 final projectId = _projectId ?? rows.first['id'] as String;
                 return Column(
@@ -433,7 +434,7 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
                       decoration: const InputDecoration(prefixText: '₹ ', hintText: '3,200'),
                     ),
                     const SizedBox(height: 16),
-                    const _Label('Site'),
+                    _Label(t('Site')),
                     DropdownButtonFormField<String>(
                       initialValue: projectId,
                       items: [
@@ -446,7 +447,7 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
                       onChanged: (value) => setState(() => _projectId = value),
                     ),
                     const SizedBox(height: 16),
-                    const _Label('What for'),
+                    _Label(t('What for')),
                     DropdownButtonFormField<String>(
                       initialValue: _category,
                       items: [
@@ -472,12 +473,12 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
                       label: Text(_spentOn == todayIso() ? 'Today' : longDate(_spentOn)),
                     ),
                     const SizedBox(height: 16),
-                    const _Label('Note'),
+                    _Label(t('Note')),
                     TextField(
                       controller: _note,
                       maxLines: 2,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(hintText: 'Diesel for the JCB'),
+                      decoration: InputDecoration(hintText: t('Diesel for the JCB')),
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 16),

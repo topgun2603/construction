@@ -8,6 +8,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
 import '../settings/settings_screen.dart';
+import '../../core/i18n.dart';
 
 /// Wage runs: what a gang earned over a period, and whether that figure is settled yet.
 ///
@@ -86,7 +87,7 @@ class WagePeriodsScreen extends ConsumerWidget {
                           note: drafts > 0 ? '$drafts still draft' : 'All settled',
                         ),
                         StatTile(
-                          label: 'Not yet paid',
+                          label: t('Not yet paid'),
                           value: formatInrCompact(owed.toString()),
                           tone: owed > BigInt.zero ? Palette.pending : null,
                           note: 'Across every open run',
@@ -166,7 +167,7 @@ class _PeriodCard extends ConsumerWidget {
                 ),
                 Expanded(
                   child: _Figure(
-                    label: 'To pay',
+                    label: t('To pay'),
                     value: formatInr(period['net_payable'] as String?),
                     strong: true,
                   ),

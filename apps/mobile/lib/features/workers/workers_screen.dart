@@ -7,6 +7,7 @@ import '../../core/auth_controller.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 /// The labour on the books, grouped by who brings them.
 ///
@@ -40,7 +41,7 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
                 foregroundColor: Colors.white,
                 onPressed: () => _sheet(context, const _WorkerForm()),
                 icon: const Icon(Icons.person_add_alt),
-                label: const Text('Add worker'),
+                label: Text(t('Add worker')),
               ),
             )
           : null,
@@ -234,7 +235,7 @@ class _WorkerKpis extends StatelessWidget {
     return KpiStrip(
       tiles: [
         StatTile(
-          label: 'Workers',
+          label: t('Workers'),
           value: '${workers.length}',
           note: '${active.length} active',
         ),
@@ -247,7 +248,7 @@ class _WorkerKpis extends StatelessWidget {
         // see it at all — the same rule the web page follows.
         if (showMoney)
           StatTile(
-            label: 'Full-day cost',
+            label: t('Full-day cost'),
             value: formatInrCompact(dailyCost.toString()),
             note: 'If everybody is present',
           ),
@@ -329,7 +330,7 @@ class _WorkerActions extends ConsumerWidget {
           if (canManage) ...[
             ListTile(
               leading: const Icon(Icons.edit_outlined, color: Palette.inkSoft),
-              title: const Text('Edit details'),
+              title: Text(t('Edit details')),
               onTap: () {
                 Navigator.of(context).pop();
                 showModalBottomSheet<void>(
@@ -346,7 +347,7 @@ class _WorkerActions extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.apartment_outlined, color: Palette.inkSoft),
               title: const Text('Assign to a site'),
-              subtitle: const Text('From today, so the roll call has them'),
+              subtitle: Text(t('From today, so the roll call has them')),
               onTap: () {
                 Navigator.of(context).pop();
                 showModalBottomSheet<void>(
@@ -386,7 +387,7 @@ class _WorkerActions extends ConsumerWidget {
           if (canRemove)
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Palette.blocked),
-              title: const Text('Remove', style: TextStyle(color: Palette.blocked)),
+              title: Text(t('Remove'), style: TextStyle(color: Palette.blocked)),
               subtitle: const Text('Past attendance and wages are kept'),
               onTap: () async {
                 final navigator = Navigator.of(context);
@@ -420,7 +421,7 @@ class _WorkerActions extends ConsumerWidget {
 Future<void> _run(ScaffoldMessengerState messenger, Future<void> Function() action) async {
   try {
     await action();
-    messenger.showSnackBar(const SnackBar(content: Text('Saved')));
+    messenger.showSnackBar(SnackBar(content: Text(t('Saved'))));
   } on ApiException catch (error) {
     messenger.showSnackBar(
       SnackBar(content: Text(error.message), backgroundColor: Palette.blocked),
@@ -541,13 +542,13 @@ class _WorkerFormState extends ConsumerState<_WorkerForm> {
               decoration: const InputDecoration(prefixText: '₹ ', hintText: '110'),
             ),
             const SizedBox(height: 16),
-            const _FieldLabel('Skill'),
+            _FieldLabel('Skill'),
             DropdownButtonFormField<String>(
               initialValue: _skill,
-              items: const [
+              items: [
                 DropdownMenuItem(value: 'unskilled', child: Text('Unskilled')),
-                DropdownMenuItem(value: 'semi', child: Text('Semi-skilled')),
-                DropdownMenuItem(value: 'skilled', child: Text('Skilled')),
+                DropdownMenuItem(value: 'semi', child: Text(t('Semi-skilled'))),
+                DropdownMenuItem(value: 'skilled', child: Text(t('Skilled'))),
               ],
               onChanged: (value) => setState(() => _skill = value ?? 'unskilled'),
             ),
@@ -559,7 +560,7 @@ class _WorkerFormState extends ConsumerState<_WorkerForm> {
               data: (rows) => DropdownButtonFormField<String?>(
                 initialValue: rows.any((row) => row['id'] == _contractorId) ? _contractorId : null,
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('Direct labour')),
+                  DropdownMenuItem<String?>(value: null, child: Text(t('Direct labour'))),
                   for (final row in rows)
                     DropdownMenuItem<String?>(
                       value: row['id'] as String,
@@ -578,7 +579,7 @@ class _WorkerFormState extends ConsumerState<_WorkerForm> {
                 data: (rows) => DropdownButtonFormField<String?>(
                   initialValue: _projectId,
                   items: [
-                    const DropdownMenuItem<String?>(value: null, child: Text('Not yet')),
+                    DropdownMenuItem<String?>(value: null, child: Text(t('Not yet'))),
                     for (final row in rows)
                       DropdownMenuItem<String?>(
                         value: row['id'] as String,
@@ -749,8 +750,8 @@ class _AdvanceFormState extends ConsumerState<_AdvanceForm> {
             const _FieldLabel('How it was paid'),
             DropdownButtonFormField<String>(
               initialValue: _mode,
-              items: const [
-                DropdownMenuItem(value: 'cash', child: Text('Cash')),
+              items: [
+                DropdownMenuItem(value: 'cash', child: Text(t('Cash'))),
                 DropdownMenuItem(value: 'upi', child: Text('UPI')),
                 DropdownMenuItem(value: 'bank', child: Text('Bank transfer')),
               ],
@@ -784,7 +785,7 @@ class _AdvanceFormState extends ConsumerState<_AdvanceForm> {
             const SizedBox(height: 22),
             FilledButton(
               onPressed: _saving ? null : _submit,
-              child: _saving ? const _Spinner() : const Text('Record'),
+              child: _saving ? const _Spinner() : Text(t('Record')),
             ),
           ],
         ),

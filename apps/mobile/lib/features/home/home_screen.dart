@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../shared/widgets.dart';
 import '../shell/app_shell.dart';
 import '../sites/site_detail_screen.dart';
+import '../../core/i18n.dart';
 
 /// Today.
 ///
@@ -166,7 +167,7 @@ class _Overview extends ConsumerWidget {
           'Sites today',
           trailing: TextButton(
             onPressed: () => ref.read(currentSectionProvider.notifier).state = 'sites',
-            child: const Text('All sites'),
+            child: Text(t('All sites')),
           ),
         ),
         if (sites.isEmpty)

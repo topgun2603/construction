@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme.dart';
+import '../../core/i18n.dart';
 
 /// Whether the slides have been seen on this install.
 ///
@@ -105,7 +106,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               alignment: Alignment.centerRight,
               child: Padding(
                 padding: const EdgeInsets.only(right: 8, top: 4),
-                child: TextButton(onPressed: _finish, child: const Text('Skip')),
+                child: TextButton(onPressed: _finish, child: Text(t('Skip'))),
               ),
             ),
             Expanded(
@@ -171,13 +172,13 @@ class _SlideView extends StatelessWidget {
           ),
           const SizedBox(height: 36),
           Text(
-            slide.title,
+            t(slide.title),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.25),
           ),
           const SizedBox(height: 14),
           Text(
-            slide.body,
+            t(slide.body),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 15.5, color: Palette.inkMuted, height: 1.55),
           ),

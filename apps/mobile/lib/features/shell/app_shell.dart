@@ -23,6 +23,7 @@ import '../wages/wage_periods_screen.dart';
 import '../sites/sites_screen.dart';
 import '../stock/stock_screen.dart';
 import '../workers/workers_screen.dart';
+import '../../core/i18n.dart';
 
 /// One section of the app.
 ///
@@ -64,7 +65,7 @@ class Destination {
 final _destinations = <Destination>[
   Destination(
     id: 'home',
-    label: 'Today',
+    label: t('Today'),
     icon: Icons.home_outlined,
     builder: HomeScreen.new,
     /*
@@ -78,7 +79,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'sites',
-    label: 'Sites',
+    label: t('Sites'),
     icon: Icons.apartment_outlined,
     builder: SitesScreen.new,
     permission: 'projects.view',
@@ -94,7 +95,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'dpr',
-    label: 'Reports',
+    label: t('Reports'),
     icon: Icons.assignment_outlined,
     builder: DprScreen.new,
     permission: 'dpr.view',
@@ -117,7 +118,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'workers',
-    label: 'Workers',
+    label: t('Workers'),
     icon: Icons.groups_outlined,
     builder: WorkersScreen.new,
     permission: 'workers.view',
@@ -138,7 +139,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'wages',
-    label: 'Wages',
+    label: t('Wages'),
     icon: Icons.receipt_long_outlined,
     builder: WagePeriodsScreen.new,
     permission: 'wages.view',
@@ -153,7 +154,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'stock',
-    label: 'Stock',
+    label: t('Stock'),
     icon: Icons.inventory_2_outlined,
     builder: StockScreen.new,
     permission: 'stock.view',

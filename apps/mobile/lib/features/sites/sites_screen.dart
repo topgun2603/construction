@@ -15,6 +15,7 @@ import '../../core/device_location.dart';
 import '../../shared/location_picker.dart';
 import '../../shared/widgets.dart';
 import 'site_detail_screen.dart';
+import '../../core/i18n.dart';
 
 /// Every site this person can see, searchable.
 ///
@@ -48,7 +49,7 @@ class _SitesScreenState extends ConsumerState<SitesScreen> {
                 foregroundColor: Colors.white,
                 onPressed: () => _openSiteForm(context),
                 icon: const Icon(Icons.add),
-                label: const Text('New site'),
+                label: Text(t('New site')),
               ),
             )
           : null,
@@ -373,9 +374,9 @@ class _SiteFormState extends ConsumerState<_SiteForm> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'New site',
+                    t('New site'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -506,7 +507,7 @@ class _SiteFormState extends ConsumerState<_SiteForm> {
                         ],
                       ],
                     )
-                  : const Text('Create site'),
+                  : Text(t('Create site')),
             ),
           ],
         ),
@@ -531,17 +532,17 @@ class _SiteFormState extends ConsumerState<_SiteForm> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take a photo'),
+              title: Text(t('Take a photo')),
               onTap: () => Navigator.of(context).pop('camera'),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose photos'),
+              title: Text(t('Choose photos')),
               onTap: () => Navigator.of(context).pop('gallery'),
             ),
             ListTile(
               leading: const Icon(Icons.videocam_outlined),
-              title: const Text('Add a video'),
+              title: Text(t('Add a video')),
               subtitle: const Text('Up to a minute'),
               onTap: () => Navigator.of(context).pop('video'),
             ),
@@ -793,7 +794,7 @@ class _LocationRowState extends State<_LocationRow> {
         IconButton(
           onPressed: widget.onClear,
           icon: const Icon(Icons.close, size: 18, color: Palette.inkFaint),
-          tooltip: 'Clear',
+          tooltip: t('Clear'),
         ),
       ],
     );
@@ -828,12 +829,12 @@ class _MediaRow extends StatelessWidget {
                   border: Border.all(color: Palette.line),
                   color: Palette.raised,
                 ),
-                child: const Column(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.add_a_photo_outlined, size: 20, color: Palette.inkMuted),
                     SizedBox(height: 4),
-                    Text('Add', style: TextStyle(fontSize: 11.5, color: Palette.inkMuted)),
+                    Text(t('Add'), style: TextStyle(fontSize: 11.5, color: Palette.inkMuted)),
                   ],
                 ),
               ),

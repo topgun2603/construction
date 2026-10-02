@@ -8,6 +8,7 @@ import '../../core/db/offline_repository.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
+import '../../core/i18n.dart';
 
 /// The roll call.
 ///
@@ -46,9 +47,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       onRetry: () => ref.invalidate(offlineSitesProvider),
       builder: (siteRows) {
         if (siteRows.isEmpty) {
-          return const EmptyNote(
+          return EmptyNote(
             icon: Icons.how_to_reg_outlined,
-            title: 'No sites to mark',
+            title: t('No sites to mark'),
             body: 'You are not on any site yet. Whoever runs the account assigns them.',
           );
         }
@@ -400,7 +401,7 @@ class _WorkerRow extends StatelessWidget {
           ),
           _MarkButton(
             label: '½',
-            tooltip: 'Half day',
+            tooltip: t('Half day'),
             selected: status == 'half_day',
             colour: Palette.pending,
             enabled: enabled,

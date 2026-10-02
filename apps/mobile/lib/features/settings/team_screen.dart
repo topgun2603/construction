@@ -8,6 +8,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
 import 'settings_screen.dart';
+import '../../core/i18n.dart';
 
 const _roles = ['owner', 'project_manager', 'site_supervisor', 'accounts', 'client'];
 
@@ -30,7 +31,7 @@ class TeamScreen extends ConsumerWidget {
     final canManage = me?.can('team.manage') ?? false;
 
     return AdminScaffold(
-      title: 'Team',
+      title: t('Team'),
       addLabel: 'Invite',
       onAdd: canManage ? () => adminSheet(context, const _InviteForm()) : null,
       child: RefreshIndicator(
@@ -102,7 +103,7 @@ class TeamScreen extends ConsumerWidget {
                               size: 20,
                               color: Palette.inkFaint,
                             ),
-                            tooltip: 'Remove',
+                            tooltip: t('Remove'),
                             onPressed: () async {
                               final messenger = ScaffoldMessenger.of(context);
                               final sure = await confirm(
@@ -119,7 +120,7 @@ class TeamScreen extends ConsumerWidget {
                                     .read(apiProvider)
                                     .removeTeamMember(member['id'] as String);
                                 messenger.showSnackBar(
-                                  const SnackBar(content: Text('Removed')),
+                                  SnackBar(content: Text(t('Removed'))),
                                 );
                               } on ApiException catch (error) {
                                 messenger.showSnackBar(

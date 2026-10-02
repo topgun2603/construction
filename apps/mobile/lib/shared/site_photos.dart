@@ -5,6 +5,7 @@ import '../core/api_providers.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import 'widgets.dart';
+import '../core/i18n.dart';
 
 /// Photographs of a site.
 ///
@@ -25,10 +26,10 @@ class SitePhotos extends ConsumerWidget {
       onRetry: () => ref.invalidate(siteMediaProvider(projectId)),
       builder: (rows) {
         if (rows.isEmpty) {
-          return const Card(
+          return Card(
             child: EmptyNote(
               icon: Icons.photo_camera_outlined,
-              title: 'No photos yet',
+              title: t('No photos yet'),
               body:
                   'Photographs of the approach, the elevation, the work in progress — added from '
                   'the web app for now.',
