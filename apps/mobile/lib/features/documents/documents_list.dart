@@ -650,6 +650,8 @@ class _Row extends ConsumerWidget {
         } on ApiException catch (error) {
           if (context.mounted) notify(context, error.message, bad: true);
         }
+      case 'history':
+        if (context.mounted) await _DocumentHistorySheet.show(context, document);
       case 'revise':
         await addDocument(
           context,
@@ -1070,5 +1072,117 @@ class _EditDetailsDialogState extends State<_EditDetailsDialog> {
         ),
       ],
     );
+  }
+}
+
+/// Every revision of one document, newest first.
+///
+/// The register shows the current revision, because "the slab drawing" means the one people are
+/// building to. This is the other question, and it is the one that matters after something has gone
+/// wrong: which drawing was current on the day the slab was poured. So each row carries the day
+/// *and* the clock — two revisions issued the same afternoon are exactly the case somebody is
+/// trying to tell apart.
+class _DocumentHistorySheet extends ConsumerWidget {
+  const _DocumentHistorySheet({required this.document});
+
+  final Map<String, dynamic> document;
+
+  static Future<void> show(BuildContext context, Map<String, dynamic> document) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Palette.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        builder: (_) => _DocumentHistorySheet(document: document),
+      );
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final familyId = document['family_id'] as String? ?? document['id'] as String;
+    final history = ref.watch(documentHistoryProvider(familyId));
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              document['title'] as String? ?? t('Document'),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              t('Every revision, newest first'),
+              style: const TextStyle(fontSize: 12.5, color: Palette.inkMuted),
+            ),
+            const SizedBox(height: 14),
+            history.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Loading(),
+              ),
+              error: (error, _) => ErrorNote(error: error),
+              data: (rows) {
+                if (rows.isEmpty) {
+                  return EmptyNote(
+                    title: t('No history'),
+                    body: t('This is the only revision.'),
+                  );
+                }
+                return Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: rows.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final row = rows[index];
+                      final version = (row['version'] as num?)?.toInt() ?? 1;
+                      final who = (row['uploaded_by'] as Map?)?['name'] as String? ?? '';
+                      final when = row['created_at'] as String?;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: index == 0 ? Palette.accentSoft : Palette.neutralBg,
+                          child: Text(
+                            'v$version',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        title: Text(
+                          '${shortDate(when)} · ${relativeTime(when)}',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        subtitle: who.isEmpty ? null : Text(who, style: const TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.open_in_new, size: 18),
+                        onTap: () => _openRevision(context, row),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Handed to the phone, exactly as the current revision is. The history rows carry their own
+  /// signed URL, so an old revision opens the same way the newest one does.
+  Future<void> _openRevision(BuildContext context, Map<String, dynamic> row) async {
+    final url = row['url'] as String?;
+    if (url == null) {
+      notify(context, t('That file is not available'), bad: true);
+      return;
+    }
+    final opened = await openExternal(url);
+    if (!opened && context.mounted) {
+      notify(context, t('Nothing on this phone can open that file'), bad: true);
+    }
   }
 }

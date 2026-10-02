@@ -8,6 +8,8 @@ import '../../core/api_client.dart';
 import '../../core/auth_controller.dart';
 import '../../core/env.dart';
 import '../../core/phone.dart';
+import '../../core/google_auth.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../shared/animated_logo.dart';
 
@@ -218,9 +220,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       onPressed: _busy ? null : _submitPhone,
       child: _busy
           ? const _ButtonSpinner()
-          : Text(ref.read(phoneAuthProvider).sendsRealCode ? 'Send code' : 'Sign in'),
+          : Text(ref.read(phoneAuthProvider).sendsRealCode ? t('Send code') : t('Sign in')),
     ),
+    // Only when Firebase is configured. A button that cannot work is worse than no button: it is
+    // the one somebody taps first, because it looks like the quick way in.
+    if (GoogleAuth.configured) ...[
+      const SizedBox(height: 14),
+      Row(
+        children: [
+          const Expanded(child: Divider(color: Palette.line)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              t('or'),
+              style: const TextStyle(fontSize: 12, color: Palette.inkFaint),
+            ),
+          ),
+          const Expanded(child: Divider(color: Palette.line)),
+        ],
+      ),
+      const SizedBox(height: 14),
+      OutlinedButton.icon(
+        onPressed: _busy ? null : _signInWithGoogle,
+        icon: const Icon(Icons.account_circle_outlined, size: 20),
+        label: Text(t('Continue with Google')),
+      ),
+    ],
   ];
+
+  /// The same account somebody already uses on the web console, without waiting for an SMS on a
+  /// site with one bar.
+  Future<void> _signInWithGoogle() => _run(() async {
+    final token = await const GoogleAuth().signIn();
+    // Null means they closed the account chooser, which is a decision rather than a failure.
+    if (token == null) return;
+    await ref.read(authControllerProvider.notifier).completeSignIn(token);
+  });
 
   List<Widget> _codeStep() => [
     TextField(

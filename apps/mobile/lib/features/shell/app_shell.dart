@@ -15,6 +15,7 @@ import '../dpr/dpr_screen.dart';
 import '../expenses/expenses_screen.dart';
 import '../home/home_screen.dart';
 import '../indents/indents_screen.dart';
+import '../../shared/ask_panel.dart';
 import '../notifications/notifications_screen.dart';
 import '../portal/site_conversation_screen.dart';
 import '../profile/profile_screen.dart';
@@ -300,8 +301,16 @@ class _TopBar extends ConsumerWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
+        // The phone's answer to the web app's ⌘K. A question about spend or headcount is one
+        // somebody asks standing up, in the middle of something else, so it opens as a sheet and
+        // hands them back to whatever they were doing.
         IconButton(
-          tooltip: 'Notifications',
+          tooltip: t('Ask about your numbers'),
+          onPressed: () => AskDataSheet.show(context),
+          icon: const Icon(Icons.auto_awesome_outlined, size: 22),
+        ),
+        IconButton(
+          tooltip: t('Notifications'),
           onPressed: () => Navigator.of(
             context,
           ).push(MaterialPageRoute<void>(builder: (_) => const NotificationsScreen())),

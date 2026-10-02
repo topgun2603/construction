@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_providers.dart';
+import '../../core/i18n.dart';
+import '../../shared/ask_panel.dart';
 import '../../shared/widgets.dart';
 import 'documents_list.dart';
 
@@ -24,9 +26,13 @@ class DocumentsScreen extends ConsumerWidget {
         },
         child: ListView(
           padding: EdgeInsets.fromLTRB(16, 14, 16, bottomInset(context, hasFab: true)),
-          children: const [
-            SectionLabel('Current revisions'),
-            DocumentsList(showProject: true),
+          children: [
+            // Above the list, not below it. Somebody opening this screen is usually looking for a
+            // figure rather than a filename, and a list of sixty drawings is what they were trying
+            // to avoid scrolling.
+            const AskDocumentsPanel(),
+            SectionLabel(t('Current revisions')),
+            const DocumentsList(showProject: true),
           ],
         ),
       ),

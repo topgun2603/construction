@@ -346,6 +346,16 @@ final documentsProvider = FutureProvider.autoDispose
       );
     });
 
+/// Every revision of one document, newest first.
+///
+/// Read on demand rather than with the list: a drawing can have a dozen revisions and almost nobody
+/// opens the history, so loading it for every row would be paying for the rare case on every screen.
+final documentHistoryProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, String>((ref, familyId) async {
+      final api = ref.watch(apiClientProvider);
+      return _items(await api.get('/documents/$familyId/history'));
+    });
+
 final notificationsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final api = ref.watch(apiClientProvider);
   return _items(await api.get('/notifications', query: {'limit': 50}));
