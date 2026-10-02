@@ -3,7 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { AskDocumentsResult, ScanBillResult, VoiceDprResult } from '@sitebook/shared';
+import type {
+  AskDocumentsResult,
+  ScanBillResult,
+  TranslateInput,
+  TranslateResult,
+  VoiceDprResult,
+} from '@sitebook/shared';
 import { runAction, serverFetch, type ActionResult } from './server-api';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from './session';
 import type {
@@ -873,6 +879,21 @@ export async function askDocuments(input: {
 }): Promise<ActionResult<AskDocumentsResult>> {
   return runAction(() =>
     serverFetch<AskDocumentsResult>('/documents/ask', { method: 'POST', body: input }),
+  );
+}
+
+/**
+ * One line of text, in another language.
+ *
+ * Called while somebody types, so the API caches identical text and this does nothing clever of its
+ * own — a server action rather than a route handler because it is not on the critical path of a
+ * keystroke: the field has already debounced by the time this runs.
+ */
+export async function translateText(
+  input: TranslateInput,
+): Promise<ActionResult<TranslateResult>> {
+  return runAction(() =>
+    serverFetch<TranslateResult>('/translate', { method: 'POST', body: input }),
   );
 }
 

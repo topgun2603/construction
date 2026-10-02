@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import type { ModuleName, Permission } from '@sitebook/shared';
 import { cn } from '@/lib/utils';
+import type { MessageKey } from '@/lib/i18n';
+import { useLanguage } from '@/components/language-provider';
 
 /*
  * The navigation rail (design artboard 3a).
@@ -40,7 +42,14 @@ const STORAGE_KEY = 'sb.nav.collapsed';
 
 interface NavItem {
   href: string;
-  label: string;
+  /**
+   * A message key, not a string.
+   *
+   * The rail is the first thing a Tamil-reading supervisor meets, so these are the strings that
+   * most needed translating — and keying them here means the dictionary is the only place the
+   * words live, rather than being spread across a thirty-line array.
+   */
+  label: MessageKey;
   icon: LucideIcon;
   module?: ModuleName;
   roles?: string[];
@@ -55,7 +64,7 @@ interface NavItem {
 }
 
 interface NavGroup {
-  label?: string;
+  label?: MessageKey;
   items: NavItem[];
 }
 
@@ -64,7 +73,7 @@ const GROUPS: NavGroup[] = [
     items: [
       {
         href: '/overview',
-        label: 'Overview',
+        label: 'nav.overview',
         icon: LayoutDashboard,
         module: 'dashboard',
         // What the screen shows is cost and approvals; the API gates it the same way.
@@ -72,14 +81,14 @@ const GROUPS: NavGroup[] = [
       },
       {
         href: '/projects',
-        label: 'Sites',
+        label: 'nav.sites',
         icon: Building2,
         module: 'projects',
         permission: 'projects.view',
       },
       {
         href: '/documents',
-        label: 'Documents',
+        label: 'nav.documents',
         icon: FolderOpen,
         module: 'documents',
         permission: 'documents.view',
@@ -87,25 +96,25 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Labour',
+    label: 'nav.labour',
     items: [
       {
         href: '/labour/workers',
-        label: 'Workers',
+        label: 'nav.workers',
         icon: HardHat,
         module: 'labour',
         permission: 'workers.view',
       },
       {
         href: '/labour/attendance',
-        label: 'Attendance',
+        label: 'nav.attendance',
         icon: CalendarCheck,
         module: 'attendance',
         permission: ['attendance.view', 'attendance.record'],
       },
       {
         href: '/labour/wage-periods',
-        label: 'Wage periods',
+        label: 'nav.wagePeriods',
         icon: Banknote,
         module: 'labour',
         roles: ['owner', 'accounts'],
@@ -116,11 +125,11 @@ const GROUPS: NavGroup[] = [
   {
     // Money, in one place. Payments used to sit under Labour and Stock under nothing, which meant
     // the three screens an accounts person lives in were spread across the whole rail.
-    label: 'Finance',
+    label: 'nav.finance',
     items: [
       {
         href: '/labour/payments',
-        label: 'Payments',
+        label: 'nav.payments',
         icon: Wallet,
         module: 'labour',
         roles: ['owner', 'accounts'],
@@ -128,20 +137,20 @@ const GROUPS: NavGroup[] = [
       },
       {
         href: '/expenses',
-        label: 'Expenses',
+        label: 'nav.expenses',
         icon: Receipt,
         module: 'expenses',
         permission: 'expenses.view',
       },
-      { href: '/stock', label: 'Stock', icon: Warehouse, module: 'stock', permission: 'stock.view' },
+      { href: '/stock', label: 'nav.stock', icon: Warehouse, module: 'stock', permission: 'stock.view' },
     ],
   },
   {
-    label: 'Operations',
+    label: 'nav.operations',
     items: [
       {
         href: '/indents',
-        label: 'Approvals',
+        label: 'nav.approvals',
         icon: ClipboardCheck,
         module: 'indents',
         permission: ['indents.raise', 'indents.approve'],
@@ -150,12 +159,12 @@ const GROUPS: NavGroup[] = [
       // item 8), and the API gates it the same way.
       {
         href: '/reports',
-        label: 'Reports',
+        label: 'nav.reports',
         icon: PieChart,
         module: 'labour',
         permission: ['reports.view', 'wages.view'],
       },
-      { href: '/settings/team', label: 'Settings', icon: Settings, roles: ['owner'] },
+      { href: '/settings/team', label: 'nav.settings', icon: Settings, roles: ['owner'] },
     ],
   },
 ];
@@ -180,6 +189,7 @@ export function SideNav({
   pendingApprovals: number;
 }) {
   const pathname = usePathname();
+  const { t } = useLanguage();
   const [collapsed, setCollapsed] = useState(false);
 
   // Read after mount, never during render: the server has no localStorage, and
@@ -295,7 +305,7 @@ export function SideNav({
           <div key={group.label ?? index} className="flex flex-col gap-1">
             {group.label && !collapsed && (
               <span className="px-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-white/35">
-                {group.label}
+                {t(group.label)}
               </span>
             )}
             {group.label && collapsed && <span className="mx-3 mb-1 h-px bg-white/[0.08]" />}
@@ -309,7 +319,7 @@ export function SideNav({
                   key={item.href}
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? t(item.label) : undefined}
                   className={cn(
                     // The current page is a filled pill in the action colour, not a slightly
                     // lighter patch of navy: on a gradient, "slightly lighter" stops being legible
@@ -335,7 +345,7 @@ export function SideNav({
                         active ? 'font-semibold text-white' : 'font-medium text-white/70',
                       )}
                     >
-                      {item.label}
+                      {t(item.label)}
                     </span>
                   )}
                   {badge &&

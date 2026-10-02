@@ -143,6 +143,16 @@ const envSchema = z
      * search falls back to MapTiler and then to Nominatim, and everything keeps working.
      */
     GOOGLE_MAPS_API_KEY: z.string().optional(),
+    /*
+     * Translating what somebody types into the language the site reads.
+     *
+     * Optional, and the feature still works without it: with no key, translation falls back to the
+     * OpenAI key that is already configured. Google's Cloud Translation API is the better answer —
+     * cheaper, faster, and better Tamil — but it has to be enabled on the Cloud project first, and
+     * a feature that waits for that is a feature nobody sees. Server-side only, like every other
+     * spending credential here.
+     */
+    GOOGLE_TRANSLATE_API_KEY: z.string().optional(),
 
     /*
      * Reading photographed bills into expense drafts.

@@ -22,6 +22,7 @@ export * from './schemas/stock';
 export * from './schemas/ask';
 export * from './schemas/voice-dpr';
 export * from './schemas/document-qa';
+export * from './schemas/translate';
 export * from './gstin';
 export * from './indian-date';
 export * from './schemas/bill-scan';

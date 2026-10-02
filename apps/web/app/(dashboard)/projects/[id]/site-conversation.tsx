@@ -29,7 +29,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Textarea } from '@/components/ui/input';
+import { BilingualTextarea } from '@/components/bilingual-textarea';
 import {
   Select,
   SelectContent,
@@ -282,9 +282,12 @@ export function SiteConversation({
             </div>
           )}
 
-          <Textarea
+          {/* Translates as you type, which matters most here: this is the one place in the product
+              where the reader is the client's family, and a progress note they cannot read is a
+              note that was not sent. */}
+          <BilingualTextarea
             value={body}
-            onChange={(event) => setBody(event.target.value)}
+            onChange={setBody}
             rows={3}
             maxLength={4000}
             placeholder={

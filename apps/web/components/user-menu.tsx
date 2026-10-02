@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useTransition } from 'react';
-import { ChevronDown, LogOut, ReceiptText, Settings, UserRound } from 'lucide-react';
+import { ChevronDown, Languages, LogOut, ReceiptText, Settings, UserRound } from 'lucide-react';
+import { APP_LANGUAGES } from '@sitebook/shared';
 import { signOut } from '@/lib/actions';
 import {
   DropdownMenu,
@@ -15,6 +16,8 @@ import {
 import { BlockingOverlay } from '@/components/ui/blocking-overlay';
 import { initials } from '@/components/ui/avatar';
 import { titleCase } from '@/lib/format';
+import { TRANSLATED_LANGUAGES } from '@/lib/i18n';
+import { useLanguage } from '@/components/language-provider';
 
 export function UserMenu({
   name,
@@ -28,6 +31,7 @@ export function UserMenu({
   isOwner: boolean;
 }) {
   const [pending, start] = useTransition();
+  const { t, language, setLanguage } = useLanguage();
 
   return (
     <>
@@ -79,6 +83,30 @@ export function UserMenu({
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
+          {/* Language, where somebody looks for it: with the rest of "things about me", not buried
+              in settings a supervisor has no permission to open. */}
+          <DropdownMenuLabel>{t('common.language')}</DropdownMenuLabel>
+          {TRANSLATED_LANGUAGES.map((code) => {
+            const entry = APP_LANGUAGES.find((item) => item.code === code);
+            return (
+              <DropdownMenuItem
+                key={code}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  if (code !== language) setLanguage(code);
+                }}
+              >
+                <Languages />
+                {/* Its own name in its own script. Somebody who cannot read the interface cannot
+                    read "Tamil" either, and "தமிழ்" is the one word on this screen they can. */}
+                <span className={code === language ? 'font-medium text-accent' : undefined}>
+                  {entry?.native ?? code}
+                </span>
+              </DropdownMenuItem>
+            );
+          })}
+
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             disabled={pending}
             onSelect={(event) => {
@@ -91,7 +119,7 @@ export function UserMenu({
             }}
             className="text-blocked-fg data-[highlighted]:bg-blocked-bg"
           >
-            <LogOut /> {pending ? 'Signing out…' : 'Sign out'}
+            <LogOut /> {pending ? 'Signing out…' : t('nav.signOut')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

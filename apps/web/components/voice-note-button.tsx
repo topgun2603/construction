@@ -6,6 +6,7 @@ import type { VoiceDprResult } from '@sitebook/shared';
 import { MAX_UPLOAD_BYTES } from '@sitebook/shared';
 import { presignUpload, transcribeVoiceNote } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Records a spoken site note and hands back the report draft it became.
@@ -31,6 +32,7 @@ export function VoiceNoteButton({
   onError: (message: string) => void;
   disabled?: boolean;
 }) {
+  const { t } = useLanguage();
   const [state, setState] = useState<'idle' | 'recording' | 'working'>('idle');
   const [seconds, setSeconds] = useState(0);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -161,7 +163,7 @@ export function VoiceNoteButton({
   if (state === 'working') {
     return (
       <Button type="button" variant="secondary" size="sm" disabled>
-        <Loader2 className="size-4 animate-spin" /> Listening to it…
+        <Loader2 className="size-4 animate-spin" /> {t('dpr.listening')}
       </Button>
     );
   }
@@ -171,7 +173,7 @@ export function VoiceNoteButton({
       <Button type="button" variant="secondary" size="sm" onClick={stop}>
         <Square className="size-3.5 fill-current text-blocked-fg" />
         <span className="tabular-nums">
-          Stop · {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+          {t('dpr.stop')} · {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
         </span>
       </Button>
     );
@@ -179,7 +181,7 @@ export function VoiceNoteButton({
 
   return (
     <Button type="button" variant="secondary" size="sm" disabled={disabled} onClick={() => void start()}>
-      <Mic className="size-4" /> Speak the report
+      <Mic className="size-4" /> {t('dpr.speak')}
     </Button>
   );
 }

@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { MAX_UPLOAD_BYTES, type VoiceDprResult } from '@sitebook/shared';
 import { fileDailyReport, presignUpload } from '@/lib/actions';
 import { VoiceNoteButton } from '@/components/voice-note-button';
+import { BilingualTextarea } from '@/components/bilingual-textarea';
+import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input, Textarea } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 
 /** A photo chosen but not yet uploaded. */
@@ -53,6 +55,7 @@ export function FileReportDialog({
   projectName: string;
 }) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [photos, setPhotos] = useState<Pending[]>([]);
   /*
@@ -190,7 +193,7 @@ export function FileReportDialog({
         setError(result.error ?? 'Could not file the report');
         return;
       }
-      toast.success('Report filed');
+      toast.success(t('dpr.filed'));
       setPhotos([]);
       setSpoken(null);
       setFields({ report_date: TODAY(), weather: '', work_done: '', issues: '', headcount: '' });
@@ -203,21 +206,19 @@ export function FileReportDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="secondary">
-          <FilePlus2 className="size-4" /> File a report
+          <FilePlus2 className="size-4" /> {t('dpr.file')}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Daily report — {projectName}</DialogTitle>
-          <DialogDescription>
-            What got done, who was on site, and what is in the way.
-          </DialogDescription>
+          <DialogTitle>
+            {t('dpr.title')} — {projectName}
+          </DialogTitle>
+          <DialogDescription>{t('dpr.subtitle')}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-line bg-raised px-3 py-2.5">
-          <p className="text-[12.5px] text-ink-muted">
-            Rather say it? Two lines in Tamil, Hindi or English fills the form in.
-          </p>
+          <p className="text-[12.5px] text-ink-muted">{t('dpr.speakHint')}</p>
           <VoiceNoteButton
             projectId={projectId}
             reportDate={fields.report_date}
@@ -231,7 +232,8 @@ export function FileReportDialog({
           <figure className="rounded-panel border border-line bg-surface p-3">
             <figcaption className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
               <Quote className="size-3" />
-              What was said{spoken.language ? ` · heard as ${languageName(spoken.language)}` : ''}
+              {t('dpr.whatWasSaid')}
+              {spoken.language ? ` · heard as ${spokenLanguageName(spoken.language)}` : ''}
             </figcaption>
             {/* Verbatim and in the speaker's own script. It is the only thing on this screen that
                 can be checked against a memory, so it is not translated, trimmed or tidied. */}
@@ -262,7 +264,7 @@ export function FileReportDialog({
 
         <form key={formKey} action={onSubmit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Date" htmlFor="report_date">
+            <Field label={t('common.date')} htmlFor="report_date">
               <Input
                 id="report_date"
                 name="report_date"
@@ -272,7 +274,7 @@ export function FileReportDialog({
                 max={TODAY()}
               />
             </Field>
-            <Field label="Weather" htmlFor="weather" hint="Optional">
+            <Field label={t('dpr.weather')} htmlFor="weather" hint={t('common.optional')}>
               <Input
                 id="weather"
                 name="weather"
@@ -283,8 +285,11 @@ export function FileReportDialog({
             </Field>
           </div>
 
-          <Field label="What got done today" htmlFor="work_done">
-            <Textarea
+          {/* The two prose fields translate as you type. They are the ones a supervisor reads —
+              the date and the headcount need no translating, and wrapping them would just put a
+              vendor call behind typing a number. */}
+          <Field label={t('dpr.workDone')} htmlFor="work_done">
+            <BilingualTextarea
               id="work_done"
               name="work_done"
               rows={4}
@@ -295,8 +300,8 @@ export function FileReportDialog({
             />
           </Field>
 
-          <Field label="Anything in the way" htmlFor="issues" hint="Left blank if nothing is">
-            <Textarea
+          <Field label={t('dpr.issues')} htmlFor="issues" hint={t('dpr.issuesHint')}>
+            <BilingualTextarea
               id="issues"
               name="issues"
               rows={3}
@@ -306,11 +311,11 @@ export function FileReportDialog({
             />
           </Field>
 
-          <Field label="People on site" htmlFor="headcount" hint="Optional">
+          <Field label={t('dpr.headcount')} htmlFor="headcount" hint={t('common.optional')}>
             <Input id="headcount" name="headcount" inputMode="numeric" placeholder="24" />
           </Field>
 
-          <Field label="Photos" hint="What the report is describing">
+          <Field label={t('dpr.photos')} hint={t('dpr.photosHint')}>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -318,7 +323,7 @@ export function FileReportDialog({
                 className="flex size-24 flex-col items-center justify-center gap-1.5 rounded-panel border border-dashed border-line-strong bg-raised text-[12px] text-ink-muted transition hover:border-accent hover:text-accent"
               >
                 <ImagePlus className="size-5" />
-                Add photos
+                {t('dpr.addPhotos')}
               </button>
               <input
                 ref={fileInput}
@@ -360,7 +365,7 @@ export function FileReportDialog({
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
               {pending ? (
@@ -402,7 +407,7 @@ function manpowerFor(
 }
 
 /** The transcriber's language code, in words. Anything unexpected is shown as it came. */
-function languageName(code: string): string {
+function spokenLanguageName(code: string): string {
   const names: Record<string, string> = {
     ta: 'Tamil',
     tamil: 'Tamil',

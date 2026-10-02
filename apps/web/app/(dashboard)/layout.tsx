@@ -1,5 +1,8 @@
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { LANGUAGE_COOKIE } from '@/lib/i18n';
+import { LanguageProvider } from '@/components/language-provider';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
 import { loadSelf } from '@/lib/session';
@@ -8,6 +11,8 @@ import { TopBar } from '@/components/top-bar';
 import type { NotificationRow } from '@/components/notification-bell';
 import { Toaster } from '@/components/ui/toaster';
 import type { Indent, Page, ProjectSummary } from '@/lib/api-types';
+import { TRANSLATED_LANGUAGES } from '@/lib/i18n';
+import type { LanguageCode } from '@sitebook/shared';
 
 /**
  * Shell for every signed-in page (design artboard 3a).
@@ -18,6 +23,18 @@ import type { Indent, Page, ProjectSummary } from '@/lib/api-types';
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const self = await loadSelf();
   if (!self) redirect('/login');
+
+  /*
+   * The language, from the cookie, on the server.
+   *
+   * Read here rather than in the browser so the first paint is already in the right language. A
+   * rail that renders in English and flips to Tamil a moment later is worse than one that never
+   * flipped — and on a 3G connection in a site office that moment is a visible second.
+   */
+  const stored = (await cookies()).get(LANGUAGE_COOKIE)?.value;
+  const language: LanguageCode = TRANSLATED_LANGUAGES.includes(stored as LanguageCode)
+    ? (stored as LanguageCode)
+    : 'en';
 
   const [projects, pendingApprovals, notifications] = await Promise.all([
     serverFetch<Page<ProjectSummary>>('/projects?limit=200'),
@@ -38,6 +55,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       stretches to the document's height rather than the screen's, and scrolling
       down carries the navigation off the top of the window.
     */
+    <LanguageProvider initial={language}>
     <div className="flex h-dvh overflow-hidden">
       <SideNav
         tenantName={self.tenant.name}
@@ -61,6 +79,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       </div>
       <Toaster />
     </div>
+    </LanguageProvider>
   );
 }
 
