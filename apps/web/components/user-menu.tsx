@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useTransition } from 'react';
-import { LogOut, ReceiptText, Settings, UserRound } from 'lucide-react';
+import { ChevronDown, LogOut, ReceiptText, Settings, UserRound } from 'lucide-react';
 import { signOut } from '@/lib/actions';
 import {
   DropdownMenu,
@@ -37,9 +37,12 @@ export function UserMenu({
           <button
             type="button"
             aria-label={`Account menu for ${name}`}
-            className="flex size-9 min-h-0 flex-none items-center justify-center rounded-full bg-neutral-bg text-[13px] font-semibold text-ink-soft transition hover:bg-line focus-visible:outline-2"
+            className="flex min-h-0 flex-none items-center gap-1 rounded-full py-0.5 pl-0.5 pr-1.5 transition hover:bg-neutral-bg focus-visible:outline-2"
           >
-            {initials(name)}
+            <span className="flex size-9 items-center justify-center rounded-full bg-accent text-[13px] font-semibold text-white">
+              {initials(name)}
+            </span>
+            <ChevronDown className="size-3.5 text-ink-faint" />
           </button>
         </DropdownMenuTrigger>
 

@@ -5,6 +5,7 @@ import { serverFetch } from '@/lib/server-api';
 import { loadSelf } from '@/lib/session';
 import { SideNav } from '@/components/side-nav';
 import { TopBar } from '@/components/top-bar';
+import type { NotificationRow } from '@/components/notification-bell';
 import { Toaster } from '@/components/ui/toaster';
 import type { Indent, Page, ProjectSummary } from '@/lib/api-types';
 
@@ -18,9 +19,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const self = await loadSelf();
   if (!self) redirect('/login');
 
-  const [projects, pendingApprovals] = await Promise.all([
+  const [projects, pendingApprovals, notifications] = await Promise.all([
     serverFetch<Page<ProjectSummary>>('/projects?limit=200'),
     countPendingIndents(),
+    // The bell's contents, fetched with the shell so it is populated on first paint rather than a
+    // beat later. Twelve is what the dropdown can show without becoming a page of its own.
+    serverFetch<{ items: NotificationRow[] }>('/notifications?limit=12').catch(() => ({
+      items: [] as NotificationRow[],
+    })),
   ]);
 
   const activeSiteCount = projects.items.filter((project) => project.status === 'active').length;
@@ -48,6 +54,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           userName={self.user.name}
           userPhone={self.user.phone}
           userRole={self.user.role}
+          notifications={notifications.items}
         />
         {/* The one scrolling region. pb-12 keeps the last card off the bottom edge. */}
         <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 pt-5">{children}</main>

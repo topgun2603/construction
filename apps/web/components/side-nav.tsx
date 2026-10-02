@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   Banknote,
+  ChevronRight,
+  Crown,
   Receipt,
   Building2,
   FolderOpen,
@@ -109,6 +111,13 @@ const GROUPS: NavGroup[] = [
         roles: ['owner', 'accounts'],
         permission: 'wages.view',
       },
+    ],
+  },
+  {
+    // Money, in one place. Payments used to sit under Labour and Stock under nothing, which meant
+    // the three screens an accounts person lives in were spread across the whole rail.
+    label: 'Finance',
+    items: [
       {
         href: '/labour/payments',
         label: 'Payments',
@@ -116,17 +125,6 @@ const GROUPS: NavGroup[] = [
         module: 'labour',
         roles: ['owner', 'accounts'],
         permission: 'payments.view',
-      },
-    ],
-  },
-  {
-    items: [
-      {
-        href: '/indents',
-        label: 'Approvals',
-        icon: ClipboardCheck,
-        module: 'indents',
-        permission: ['indents.raise', 'indents.approve'],
       },
       {
         href: '/expenses',
@@ -136,6 +134,18 @@ const GROUPS: NavGroup[] = [
         permission: 'expenses.view',
       },
       { href: '/stock', label: 'Stock', icon: Warehouse, module: 'stock', permission: 'stock.view' },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      {
+        href: '/indents',
+        label: 'Approvals',
+        icon: ClipboardCheck,
+        module: 'indents',
+        permission: ['indents.raise', 'indents.approve'],
+      },
       // Gated on `labour`, not `reports`: labour cost is core to Starter (spec §3
       // item 8), and the API gates it the same way.
       {
@@ -209,14 +219,34 @@ export function SideNav({
     <nav
       aria-label="Main"
       className={cn(
-        'hidden shrink-0 flex-col bg-nav transition-[width] duration-200 md:flex',
-        collapsed ? 'w-[72px]' : 'w-[244px]',
+        'relative isolate hidden shrink-0 flex-col overflow-hidden bg-gradient-to-b from-nav via-[#282150] to-[#3A2A72] transition-[width] duration-200 md:flex',
+        collapsed ? 'w-[76px]' : 'w-[260px]',
       )}
     >
-      {/* Header — matches the 56px top bar so the two align across the seam. */}
+      {/*
+       * The site, barely there, at the foot of the rail.
+       *
+       * Desaturated and down at 9%: it is a texture, not a picture. Anything stronger competes
+       * with the plan card sitting on top of it, and the rail's job is to be read past.
+       */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-64 bg-[url('/bg.jpg')] bg-cover bg-bottom opacity-[0.09] grayscale"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-64 bg-gradient-to-t from-[#3A2A72] via-[#3A2A72]/70 to-transparent"
+      />
+      {/*
+       * Header. Taller than the 56px top bar on purpose — the two columns are no longer trying to
+       * align across the seam now that the rail has its own ground.
+       *
+       * The company's name rather than the product's: this is a multi-tenant product and which
+       * account you are in is the one thing a rail can tell you that no page can.
+       */}
       <div
         className={cn(
-          'flex h-14 flex-none items-center gap-2.5 border-b border-white/[0.06] px-4',
+          'flex flex-none items-center gap-3 px-4 pb-3 pt-5',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -225,25 +255,37 @@ export function SideNav({
           <img
             src={logoUrl}
             alt=""
-            className="h-8 w-8 flex-none rounded-control bg-white object-contain"
+            className="size-10 flex-none rounded-[12px] bg-white object-contain"
           />
         ) : (
-          <span className="flex h-8 w-8 flex-none items-center justify-center rounded-control bg-white text-[12px] font-bold text-ink">
+          <span className="flex size-10 flex-none items-center justify-center rounded-[12px] bg-accent text-[14px] font-bold text-white shadow-[0_6px_16px_rgba(108,76,224,0.5)]">
             {initials(tenantName)}
           </span>
         )}
         {!collapsed && (
-          <span className="flex min-w-0 flex-col">
-            <span
-              title={tenantName}
-              className="truncate text-[13.5px] font-semibold leading-tight text-white"
+          <>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span
+                title={tenantName}
+                className="truncate text-[15px] font-bold leading-tight tracking-[-0.01em] text-white"
+              >
+                {tenantName}
+              </span>
+              <span className="text-[11.5px] leading-tight text-white/45">
+                {activeSiteCount} active {activeSiteCount === 1 ? 'site' : 'sites'}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-expanded
+              aria-label="Collapse navigation"
+              title="Collapse"
+              className="flex size-8 min-h-0 flex-none items-center justify-center rounded-control text-white/40 transition hover:bg-white/10 hover:text-white"
             >
-              {tenantName}
-            </span>
-            <span className="text-[11.5px] leading-tight text-ink-faint">
-              {activeSiteCount} active {activeSiteCount === 1 ? 'site' : 'sites'}
-            </span>
-          </span>
+              <PanelLeftClose className="size-[17px]" />
+            </button>
+          </>
         )}
       </div>
 
@@ -252,7 +294,7 @@ export function SideNav({
         {groups.map((group, index) => (
           <div key={group.label ?? index} className="flex flex-col gap-1">
             {group.label && !collapsed && (
-              <span className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-faint">
+              <span className="px-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-white/35">
                 {group.label}
               </span>
             )}
@@ -269,15 +311,20 @@ export function SideNav({
                   aria-current={active ? 'page' : undefined}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    'group relative flex items-center gap-3 rounded-control py-2.5 transition',
+                    // The current page is a filled pill in the action colour, not a slightly
+                    // lighter patch of navy: on a gradient, "slightly lighter" stops being legible
+                    // halfway down the rail.
+                    'group relative flex items-center gap-3 rounded-[12px] py-2.5 transition',
                     collapsed ? 'justify-center px-0' : 'px-3',
-                    active ? 'bg-nav-active' : 'hover:bg-nav-active/60',
+                    active
+                      ? 'bg-accent shadow-[0_8px_20px_-6px_rgba(108,76,224,0.8)]'
+                      : 'hover:bg-white/[0.07]',
                   )}
                 >
                   <Icon
                     className={cn(
                       'size-[18px] flex-none transition',
-                      active ? 'text-accent-onDark' : 'text-ink-faint group-hover:text-[#CFCCE2]',
+                      active ? 'text-white' : 'text-white/45 group-hover:text-white/85',
                     )}
                     strokeWidth={active ? 2.25 : 2}
                   />
@@ -285,7 +332,7 @@ export function SideNav({
                     <span
                       className={cn(
                         'flex-1 truncate text-[13.5px] leading-tight',
-                        active ? 'font-semibold text-white' : 'font-medium text-[#CFCCE2]',
+                        active ? 'font-semibold text-white' : 'font-medium text-white/70',
                       )}
                     >
                       {item.label}
@@ -308,39 +355,42 @@ export function SideNav({
         ))}
       </div>
 
-      <div className="flex flex-none flex-col gap-3 border-t border-white/[0.06] p-3">
+      <div className="flex flex-none flex-col gap-2 p-3">
         {!collapsed && (
-          <div className="flex flex-col gap-1 rounded-[10px] bg-nav-card px-3 py-2.5">
-            {/* No `capitalize`: the catalogue decides how a plan is written — "3 months",
-                not "3 Months" — and the rail should not restyle somebody's wording. */}
-            <span className="text-[12.5px] font-semibold leading-tight text-accent-onDark">
-              {plan} plan
+          // A link, not a label. It was the one thing in the rail that looked like a button and
+          // did nothing; what somebody wants after reading "3 months plan" is the plan page.
+          <Link
+            href="/settings/plan"
+            className="flex items-center gap-3 rounded-[13px] border border-white/10 bg-white/[0.07] px-3 py-2.5 backdrop-blur-sm transition hover:bg-white/[0.12]"
+          >
+            <span className="flex size-8 flex-none items-center justify-center rounded-[10px] bg-accent/90">
+              <Crown className="size-4 text-white" />
             </span>
-            <span className="text-[11.5px] leading-snug text-ink-faint">
-              {enabledModules.length} modules on
+            <span className="flex min-w-0 flex-1 flex-col">
+              {/* No `capitalize`: the catalogue decides how a plan is written — "3 months",
+                  not "3 Months" — and the rail should not restyle somebody's wording. */}
+              <span className="truncate text-[12.5px] font-semibold leading-tight text-white">
+                {plan} plan
+              </span>
+              <span className="text-[11px] leading-snug text-white/45">
+                {enabledModules.length} modules on
+              </span>
             </span>
-          </div>
+            <ChevronRight className="size-4 flex-none text-white/40" />
+          </Link>
         )}
-        <button
-          type="button"
-          onClick={toggle}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-          title={collapsed ? 'Expand' : 'Collapse'}
-          className={cn(
-            'flex min-h-0 items-center gap-2.5 rounded-control py-2 text-[13px] font-medium text-ink-faint transition hover:bg-nav-active/60 hover:text-[#CFCCE2]',
-            collapsed ? 'justify-center px-0' : 'px-3',
-          )}
-        >
-          {collapsed ? (
+        {collapsed && (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={false}
+            aria-label="Expand navigation"
+            title="Expand"
+            className="flex min-h-0 items-center justify-center rounded-control py-2 text-white/45 transition hover:bg-white/[0.07] hover:text-white"
+          >
             <PanelLeftOpen className="size-[18px]" />
-          ) : (
-            <>
-              <PanelLeftClose className="size-[18px]" />
-              <span>Collapse</span>
-            </>
-          )}
-        </button>
+          </button>
+        )}
       </div>
     </nav>
   );

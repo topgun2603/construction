@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, ArrowRight, Building2, FileText, IndianRupee, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Building2, Users, Wallet } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import { moneyShort, timeOfDay } from '@/lib/format';
@@ -7,12 +7,12 @@ import type { DashboardOverview, DashboardToday } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn, Stagger, StaggerItem } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { SiteCard } from '@/components/site-card';
 import { DecisionPanel } from '@/components/decision-panel';
 import { HeadcountChart } from '@/components/headcount-chart';
+import { StartBanner } from './start-banner';
 
 export const metadata = { title: 'Overview · BUILDR' };
 
@@ -51,14 +51,21 @@ export default async function OverviewPage() {
                 : `${missingDpr.map((s) => s.name).slice(0, 2).join(', ')} pending`
             }
             noteTone={missingDpr.length === 0 ? 'done' : 'pending'}
-            icon={<FileText className="size-4" />}
+            tone="neutral"
+            icon={<Building2 className="size-5" />}
+            href="/projects"
+            hrefLabel="Open sites"
           />
           <StatTile
             label="Headcount today"
             value={String(totals.headcount_today)}
             animate
             note={totals.headcount_today === 0 ? 'No attendance recorded yet' : 'On site now'}
-            icon={<Users className="size-4" />}
+            noteTone={totals.headcount_today === 0 ? 'neutral' : 'done'}
+            tone="done"
+            icon={<Users className="size-5" />}
+            href="/labour/attendance"
+            hrefLabel="Open attendance"
           />
           <StatTile
             label="Spend this month"
@@ -68,7 +75,10 @@ export default async function OverviewPage() {
                 ? `of ${moneyShort(totals.budget_committed)} budgeted`
                 : `${moneyShort(totals.labour_cost_month)} labour, ${moneyShort(totals.expenses_month)} expenses`
             }
-            icon={<IndianRupee className="size-4" />}
+            tone="pending"
+            icon={<Wallet className="size-5" />}
+            href="/expenses"
+            hrefLabel="Open expenses"
           />
           <StatTile
             label="Needs you"
@@ -80,33 +90,29 @@ export default async function OverviewPage() {
                 : `${totals.urgent_indents} urgent · ${withIssues.length} sites reporting issues`
             }
             noteTone={totals.urgent_indents > 0 ? 'blocked' : 'neutral'}
-            icon={<AlertTriangle className="size-4" />}
+            tone="blocked"
+            icon={<AlertTriangle className="size-5" />}
+            href="/indents"
+            hrefLabel="Open approvals"
           />
         </div>
       </FadeIn>
 
-      <div className="flex items-center justify-between gap-4">
-        <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Sites
-        </span>
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/indents">
-            All approvals <ArrowRight className="size-4" />
-          </Link>
-        </Button>
-      </div>
+      {sorted.length > 0 && (
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+            Sites
+          </span>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/indents">
+              All approvals <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {sorted.length === 0 ? (
-        <EmptyState
-          icon={<Building2 />}
-          title="No sites yet"
-          body="Create your first project to start filing daily reports and attendance."
-          action={
-            <Button asChild size="sm">
-              <Link href="/projects">Go to sites</Link>
-            </Button>
-          }
-        />
+        <StartBanner />
       ) : (
         <Stagger className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {sorted.map((site) => (

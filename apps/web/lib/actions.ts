@@ -64,6 +64,15 @@ export async function unlinkGoogle(): Promise<ActionResult<null>> {
   return result;
 }
 
+/** Clears the bell. The list stays; only the unread marks go. */
+export async function markAllNotificationsRead(): Promise<ActionResult<unknown>> {
+  const result = await runAction(() =>
+    serverFetch('/notifications/read-all', { method: 'POST' }),
+  );
+  if (result.ok) revalidatePath('/', 'layout');
+  return result;
+}
+
 /*
  * Server actions for every mutation the dashboard performs.
  *
