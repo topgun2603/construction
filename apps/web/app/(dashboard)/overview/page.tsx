@@ -10,6 +10,7 @@ import { StatTile } from '@/components/stat-tile';
 import { SiteCard } from '@/components/site-card';
 import { DecisionPanel } from '@/components/decision-panel';
 import { HeadcountChart } from '@/components/headcount-chart';
+import { cn } from '@/lib/utils';
 import { StartBanner } from './start-banner';
 import { AttentionStrip } from './attention-strip';
 import { OverrunAlert } from './overrun-alert';
@@ -122,7 +123,24 @@ export default async function OverviewPage() {
       {sorted.length === 0 ? (
         <StartBanner />
       ) : (
-        <Stagger className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        /*
+          The column count follows the number of sites.
+          
+          A fixed three-column grid gave a builder with one site a card in the first third and two
+          empty tracks beside it — the page read as broken rather than as empty. Counting first
+          costs nothing and means one site fills the row, two split it, and three or more go
+          three-up as before.
+        */
+        <Stagger
+          className={cn(
+            'grid gap-4',
+            sorted.length === 1
+              ? ''
+              : sorted.length === 2
+                ? 'md:grid-cols-2'
+                : 'md:grid-cols-2 xl:grid-cols-3',
+          )}
+        >
           {sorted.map((site) => (
             <StaggerItem key={site.id} className="h-full">
               <SiteCard site={site} />

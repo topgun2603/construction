@@ -9,6 +9,7 @@ import 'features/auth/login_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'shared/animated_logo.dart';
+import 'shared/loading_lines.dart';
 
 Future<void> main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
@@ -85,14 +86,26 @@ class _Splash extends StatelessWidget {
   Widget build(BuildContext context) => const Scaffold(
     backgroundColor: Palette.surface,
     body: Center(
-      /*
-       * The same mark the native splash just showed, at the same size, so the handover from the
-       * system splash to Flutter is a continuation rather than a flash of something else. It
-       * breathes instead of spinning: this wait is reading a keystore and asking `/me`, which is
-       * usually one frame and occasionally several seconds, and a spinner promises a progress it
-       * cannot report.
-       */
-      child: AnimatedLogo(size: 96, breathing: true),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          /*
+           * The same mark the native splash just showed, at the same size, so the handover from the
+           * system splash to Flutter is a continuation rather than a flash of something else. It
+           * breathes instead of spinning: this wait is reading a keystore and asking `/me`, which is
+           * usually one frame and occasionally several seconds, and a spinner promises a progress it
+           * cannot report.
+           */
+          AnimatedLogo(size: 96, breathing: true),
+          SizedBox(height: 28),
+          /*
+           * The line only appears if the wait lasts long enough to read one — on a warm start it
+           * never shows at all, which is the point. Same lines as the web app, so the two sound
+           * like one product.
+           */
+          LoadingLine(),
+        ],
+      ),
     ),
   );
 }

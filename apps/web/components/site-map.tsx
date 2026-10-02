@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ExternalLink, Image as ImageIcon, Map as MapIcon, MapPin, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +44,29 @@ export function SiteMap({
   const [view, setView] = useState<'map' | 'satellite' | 'street'>('map');
   const [streetAvailable, setStreetAvailable] = useState<boolean | null>(null);
 
+  /*
+   * Street View is only offered once its metadata endpoint confirms imagery within 50 m. The call
+   * is free and unmetered, which is the whole reason to make it rather than show a grey tile.
+   */
+  useEffect(() => {
+    if (!GOOGLE_KEY || lat === null || lng === null) return;
+    let cancelled = false;
+    setStreetAvailable(null);
+    fetch(
+      `https://maps.googleapis.com/maps/api/streetview/metadata?location=${lat},${lng}&radius=50&key=${GOOGLE_KEY}`,
+    )
+      .then((response) => response.json())
+      .then((body: { status?: string }) => {
+        if (!cancelled) setStreetAvailable(body.status === 'OK');
+      })
+      .catch(() => {
+        if (!cancelled) setStreetAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng]);
+
   if (lat === null || lng === null) {
     return (
       <div
@@ -68,19 +91,6 @@ export function SiteMap({
   const point = `${lat},${lng}`;
   // The app people actually drive with, whatever renders the picture above it.
   const directions = `https://www.google.com/maps/dir/?api=1&destination=${point}`;
-
-  /*
-   * Street View is only offered once its metadata endpoint confirms imagery within 50 m. The call
-   * is free and unmetered, which is the whole reason to make it rather than show a grey tile.
-   */
-  if (GOOGLE_KEY && streetAvailable === null) {
-    void fetch(
-      `https://maps.googleapis.com/maps/api/streetview/metadata?location=${point}&radius=50&key=${GOOGLE_KEY}`,
-    )
-      .then((response) => response.json())
-      .then((body: { status?: string }) => setStreetAvailable(body.status === 'OK'))
-      .catch(() => setStreetAvailable(false));
-  }
 
   const staticMap = (type: 'roadmap' | 'hybrid') =>
     `https://maps.googleapis.com/maps/api/staticmap?center=${point}&zoom=${zoom}&size=${MAP_WIDTH}x${MAP_HEIGHT}&scale=2&maptype=${type}` +
