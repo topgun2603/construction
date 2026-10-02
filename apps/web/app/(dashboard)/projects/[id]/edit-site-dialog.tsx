@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';
 import { Loader2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
@@ -49,6 +50,7 @@ export function EditSiteDialog({
   /** The map beside this passes its own button, so both routes lead to one dialog. */
   trigger?: ReactNode;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -130,6 +132,8 @@ export function EditSiteDialog({
       }
       toast.success('Site updated');
       setOpen(false);
+      // `revalidatePath` on the server does not re-render what the browser is already holding.
+      router.refresh();
     });
   }
 

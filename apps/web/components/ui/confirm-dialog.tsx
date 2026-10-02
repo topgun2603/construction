@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -26,6 +27,10 @@ import {
  * - It keeps the dialog open when the action fails and shows the API's own message.
  *   Most of these refusals are a domain rule doing its job — a finalised wage period,
  *   an approved expense — and closing the dialog would hide the reason.
+ * - It refreshes the route on success. The server actions call `revalidatePath`, which
+ *   invalidates the *server's* cache and nothing else: without the refresh the client keeps
+ *   rendering the list it already had, so a deleted row sat there until somebody reloaded the
+ *   page. Every delete in the app goes through this dialog, so every one of them had it.
  */
 export function ConfirmDialog({
   trigger,
@@ -48,6 +53,7 @@ export function ConfirmDialog({
   onConfirm: () => Promise<ActionResult>;
   successMessage?: string;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -62,6 +68,9 @@ export function ConfirmDialog({
       }
       setOpen(false);
       if (successMessage) toast.success(successMessage);
+      // Inside the same transition, so the dialog's pending state covers the re-render rather
+      // than snapping shut onto a stale list for a frame.
+      router.refresh();
     });
   }
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';
 import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -51,6 +52,7 @@ export function RoleDialog({
   trigger?: ReactNode;
 }) {
   const editing = Boolean(role);
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(role?.name ?? '');
   const [base, setBase] = useState<string>(role?.base_role ?? 'site_supervisor');
@@ -111,6 +113,7 @@ export function RoleDialog({
       }
       toast.success(editing ? `${name.trim()} updated` : `${name.trim()} created`);
       setOpen(false);
+      router.refresh();
     });
   }
 

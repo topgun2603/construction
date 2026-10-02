@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import {
   CalendarDays,
@@ -49,6 +50,7 @@ export function ProjectTimeline({
   milestones: Milestone[];
   canEdit: boolean;
 }) {
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -64,7 +66,13 @@ export function ProjectTimeline({
     [next[index], next[target]] = [next[target] as Milestone, next[index] as Milestone];
     start(async () => {
       const result = await reorderMilestones({ projectId, milestoneIds: next.map((m) => m.id) });
-      if (!result.ok) toast.error(result.error ?? 'Could not reorder the timeline');
+      if (!result.ok) {
+        toast.error(result.error ?? 'Could not reorder the timeline');
+        return;
+      }
+      // The order lives on the server; without this the rail keeps the sequence it was rendered
+      // with and the stage appears to spring back.
+      router.refresh();
     });
   }
 
@@ -77,6 +85,7 @@ export function ProjectTimeline({
       });
       if (result.ok) {
         toast.success(complete ? `${milestone.name} marked done` : `${milestone.name} reopened`);
+        router.refresh();
       } else {
         toast.error(result.error ?? 'Could not update the milestone');
       }
@@ -354,6 +363,7 @@ function AddStageForm({
   nextIndex: number;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -373,6 +383,7 @@ function AddStageForm({
       });
       if (result.ok) {
         toast.success(`${name} added to the timeline`);
+        router.refresh();
         onClose();
       } else {
         setError(result.error ?? 'Could not add the stage');
@@ -420,6 +431,7 @@ function EditStageForm({
   milestone: Milestone;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -441,6 +453,7 @@ function EditStageForm({
       });
       if (result.ok) {
         toast.success('Stage updated');
+        router.refresh();
         onClose();
       } else {
         setError(result.error ?? 'Could not update the stage');

@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { GripVertical, ImagePlus, Loader2, Play, Star, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -43,6 +44,7 @@ export function SiteGallery({
   media: ProjectMedia[];
   canEdit: boolean;
 }) {
+  const router = useRouter();
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   const [, start] = useTransition();
 
@@ -142,6 +144,7 @@ export function SiteGallery({
 
     setUploading(null);
     toast.success(list.length === 1 ? 'File added' : `${list.length} files added`);
+    router.refresh();
   }
 
   // The card cannot show a video, so the main image is the first photo — which is not necessarily
@@ -268,6 +271,7 @@ function MediaTile({
   onDropTile: () => void;
   onMove: (to: number) => void;
 }) {
+  const router = useRouter();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -297,7 +301,10 @@ function MediaTile({
         mediaId: media.id,
         caption: next.trim() || null,
       });
-      if (result.ok) toast.success('Caption saved');
+      if (result.ok) {
+        toast.success('Caption saved');
+        router.refresh();
+      }
       else toast.error(result.error ?? 'Could not save that');
       setEditing(false);
     });
