@@ -1,21 +1,32 @@
 'use client';
 
+import Image from 'next/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import { HardHat, IndianRupee, WifiOff } from 'lucide-react';
+import siteAtDusk from '@/public/bg.png';
 
 /*
  * The dark half of the login screen.
  *
- * The drama is carried by type, depth and one accent — not by a stock photo of a
- * building site. Three reasons: a photo would fight the violet accent, it would be
- * the heaviest asset on the page a supervisor loads over 3G, and the product's
- * actual promise is legible numbers, which is what the panel shows instead.
+ * The photograph is the bottom two-thirds and the type sits above it, which is the only way a
+ * picture and a headline share a panel without either being hard to read: the image is pushed
+ * behind a navy-to-transparent gradient so the words always land on flat colour, never on sky.
  *
- * The blueprint grid is two repeating-linear-gradients, so the whole background
- * costs nothing to download and stays crisp at any density.
+ * It goes through `next/image` rather than a CSS background. The source is a 2.3 MB PNG; served
+ * raw it would be the heaviest thing on the page a supervisor loads over 3G, and `next/image`
+ * resizes it and sends AVIF or WebP to whoever can read them. `priority` because it is the
+ * largest contentful paint on this route — lazy-loading the one image above the fold just moves
+ * the delay to where the user is looking.
+ *
+ * The blueprint grid that used to sit over all this is gone: with the photograph behind the type
+ * there were two patterns competing for the same space, and the wireframe towers in the image say
+ * "drawing" better than a CSS grid ever did.
  */
 
 const EASE = [0.22, 0.61, 0.36, 1] as const;
+
+/** What the product does, in the order a builder meets it. */
+const STAGES = ['Plan', 'Track', 'Manage', 'Grow'];
 
 const PROOF = [
   {
@@ -30,7 +41,7 @@ const PROOF = [
   },
   {
     icon: IndianRupee,
-    title: 'Wages that tie out',
+    title: 'Accurate wages',
     body: 'The rate is frozen the day it is earned, so a raise never rewrites last week.',
   },
 ];
@@ -40,116 +51,125 @@ export function HeroPanel() {
 
   return (
     <section className="relative isolate hidden overflow-hidden bg-nav lg:flex lg:flex-col lg:justify-between lg:p-12">
-      {/* Blueprint grid */}
+      {/* The site at dusk, anchored to the bottom so the cranes rise into the headline's space. */}
+      <Image
+        src={siteAtDusk}
+        alt=""
+        aria-hidden
+        priority
+        placeholder="blur"
+        sizes="(min-width: 1024px) 55vw, 0px"
+        className="pointer-events-none absolute inset-x-0 bottom-0 -z-20 h-[66%] w-full object-cover object-top"
+      />
+      {/*
+       * Three scrims, because one is never enough over a photograph with a sunset in it.
+       *
+       * Solid navy down to the headline so the type is on flat colour; a dark veil over the whole
+       * image so the feature list keeps its contrast against cranes and lit windows; and navy back
+       * up from the floor so the footer line does not land in the brightest part of the sky.
+       */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage:
-            'repeating-linear-gradient(0deg, #fff 0 1px, transparent 1px 64px), repeating-linear-gradient(90deg, #fff 0 1px, transparent 1px 64px)',
-        }}
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-nav via-nav/90 via-[38%] to-transparent"
+      />
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 bg-nav/55" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-56 bg-gradient-to-t from-nav via-nav/80 to-transparent"
       />
 
       {/* Accent bloom, anchored behind the headline */}
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -left-24 top-1/3 -z-10 size-[520px] rounded-full bg-accent/30 blur-[120px]"
+        className="pointer-events-none absolute -left-24 top-1/3 -z-10 size-[520px] rounded-full bg-accent/25 blur-[120px]"
         initial={{ opacity: 0.35, scale: 0.92 }}
-        animate={reduceMotion ? { opacity: 0.35 } : { opacity: [0.3, 0.55, 0.3], scale: [0.92, 1.04, 0.92] }}
+        animate={
+          reduceMotion
+            ? { opacity: 0.35 }
+            : { opacity: [0.3, 0.5, 0.3], scale: [0.92, 1.04, 0.92] }
+        }
         transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
       />
 
+      <header className="flex items-center justify-between gap-8">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-[11px] bg-accent text-[17px] font-bold leading-none text-white shadow-[0_6px_18px_rgba(108,76,224,0.45)]">
+            B
+          </span>
+          <span className="text-[19px] font-bold tracking-[-0.01em] text-white">BUILDR</span>
+        </div>
+
+        <nav aria-label="What BUILDR covers" className="flex items-center gap-2">
+          {STAGES.map((stage, index) => (
+            <span key={stage} className="flex items-center gap-2">
+              {index > 0 && <span className="font-mono text-[12px] text-white/25">/</span>}
+              <span
+                className={
+                  // The last one is where a builder is going, so it is the one that is lit.
+                  index === STAGES.length - 1
+                    ? 'border-b-[1.5px] border-accent-onDark pb-0.5 font-mono text-[12px] uppercase tracking-[0.16em] text-accent-onDark'
+                    : 'font-mono text-[12px] uppercase tracking-[0.16em] text-white/45'
+                }
+              >
+                {stage}
+              </span>
+            </span>
+          ))}
+        </nav>
+      </header>
+
       <motion.div
-        initial={{ opacity: 0, y: -8 }}
+        initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: EASE }}
-        className="flex items-center gap-3"
+        className="flex max-w-[560px] flex-col gap-7 py-10"
       >
-        <span className="flex size-9 items-center justify-center rounded-control bg-white text-[14px] font-bold text-ink">
-          SB
+        <span className="font-mono text-[12.5px] uppercase tracking-[0.22em] text-accent-onDark">
+          Site management for builders
         </span>
-        <span className="text-[15px] font-semibold text-white">BUILDR</span>
+
+        <h1 className="text-[clamp(40px,4.4vw,60px)] font-bold leading-[1.04] tracking-[-0.03em] text-white">
+          Every site.
+          <br />
+          Every day.
+          <br />
+          <span className="text-accent-onDark">Every rupee.</span>
+        </h1>
+
+        <p className="max-w-[460px] text-[16px] leading-relaxed text-white/80">
+          Daily reports, named attendance and wage sheets — from the site to your screen before you
+          finish your morning tea.
+        </p>
+
+        <ul className="flex flex-col gap-5 pt-2">
+          {PROOF.map(({ icon: Icon, title, body }, index) => (
+            <motion.li
+              key={title}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.15 + index * 0.08, ease: EASE }}
+              className="flex items-start gap-4"
+            >
+              <span className="flex size-11 flex-none items-center justify-center rounded-[13px] border border-white/10 bg-nav-card/80 backdrop-blur-sm">
+                <Icon className="size-[18px] text-accent-onDark" />
+              </span>
+              <div className="flex flex-col gap-1">
+                <span className="text-[15px] font-semibold text-white">{title}</span>
+                <span className="max-w-[400px] text-[13.5px] leading-relaxed text-white/75">
+                  {body}
+                </span>
+              </div>
+            </motion.li>
+          ))}
+        </ul>
       </motion.div>
 
-      <div className="relative max-w-[520px]">
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1, ease: EASE }}
-          className="mb-5 font-mono text-[12px] uppercase tracking-[0.18em] text-accent-onDark"
-        >
-          Site management for builders
-        </motion.p>
-
-        <h2 className="text-[clamp(2.5rem,4.2vw,3.75rem)] font-bold leading-[1.05] tracking-[-0.03em] text-white">
-          {['Every site.', 'Every day.', 'Every rupee.'].map((line, index) => (
-            <motion.span
-              key={line}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.16 + index * 0.09, ease: EASE }}
-              className="block"
-            >
-              {/* The last line is the promise the product is actually sold on. */}
-              <span className={index === 2 ? 'text-accent-onDark' : undefined}>{line}</span>
-            </motion.span>
-          ))}
-        </h2>
-
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.46, ease: EASE }}
-          className="mt-6 max-w-[420px] text-[16px] leading-relaxed text-[#B9B7D0]"
-        >
-          Daily reports, named attendance and wage sheets — from the site to your screen
-          before you finish your morning tea.
-        </motion.p>
-
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.6 } } }}
-          className="mt-10 flex flex-col gap-5 border-t border-white/[0.08] pt-8"
-        >
-          {PROOF.map((item) => {
-            const Icon = item.icon;
-            return (
-              <motion.div
-                key={item.title}
-                variants={{
-                  hidden: { opacity: 0, x: -12 },
-                  show: { opacity: 1, x: 0, transition: { duration: 0.45, ease: EASE } },
-                }}
-                className="flex gap-3.5"
-              >
-                <span className="mt-0.5 flex size-8 flex-none items-center justify-center rounded-btn bg-white/[0.06] text-accent-onDark">
-                  <Icon className="size-4" />
-                </span>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[14.5px] font-semibold text-white">{item.title}</span>
-                  {/* Held to ~46 characters a line: past that the eye loses the
-                      return sweep, and a one-word last line reads as a mistake. */}
-                  <span className="max-w-[330px] text-[13.5px] leading-relaxed text-[#9C9AB8]">
-                    {item.body}
-                  </span>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
-      </div>
-
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.9 }}
-        // #8B89A8 on the navy clears 4.5:1; the dimmer grey it replaced did not,
-        // and this line is 11.5px.
-        className="font-mono text-[11.5px] tracking-[0.08em] text-[#8B89A8]"
-      >
-        BUILT FOR SITES IN INDIA · ₹ IN PAISE, NEVER ROUNDED
-      </motion.p>
+      <footer className="flex flex-col gap-3">
+        <span aria-hidden className="h-px w-16 bg-accent/70" />
+        <span className="font-mono text-[11.5px] uppercase tracking-[0.18em] text-white/50">
+          Built for sites in India · ₹ in paise, never rounded
+        </span>
+      </footer>
     </section>
   );
 }

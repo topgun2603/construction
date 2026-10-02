@@ -101,6 +101,141 @@ describe('auth and plan gating', () => {
     expect(exchange.body.onboarding_token).toBeUndefined();
   });
 
+  describe('signing in with Google', () => {
+    /*
+     * The dev bypass reads anything with an `@` as a Google token, which is what makes this
+     * testable without a popup. What is being tested is not Firebase — it is that an address only
+     * reaches an account by being proved, and that an unknown one is a dead end rather than a new
+     * tenant.
+     */
+    it('refuses an address nobody has linked, and says how to get in', async () => {
+      const response = await test
+        .http()
+        .post('/v1/auth/exchange')
+        .send({ firebase_token: 'dev:stranger@example.com' })
+        .expect(401);
+
+      // Not an onboarding token: an account is built around a mobile number, and a Google account
+      // carries none — so there is nothing to create here.
+      expect(response.body.onboarding_token).toBeUndefined();
+      expect(response.body.message).toContain('mobile number');
+    });
+
+    it('signs in once the address is linked, and stops when it is unlinked', async () => {
+      const email = `owner-${Date.now()}@example.com`;
+
+      const linked = await test
+        .http()
+        .post('/v1/me/google')
+        .set('Authorization', `Bearer ${tenant.accessToken}`)
+        .send({ firebase_token: `dev:${email}` })
+        .expect(201);
+      expect(linked.body.email).toBe(email);
+
+      const signedIn = await test
+        .http()
+        .post('/v1/auth/exchange')
+        .send({ firebase_token: `dev:${email}` })
+        .expect(200);
+      expect(signedIn.body.access_token).toBeTruthy();
+
+      // The session it hands back is the same person, not a new one.
+      const me = await test
+        .http()
+        .get('/v1/me')
+        .set('Authorization', `Bearer ${signedIn.body.access_token}`)
+        .expect(200);
+      expect(me.body.user.id).toBe(tenant.ownerId);
+      expect(me.body.user.email).toBe(email);
+
+      await test
+        .http()
+        .delete('/v1/me/google')
+        .set('Authorization', `Bearer ${tenant.accessToken}`)
+        .expect(204);
+
+      // Unlinking has to close the door, or "remove my Google account" would be decoration.
+      await test
+        .http()
+        .post('/v1/auth/exchange')
+        .send({ firebase_token: `dev:${email}` })
+        .expect(401);
+    });
+
+    it('is case and whitespace insensitive, because typing an address is not the point', async () => {
+      const email = `mixed-${Date.now()}@example.com`;
+      await test
+        .http()
+        .post('/v1/me/google')
+        .set('Authorization', `Bearer ${tenant.accessToken}`)
+        .send({ firebase_token: `dev:  ${email.toUpperCase()} ` })
+        .expect(201);
+
+      await test
+        .http()
+        .post('/v1/auth/exchange')
+        .send({ firebase_token: `dev:${email}` })
+        .expect(200);
+
+      await test
+        .http()
+        .delete('/v1/me/google')
+        .set('Authorization', `Bearer ${tenant.accessToken}`)
+        .expect(204);
+    });
+
+    it('refuses to let one person claim another person’s address', async () => {
+      const email = `shared-${Date.now()}@example.com`;
+      const other = await onboardTenant(test, {
+        name: 'Second Builders',
+        phone: uniquePhone(),
+      });
+
+      try {
+        await test
+          .http()
+          .post('/v1/me/google')
+          .set('Authorization', `Bearer ${tenant.accessToken}`)
+          .send({ firebase_token: `dev:${email}` })
+          .expect(201);
+
+        // A different tenant entirely, so this one is allowed: the same consultant may work for
+        // two builders, and the uniqueness that matters is inside a company.
+        await test
+          .http()
+          .post('/v1/me/google')
+          .set('Authorization', `Bearer ${other.accessToken}`)
+          .send({ firebase_token: `dev:${email}` })
+          .expect(201);
+
+        // And now the address resolves to two accounts, which is the one case sign-in cannot
+        // decide on its own.
+        const ambiguous = await test
+          .http()
+          .post('/v1/auth/exchange')
+          .send({ firebase_token: `dev:${email}` })
+          .expect(200);
+        expect(ambiguous.body.tenant_choice_required).toBe(true);
+      } finally {
+        await test
+          .http()
+          .delete('/v1/me/google')
+          .set('Authorization', `Bearer ${tenant.accessToken}`)
+          .expect(204);
+        await destroyTenant(test, other.tenantId);
+      }
+    });
+
+    it('will not take a phone token as a Google link', async () => {
+      await test
+        .http()
+        .post('/v1/me/google')
+        .set('Authorization', `Bearer ${tenant.accessToken}`)
+        .send({ firebase_token: `dev:${uniquePhone()}` })
+        .expect(422);
+    });
+  });
+
   describe('refresh token rotation', () => {
     it('rotates the refresh token and invalidates the old one', async () => {
       const session = await onboardTenant(test, {

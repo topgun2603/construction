@@ -288,6 +288,9 @@ model User {
   id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId  String     @map("tenant_id") @db.Uuid
   phone     String
+  /// Work email, if they have given one. Only used to let Google sign-in find them — the phone
+  /// stays the identity everything else is keyed by. Unique per tenant among live users.
+  email     String?
   name      String
   role      UserRole
   status    UserStatus @default(pending)
@@ -1010,12 +1013,18 @@ model SyncLog {
 /// Maintained by the `users_sync_auth_identity` trigger â€” never written from
 /// application code.
 model AuthIdentity {
-  userId   String @id @map("user_id") @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
+  userId   String  @id @map("user_id") @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
   phone    String
+  /// Mirrors `users.email`. What a Google sign-in is looked up by, before any tenant is known.
+  email    String?
 
   @@unique([phone, tenantId], map: "auth_identities_phone_tenant_id_key")
   @@index([phone])
+  // The email index and its per-tenant unique are partial — `WHERE email IS NOT NULL`, so the
+  // rows without one cost nothing and do not collide with each other. Prisma cannot express a
+  // partial index, so both live in the migration SQL and are deliberately absent here.
+
   @@map("auth_identities")
 }
 

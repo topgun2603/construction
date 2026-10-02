@@ -3,8 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
-import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
+import { ArrowLeft, ArrowRight, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import {
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  signInWithPopup,
+  type ConfirmationResult,
+} from 'firebase/auth';
 import { toE164Indian } from '@sitebook/shared';
 import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
@@ -126,6 +132,39 @@ export function LoginForm() {
     }
   }
 
+  /**
+   * Google, for whoever is at a desk rather than on a slab.
+   *
+   * It lands in the same `/auth/exchange` as the OTP does — Firebase is the vendor for both, and
+   * the API decides what the token proves. The difference is what happens when nobody recognises
+   * it: an unknown phone starts an account, an unknown Google address cannot, because an account
+   * is built around a mobile number. The API says so in words and they are shown as-is.
+   */
+  async function handleGoogle(): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      if (DEV_AUTH_BYPASS || !isFirebaseConfigured()) {
+        // No popup without Firebase, so development asks for the address directly. `prompt` is
+        // deliberate: this branch is compiled out of a production bundle, and a bespoke dialog for
+        // it would be code nobody but a developer ever sees.
+        const email = window.prompt('Dev sign-in — Google address to sign in as');
+        if (!email) return;
+        await exchange(`dev:${email.trim()}`);
+        return;
+      }
+
+      const credential = await signInWithPopup(firebaseAuth(), new GoogleAuthProvider());
+      await exchange(await credential.user.getIdToken());
+    } catch (cause) {
+      // Closing the popup is not an error worth a red box — it is somebody changing their mind.
+      if (isPopupDismissal(cause)) return;
+      setError(messageOf(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitCode(value: string): Promise<void> {
     setError(null);
     setBusy(true);
@@ -205,15 +244,16 @@ export function LoginForm() {
   }
 
   return (
-    <section className="flex items-center justify-center bg-canvas px-6 py-10">
-      <div className="w-full max-w-[400px]">
-        {/* The wordmark only appears where the dark panel does not. */}
-        <div className="mb-8 flex items-center gap-3 lg:hidden">
-          <span className="flex size-10 items-center justify-center rounded-control bg-nav text-[14px] font-bold text-white">
-            SB
-          </span>
-          <span className="text-[17px] font-semibold">BUILDR</span>
-        </div>
+    <section className="relative flex flex-col justify-center bg-canvas px-6 py-10 lg:px-12">
+      {/* The wordmark only appears where the dark panel does not. */}
+      <div className="mb-8 flex items-center gap-3 lg:hidden">
+        <span className="flex size-10 items-center justify-center rounded-[11px] bg-accent text-[15px] font-bold text-white">
+          B
+        </span>
+        <span className="text-[17px] font-semibold">BUILDR</span>
+      </div>
+
+      <div className="mx-auto w-full max-w-[440px] rounded-[18px] border border-line bg-surface p-7 shadow-[0_18px_50px_-24px_rgba(27,26,46,0.28)] sm:p-9">
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -225,13 +265,16 @@ export function LoginForm() {
           >
             {step === 'phone' && (
               <form onSubmit={handlePhoneSubmit} className="flex flex-col gap-6">
-                <header className="flex flex-col gap-2">
-                  <h1 className="text-[30px] font-bold leading-tight tracking-[-0.02em]">
-                    Sign in
+                <header className="flex flex-col gap-1.5">
+                  <h1 className="text-[30px] font-bold leading-[1.1] tracking-[-0.025em]">
+                    Welcome back
                   </h1>
-                  <p className="text-[14.5px] leading-relaxed text-ink-muted">
-                    Use the mobile number your builder registered. We’ll text you a code —
-                    there’s no password to remember.
+                  <p className="text-[19px] font-medium leading-snug text-ink-soft">
+                    Sign in to your workspace
+                  </p>
+                  <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
+                    Enter the mobile number your builder registered and we’ll send you a secure
+                    code. There is no password to remember.
                   </p>
                 </header>
 
@@ -255,12 +298,39 @@ export function LoginForm() {
                   </div>
                 </Field>
 
-                <Submit busy={busy}>{DEV_AUTH_BYPASS ? 'Sign in' : 'Send code'}</Submit>
+                <div className="-mt-2 flex flex-col gap-4">
+                  <Submit busy={busy}>{DEV_AUTH_BYPASS ? 'Sign in' : 'Continue'}</Submit>
+
+                  <p className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-muted">
+                    <Lock className="mt-0.5 size-3.5 flex-none text-ink-faint" />
+                    We’ll send a one-time code to your mobile. No password needed.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="h-px flex-1 bg-line" />
+                  <span className="text-[11.5px] font-medium uppercase tracking-[0.12em] text-ink-faint">
+                    or
+                  </span>
+                  <span className="h-px flex-1 bg-line" />
+                </div>
+
+                {/* Second, not first: the phone is the identity this product is built around, and
+                    Google only works for somebody who has already linked it to their account. */}
+                <button
+                  type="button"
+                  onClick={() => void handleGoogle()}
+                  disabled={busy}
+                  className="flex h-12 w-full items-center justify-center gap-3 rounded-btn border border-line-strong bg-surface text-[14.5px] font-semibold text-ink transition hover:bg-raised disabled:opacity-60"
+                >
+                  <GoogleMark />
+                  Continue with Google
+                </button>
 
                 {DEV_AUTH_BYPASS && (
                   <p className="rounded-btn border border-pending-line bg-pending-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-pending-fg">
-                    Dev sign-in is on — no SMS is sent. Try{' '}
-                    <span className="font-mono font-semibold">9000000001</span> (owner) or{' '}
+                    <span className="font-semibold">Developer / demo access.</span> No SMS is sent.
+                    Try <span className="font-mono font-semibold">9000000001</span> (owner) or{' '}
                     <span className="font-mono font-semibold">9000000003</span> (supervisor).
                   </p>
                 )}
@@ -373,7 +443,39 @@ export function LoginForm() {
 
         <div ref={recaptchaHost} id="recaptcha-host" />
       </div>
+
+      <footer className="mx-auto mt-8 flex w-full max-w-[440px] flex-wrap items-center justify-between gap-2 text-[12px] text-ink-faint">
+        <span>© {new Date().getFullYear()} BUILDR. All rights reserved.</span>
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="size-2 rounded-[3px] bg-accent" />
+          Powered by Trusta Technologies
+        </span>
+      </footer>
     </section>
+  );
+}
+
+/** Google's mark, inline: the CSP on this page allows no external images, and it is four paths. */
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden className="size-[18px]">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2.5 24 .5 14.6.5 6.5 5.9 2.6 13.7l7.8 6.1C12.3 14 17.6 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.5 24.5c0-1.6-.15-3.2-.43-4.7H24v9h12.7c-.55 2.9-2.2 5.4-4.7 7.1l7.6 5.9c4.4-4.1 6.9-10.2 6.9-17.3z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.4 28.2a14.6 14.6 0 0 1 0-8.4l-7.8-6.1a23.6 23.6 0 0 0 0 20.6l7.8-6.1z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 47.5c6.2 0 11.5-2 15.3-5.6l-7.6-5.9c-2.1 1.4-4.8 2.3-7.7 2.3-6.4 0-11.7-4.5-13.6-10.4l-7.8 6.1C6.5 42.1 14.6 47.5 24 47.5z"
+      />
+    </svg>
   );
 }
 
@@ -390,6 +492,16 @@ function Submit({ busy, children }: { busy: boolean; children: React.ReactNode }
         </>
       )}
     </Button>
+  );
+}
+
+/** Firebase's own codes for "the user closed the popup", which is not a failure. */
+function isPopupDismissal(cause: unknown): boolean {
+  const code = (cause as { code?: string } | null)?.code;
+  return (
+    code === 'auth/popup-closed-by-user' ||
+    code === 'auth/cancelled-popup-request' ||
+    code === 'auth/user-cancelled'
   );
 }
 

@@ -7,7 +7,15 @@ export const ACCESS_COOKIE = 'sb_access';
 export const REFRESH_COOKIE = 'sb_refresh';
 
 export interface SelfResponse {
-  user: { id: string; name: string; phone: string; role: string; status: string };
+  user: {
+    id: string;
+    name: string;
+    phone: string;
+    /** The linked Google address, or null when there is none. */
+    email: string | null;
+    role: string;
+    status: string;
+  };
   tenant: {
     id: string;
     name: string;

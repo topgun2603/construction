@@ -39,6 +39,31 @@ export async function signOut(): Promise<never> {
   redirect('/login');
 }
 
+/**
+ * Links the Google account whose token this is.
+ *
+ * The token travels; the address does not. The API reads the address out of the verified token,
+ * so the only account anybody can attach is one they can already sign in to.
+ */
+export async function linkGoogle(firebaseToken: string): Promise<ActionResult<{ email: string }>> {
+  const result = await runAction(() =>
+    serverFetch<{ email: string }>('/me/google', {
+      method: 'POST',
+      body: { firebase_token: firebaseToken },
+    }),
+  );
+  if (result.ok) revalidatePath('/account');
+  return result;
+}
+
+export async function unlinkGoogle(): Promise<ActionResult<null>> {
+  const result = await runAction(() =>
+    serverFetch<null>('/me/google', { method: 'DELETE' }),
+  );
+  if (result.ok) revalidatePath('/account');
+  return result;
+}
+
 /*
  * Server actions for every mutation the dashboard performs.
  *

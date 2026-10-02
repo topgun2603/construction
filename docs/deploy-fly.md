@@ -176,7 +176,14 @@ fly deploy -c fly.web.toml
    will look like they work without it and then never renew.
 3. **Firebase authorised domains.** Add the web app's domain under Authentication → Settings, or
    phone sign-in fails in the browser while working perfectly on the phone.
-4. **The mobile app** points at the local API through `adb reverse` during development. A build for
+4. **Google sign-in** needs two switches in the Firebase console, and the button is dead without
+   both: Authentication → Sign-in method → **Google → Enable**, and the same authorised-domains
+   list as above (`signInWithPopup` checks the domain it is opened from). Nothing is needed on the
+   API side — a Google token is verified by the same Admin SDK credential the OTP tokens are.
+   Remember that signing in this way only works for somebody who has linked the address at
+   `/account` first; an unlinked address is refused on purpose, because an account is built around
+   a mobile number and a Google token carries none.
+5. **The mobile app** points at the local API through `adb reverse` during development. A build for
    real users needs `--dart-define=API_URL=https://buildr-api.fly.dev/v1` and no `DEV_AUTH_BYPASS`.
 
 ---

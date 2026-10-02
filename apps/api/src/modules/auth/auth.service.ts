@@ -37,16 +37,34 @@ export class AuthService {
    * that runs tenant-scoped.
    */
   async exchange(input: AuthExchangeInput, userAgent?: string): Promise<ExchangeResult> {
-    const phone = await this.phoneAuth.verify(input.firebase_token);
+    const proof = await this.phoneAuth.verifyIdentity(input.firebase_token);
 
     const identities = await this.prisma.authIdentity.findMany({
-      where: { phone },
+      where: proof.kind === 'phone' ? { phone: proof.phone } : { email: proof.email },
       select: { userId: true, tenantId: true },
     });
 
     if (identities.length === 0) {
-      // Unknown phone: not an error. It is a builder about to onboard.
-      return { kind: 'onboarding', onboarding_token: this.tokens.signOnboardingToken(phone), phone };
+      /*
+       * An unknown *phone* is not an error — it is a builder about to onboard, and the number is
+       * the account they are about to create.
+       *
+       * An unknown *email* is a dead end, and saying so plainly is the whole job here. An account
+       * is built around a mobile number: workers are known by one, WhatsApp needs one, and a
+       * Google account carries none. So there is nothing to onboard them into, and the useful
+       * answer names the way in rather than reporting a failure.
+       */
+      if (proof.kind === 'email') {
+        throw ApiError.invalidToken(
+          'No BUILDR account uses that Google address. Sign in with your mobile number — ' +
+            'the address can be added to your profile afterwards.',
+        );
+      }
+      return {
+        kind: 'onboarding',
+        onboarding_token: this.tokens.signOnboardingToken(proof.phone),
+        phone: proof.phone,
+      };
     }
 
     const identity = await this.pickIdentity(identities);

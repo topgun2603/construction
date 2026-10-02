@@ -7,6 +7,8 @@ import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { UsersService } from './users.service';
 
 const fcmTokenSchema = z.object({ token: z.string().min(10).max(512) });
+/** The Firebase ID token from a Google popup. The address is read out of it, never sent. */
+const googleLinkSchema = z.object({ firebase_token: z.string().min(10).max(4096) });
 
 @ApiTags('me')
 @Controller('me')
@@ -21,6 +23,28 @@ export class MeController {
   @ApiOperation({ summary: 'Current user, tenant and enabled modules' })
   async me(@CurrentUser() user: RequestUser) {
     return this.users.describeSelf(user);
+  }
+
+  /**
+   * Links the Google account whose token this is, so its owner can sign in with it next time.
+   *
+   * A write to one's own row, so no permission gates it — the same way a person may register this
+   * phone for push without being an owner.
+   */
+  @Post('google')
+  @ApiOperation({ summary: 'Link a Google account to this user' })
+  async linkGoogle(
+    @CurrentUser() user: RequestUser,
+    @Body(zodBody(googleLinkSchema)) body: z.infer<typeof googleLinkSchema>,
+  ) {
+    return this.users.linkGoogle(user, body.firebase_token);
+  }
+
+  @Delete('google')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Unlink the Google account' })
+  async unlinkGoogle(@CurrentUser() user: RequestUser): Promise<void> {
+    await this.users.unlinkGoogle(user);
   }
 
   @Post('fcm-tokens')

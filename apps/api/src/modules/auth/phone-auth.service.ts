@@ -8,8 +8,18 @@ import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
 
 /**
- * Verifies a Firebase phone-auth ID token and returns the phone number it proves
- * (spec §6.2). Firebase is the OTP vendor; it never becomes our session.
+ * What a verified Firebase token proves: control of a phone number, or of an email address.
+ *
+ * Two shapes rather than one nullable pair, because every caller has to handle both and a struct
+ * with two optional fields lets one of them be forgotten.
+ */
+export type VerifiedIdentity =
+  | { kind: 'phone'; phone: string }
+  | { kind: 'email'; email: string };
+
+/**
+ * Verifies a Firebase ID token and returns what it proves (spec §6.2). Firebase is the vendor for
+ * OTP and for Google; it never becomes our session.
  */
 @Injectable()
 export class PhoneAuthService {
@@ -17,12 +27,26 @@ export class PhoneAuthService {
   private readonly config = env();
   private app?: App;
 
+  /**
+   * The phone a token proves. Kept for the paths that are phone-only by nature — onboarding mints
+   * a tenant around a number, and a Google account does not carry one.
+   */
   async verify(idToken: string): Promise<string> {
+    const identity = await this.verifyIdentity(idToken);
+    if (identity.kind !== 'phone') {
+      throw ApiError.invalidToken('This step needs a mobile number, not a Google account');
+    }
+    return identity.phone;
+  }
+
+  async verifyIdentity(idToken: string): Promise<VerifiedIdentity> {
     if (this.config.DEV_AUTH_BYPASS) {
-      const phone = devBypassPhone(idToken);
-      if (phone) {
-        this.logger.warn(`DEV_AUTH_BYPASS accepted a token for ${phone}`);
-        return phone;
+      const bypass = devBypassIdentity(idToken);
+      if (bypass) {
+        this.logger.warn(
+          `DEV_AUTH_BYPASS accepted a token for ${bypass.kind === 'phone' ? bypass.phone : bypass.email}`,
+        );
+        return bypass;
       }
     }
 
@@ -38,17 +62,32 @@ export class PhoneAuthService {
     }
 
     const decoded = await this.verifyWithFirebase(idToken);
-    const phone = decoded.phone_number;
-    if (!phone) throw ApiError.invalidToken('Firebase token carries no phone number');
 
-    const normalised = normalisePhone(phone);
-    if (!normalised) {
-      // Firebase will happily verify a number from any country; we only issue
-      // sessions for Indian mobiles, which is what every stored phone is.
-      this.logger.warn('Firebase token carried a phone we cannot store');
-      throw ApiError.invalidToken('Only Indian mobile numbers can sign in');
+    if (decoded.phone_number) {
+      const normalised = normalisePhone(decoded.phone_number);
+      if (!normalised) {
+        // Firebase will happily verify a number from any country; we only issue
+        // sessions for Indian mobiles, which is what every stored phone is.
+        this.logger.warn('Firebase token carried a phone we cannot store');
+        throw ApiError.invalidToken('Only Indian mobile numbers can sign in');
+      }
+      return { kind: 'phone', phone: normalised };
     }
-    return normalised;
+
+    /*
+     * A Google token. `email_verified` is the part that matters and it is not a formality: an
+     * unverified address on a federated token is a claim about an inbox nobody has proved they
+     * read, and treating it as an identity would let somebody sign up with a colleague's address
+     * and be handed their account.
+     */
+    if (decoded.email && decoded.email_verified) {
+      return { kind: 'email', email: normaliseEmail(decoded.email) };
+    }
+    if (decoded.email) {
+      throw ApiError.invalidToken('That Google account has no verified email address');
+    }
+
+    throw ApiError.invalidToken('Firebase token carries neither a phone number nor an email');
   }
 
   private async verifyWithFirebase(idToken: string) {
@@ -107,13 +146,29 @@ export class PhoneAuthService {
 }
 
 /**
- * Local development and the e2e suite need a way to sign in without a real SMS.
- * The token shape is `dev:919876543210`. Guarded twice: the flag defaults to false
- * and env validation refuses to let it be true in production.
+ * Local development and the e2e suite need a way to sign in without a real SMS, and now without a
+ * real Google popup. The token shape is `dev:919876543210` or `dev:someone@example.com`; anything
+ * with an `@` is read as the second. Guarded twice: the flag defaults to false and env validation
+ * refuses to let it be true in production.
  */
-function devBypassPhone(token: string): string | null {
+function devBypassIdentity(token: string): VerifiedIdentity | null {
   if (!token.startsWith('dev:')) return null;
-  return normalisePhone(token.slice('dev:'.length));
+  const subject = token.slice('dev:'.length).trim();
+  if (subject.includes('@')) return { kind: 'email', email: normaliseEmail(subject) };
+
+  const phone = normalisePhone(subject);
+  return phone ? { kind: 'phone', phone } : null;
+}
+
+/**
+ * Lower case and trimmed, because that is how it is stored.
+ *
+ * Addresses are compared as whole strings here rather than cleverly: Gmail ignores dots and
+ * everything after a `+`, but other providers do not, and normalising on Google's rules would
+ * quietly merge two addresses that a different mail server treats as two people.
+ */
+export function normaliseEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
 /**

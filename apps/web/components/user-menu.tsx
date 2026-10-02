@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useTransition } from 'react';
-import { LogOut, Settings, UserRound } from 'lucide-react';
+import { LogOut, ReceiptText, Settings, UserRound } from 'lucide-react';
 import { signOut } from '@/lib/actions';
 import {
   DropdownMenu,
@@ -57,6 +57,11 @@ export function UserMenu({
           <DropdownMenuSeparator />
           <DropdownMenuLabel>{titleCase(role)}</DropdownMenuLabel>
 
+          <DropdownMenuItem asChild>
+            <Link href="/account">
+              <UserRound /> Your account
+            </Link>
+          </DropdownMenuItem>
           {isOwner && (
             <DropdownMenuItem asChild>
               <Link href="/settings/team">
@@ -66,7 +71,7 @@ export function UserMenu({
           )}
           <DropdownMenuItem asChild>
             <Link href="/settings/plan">
-              <UserRound /> Plan &amp; modules
+              <ReceiptText /> Plan &amp; modules
             </Link>
           </DropdownMenuItem>
 

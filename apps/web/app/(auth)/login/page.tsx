@@ -14,7 +14,7 @@ export default async function LoginPage() {
     // A two-column split at lg and above; below that the dark panel is dropped
     // entirely rather than stacked — a supervisor signing in on a phone wants the
     // keyboard, not a scroll past the marketing.
-    <main className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+    <main className="grid min-h-screen lg:grid-cols-[1.12fr_1fr]">
       <HeroPanel />
       <LoginForm />
     </main>
