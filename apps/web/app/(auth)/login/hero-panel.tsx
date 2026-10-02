@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import { HardHat, IndianRupee, WifiOff } from 'lucide-react';
-import siteAtDusk from '@/public/bg.png';
+import siteAtDusk from '@/public/bg.jpg';
 
 /*
  * The dark half of the login screen.
@@ -12,11 +12,11 @@ import siteAtDusk from '@/public/bg.png';
  * picture and a headline share a panel without either being hard to read: the image is pushed
  * behind a navy-to-transparent gradient so the words always land on flat colour, never on sky.
  *
- * It goes through `next/image` rather than a CSS background. The source is a 2.3 MB PNG; served
- * raw it would be the heaviest thing on the page a supervisor loads over 3G, and `next/image`
- * resizes it and sends AVIF or WebP to whoever can read them. `priority` because it is the
- * largest contentful paint on this route — lazy-loading the one image above the fold just moves
- * the delay to where the user is looking.
+ * It goes through `next/image` rather than a CSS background, from a 270 KB JPEG rather than the
+ * 2.3 MB PNG it arrived as. A photograph has no business in a lossless format: the PNG was storing
+ * a sunset gradient pixel by pixel, and re-encoding it on every dev request is what ran the dev
+ * server out of heap. `priority` because this is the largest contentful paint on the route —
+ * lazy-loading the one image above the fold just moves the delay to where the user is looking.
  *
  * The blueprint grid that used to sit over all this is gone: with the photograph behind the type
  * there were two patterns competing for the same space, and the wireframe towers in the image say
