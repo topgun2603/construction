@@ -161,6 +161,12 @@ const envSchema = z
      * photographs with large print can set the cheaper model here.
      */
     OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
+    /*
+     * Reading a question into a lookup. A smaller model than the one that reads bills: this one
+     * classifies a sentence into six metrics and a period keyword, which is the easy half of what
+     * a vision model is asked to do.
+     */
+    OPENAI_ASK_MODEL: z.string().default('gpt-4o-mini'),
 
     /**
      * Map tiles and geocoding. Without it the geocoder falls back to Nominatim's volunteer

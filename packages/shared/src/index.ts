@@ -19,6 +19,7 @@ export * from './schemas/site';
 export * from './schemas/portal';
 export * from './schemas/billing-client';
 export * from './schemas/stock';
+export * from './schemas/ask';
 export * from './gstin';
 export * from './indian-date';
 export * from './schemas/bill-scan';

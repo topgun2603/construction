@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { AskController } from './ask.controller';
+import { AskService } from './ask.service';
 import { BillReader } from './bill-reader.service';
 
 /**
@@ -9,7 +11,8 @@ import { BillReader } from './bill-reader.service';
  * that a person or a deterministic service then acts on.
  */
 @Module({
-  providers: [BillReader],
-  exports: [BillReader],
+  controllers: [AskController],
+  providers: [AskService, BillReader],
+  exports: [AskService, BillReader],
 })
 export class AiModule {}
