@@ -18,6 +18,13 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
+    <!--
+        Speaking the daily report instead of typing it. Asked for at the moment the microphone
+        button is pressed, never at launch: a permission prompt somebody cannot connect to
+        something they just did is a permission somebody refuses.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
     <application
         android:label="BUILDR"
         android:name="${applicationName}"

@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/ai_api.dart';
 import '../../core/api_client.dart';
 import '../../core/api_providers.dart';
 import '../../core/auth_controller.dart';
 import '../../core/format.dart';
 import '../../core/photo_upload.dart';
 import '../../core/theme.dart';
+import '../../shared/voice_note_button.dart';
 import '../../shared/widgets.dart';
 
 /// Daily progress reports: what was read, and what gets written.
@@ -229,6 +231,24 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
   /// person who changes their mind should not leave three orphaned files in storage behind them.
   final List<XFile> _photos = [];
 
+  /// What a spoken note left behind, if one was used. Kept so the transcript can sit above the
+  /// form — it is the only thing on this screen somebody can check against their own memory.
+  VoiceDraft? _spoken;
+
+  /// Fills the form from a spoken note. Fills, not files: every field stays editable and nothing
+  /// is submitted. A spoken "twelve masons" heard as "twenty" has to be a typo somebody catches,
+  /// not twenty masons in the wage bill.
+  void _applyDraft(VoiceDraft draft) {
+    setState(() {
+      _spoken = draft;
+      if (draft.workDone != null) _workDone.text = draft.workDone!;
+      if (draft.issues != null) _issues.text = draft.issues!;
+      if (draft.weather != null) _weather.text = draft.weather!;
+      if (draft.headcount > 0) _headcount.text = draft.headcount.toString();
+      _error = null;
+    });
+  }
+
   Future<void> _addPhoto(ImageSource source) async {
     try {
       if (source == ImageSource.camera) {
@@ -311,6 +331,14 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
                       ],
                       onChanged: (value) => setState(() => _projectId = value),
                     ),
+                    const SizedBox(height: 16),
+                    _SpeakRow(
+                      projectId: projectId,
+                      reportDate: date,
+                      onDraft: _applyDraft,
+                      enabled: !_saving,
+                    ),
+                    if (_spoken != null) _Transcript(draft: _spoken!),
                     const SizedBox(height: 16),
                     const _Label('What got done today'),
                     TextField(
@@ -622,3 +650,120 @@ class _Label extends StatelessWidget {
     ),
   );
 }
+
+/// The invitation to speak, above the fields it fills.
+///
+/// A whole row rather than a bare button: somebody who has typed this form forty times will not
+/// notice a new icon, and the one line of explanation is what makes them try it once.
+class _SpeakRow extends ConsumerWidget {
+  const _SpeakRow({
+    required this.projectId,
+    required this.reportDate,
+    required this.onDraft,
+    required this.enabled,
+  });
+
+  final String projectId;
+  final String reportDate;
+  final void Function(VoiceDraft) onDraft;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Palette.neutralBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Rather say it? Two lines in Tamil or English fills the form in.',
+            style: TextStyle(fontSize: 12.5, color: Palette.inkMuted),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: VoiceNoteButton(
+              api: ref.watch(apiClientProvider),
+              projectId: projectId,
+              reportDate: reportDate,
+              onDraft: onDraft,
+              enabled: enabled,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The words that were said, verbatim and in their own script.
+///
+/// Not translated, trimmed or tidied. If the draft says "ten carpenters" and this says "ten
+/// plumbers", the mistake is visible in one glance rather than being filed — and that is the only
+/// safety net between a misheard note and the wage bill.
+class _Transcript extends StatelessWidget {
+  const _Transcript({required this.draft});
+
+  final VoiceDraft draft;
+
+  @override
+  Widget build(BuildContext context) {
+    final heard = draft.language == null ? '' : ' · heard as ${_languageName(draft.language!)}';
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Palette.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Palette.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'What was said$heard',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+              color: Palette.inkMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(draft.transcript, style: const TextStyle(fontSize: 13.5, height: 1.5)),
+          if (draft.manpower.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              [for (final row in draft.manpower) '${row.count} ${row.trade}'].join(' · '),
+              style: const TextStyle(fontSize: 12, color: Palette.inkMuted),
+            ),
+          ],
+          for (final caveat in draft.caveats) ...[
+            const SizedBox(height: 6),
+            Text(caveat, style: const TextStyle(fontSize: 12, color: Palette.pending)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The transcriber's language code, in words. Anything unexpected is shown as it came.
+String _languageName(String code) => const {
+  'ta': 'Tamil',
+  'tamil': 'Tamil',
+  'hi': 'Hindi',
+  'hindi': 'Hindi',
+  'te': 'Telugu',
+  'telugu': 'Telugu',
+  'kn': 'Kannada',
+  'kannada': 'Kannada',
+  'ml': 'Malayalam',
+  'malayalam': 'Malayalam',
+  'en': 'English',
+  'english': 'English',
+}[code.toLowerCase()] ?? code;

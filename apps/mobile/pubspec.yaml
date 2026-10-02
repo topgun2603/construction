@@ -53,6 +53,13 @@ dependencies:
   drift_flutter: ^0.3.1
   connectivity_plus: ^7.3.1
   path_provider: ^2.1.6
+  # A supervisor speaking the day's report instead of typing it. Records to m4a, which is what the
+  # transcriber wants and what an Android phone produces natively.
+  record: ^6.1.1
+  # Signing in with the Google account the office already uses, as the web app does.
+  google_sign_in: ^7.2.0
+  # Real map tiles, satellite imagery and Street View, replacing the OpenStreetMap fallback.
+  google_maps_flutter: ^2.14.0
 
 dev_dependencies:
   flutter_test:

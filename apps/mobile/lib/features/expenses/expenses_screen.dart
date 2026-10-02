@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ai_api.dart';
 import '../../core/api_client.dart';
 import '../../core/api_providers.dart';
 import '../../core/auth_controller.dart';
 import '../../core/format.dart';
+import '../../core/photo_upload.dart';
 import '../../core/theme.dart';
 import '../../shared/widgets.dart';
 
@@ -304,7 +306,57 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
   bool _saving = false;
   String? _error;
 
+  /// The photographed bill, once it is in storage. Filed with the expense so the evidence stays
+  /// attached rather than being thrown away the moment it has been read.
+  String? _billS3Key;
+  bool _scanning = false;
+
+  /// Fields the scan could not fill, so the form can say so rather than look complete.
+  List<String> _unread = const [];
+
   bool get _editing => widget.existing != null;
+
+  /// Photographs a bill and fills the form from it. Saves nothing.
+  ///
+  /// The amount is converted from rupees to paise by the server, not here and not by the model —
+  /// money in this product is an integer number of paise and only tested code produces one.
+  Future<void> _scanBill(String projectId) async {
+    final shot = await PhotoUploader.capture();
+    if (shot == null) return;
+
+    setState(() {
+      _scanning = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(apiClientProvider);
+      final key = await PhotoUploader(api).uploadFile(
+        path: shot.path,
+        contentType: PhotoUploader.contentTypeOf(shot.path),
+        projectId: projectId,
+        kind: 'bill',
+      );
+      final draft = await AiApi(api).scanBill(key);
+      if (!mounted) return;
+
+      setState(() {
+        _billS3Key = key;
+        _unread = draft.unread;
+        if (draft.amountPaise != null) _amount.text = _rupees(draft.amountPaise);
+        if (draft.category != null) _category = draft.category!;
+        if (draft.spentOn != null) _spentOn = draft.spentOn!;
+        // The vendor and what was bought, which is what somebody writes in the note by hand.
+        final parts = [draft.vendor, draft.summary].whereType<String>();
+        if (parts.isNotEmpty && _note.text.trim().isEmpty) _note.text = parts.join(' — ');
+      });
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not read that bill. Enter it by hand.');
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
 
   /// Paise back to the rupees somebody typed, so an amendment starts from what is already there.
   static String _rupees(Object? paise) {
@@ -362,6 +414,17 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Only for a new expense. An amendment already has its figures, and a scan
+                    // that silently overwrote a corrected amount would undo somebody's correction.
+                    if (!_editing) ...[
+                      _ScanBillRow(
+                        scanning: _scanning,
+                        scanned: _billS3Key != null,
+                        unread: _unread,
+                        onScan: _saving ? null : () => _scanBill(projectId),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     const _Label('Amount'),
                     TextField(
                       controller: _amount,
@@ -491,6 +554,7 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
           spentOn: _spentOn,
           note: _note.text.trim(),
           siteName: siteName,
+          billS3Key: _billS3Key,
         );
       }
       if (!mounted) return;
@@ -523,4 +587,82 @@ class _Label extends StatelessWidget {
       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Palette.inkSoft),
     ),
   );
+}
+
+/// Photograph the bill, and let it fill the form.
+///
+/// The scan never saves anything: it returns a draft that somebody corrects and submits, which is
+/// the whole safety model. A model misreading ₹1,250 as ₹12.50 is then a typo a person catches
+/// rather than a wrong number in the ledger — so the fields it could not read are named, and the
+/// form says so rather than looking complete.
+class _ScanBillRow extends StatelessWidget {
+  const _ScanBillRow({
+    required this.scanning,
+    required this.scanned,
+    required this.unread,
+    required this.onScan,
+  });
+
+  final bool scanning;
+  final bool scanned;
+  final List<String> unread;
+  final VoidCallback? onScan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Palette.neutralBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            scanned
+                ? 'Read from the bill. Check the figures before you file it.'
+                : 'Photograph the bill and it fills the form in.',
+            style: const TextStyle(fontSize: 12.5, color: Palette.inkMuted),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: scanning
+                ? FilledButton.tonalIcon(
+                    onPressed: null,
+                    icon: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    label: Text('Reading it…'),
+                  )
+                : FilledButton.tonalIcon(
+                    onPressed: onScan,
+                    icon: Icon(
+                      scanned ? Icons.refresh_rounded : Icons.document_scanner_outlined,
+                      size: 18,
+                    ),
+                    label: Text(scanned ? 'Scan another' : 'Scan a bill'),
+                  ),
+          ),
+          if (unread.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Could not read: ${unread.map(_fieldName).join(', ')}. Fill those in yourself.',
+              style: const TextStyle(fontSize: 12, color: Palette.pending),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _fieldName(String field) => const {
+    'amount': 'the amount',
+    'vendor': 'the supplier',
+    'spent_on': 'the date',
+    'category': 'the category',
+  }[field] ?? field;
 }

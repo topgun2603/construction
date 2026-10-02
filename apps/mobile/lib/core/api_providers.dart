@@ -938,6 +938,9 @@ class Api {
     required String spentOn,
     String? note,
     String? siteName,
+    /// The photographed bill this was read from, so the scan leaves the evidence attached rather
+    /// than throwing it away once it has been read.
+    String? billS3Key,
   }) async {
     final payload = <String, dynamic>{
       'project_id': projectId,
@@ -945,6 +948,7 @@ class Api {
       'category': category,
       'spent_on': spentOn,
       if (note != null && note.isNotEmpty) 'note': note,
+      if (billS3Key != null) 'bill_s3_key': billS3Key,
     };
 
     final sent = await _sendOrQueue(
