@@ -73,3 +73,25 @@
     display: table-header-group;
   }
 }
+
+/*
+ * Google's Places autocomplete element.
+ *
+ * It is a web component that brings its own input, and its shadow root is **closed** — the
+ * `--gmp-mat-*` custom properties documented for it do not reach anything we can verify, and the
+ * widget renders with no border of its own. The first attempt looked like a lone magnifier
+ * floating in the dialog.
+ *
+ * So the frame is ours: the wrapper carries the same border, height and radius as every other
+ * input in the app, and the element simply fills it.
+ */
+gmp-place-autocomplete {
+  display: block;
+  width: 100%;
+  --gmp-mat-color-surface: transparent;
+  --gmp-mat-color-on-surface: #1b1a2e;
+  --gmp-mat-color-on-surface-variant: #6b6a8c;
+  --gmp-mat-color-primary: #6c4ce0;
+  --gmp-mat-font-family: inherit;
+  --gmp-mat-font-size-body-medium: 14px;
+}

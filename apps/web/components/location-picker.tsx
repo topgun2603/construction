@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
-import { Crosshair, Layers, Loader2, MapPin, Search } from 'lucide-react';
+import { Crosshair, Layers, Loader2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 /**
@@ -51,7 +50,8 @@ export function LocationPicker({
   className?: string;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
-  const searchBox = useRef<HTMLInputElement | null>(null);
+  /** Where Google mounts its own autocomplete element — it renders the input itself. */
+  const searchHost = useRef<HTMLDivElement | null>(null);
   const map = useRef<google.maps.Map | null>(null);
   const marker = useRef<google.maps.Marker | null>(null);
   const geocoder = useRef<google.maps.Geocoder | null>(null);
@@ -78,7 +78,7 @@ export function LocationPicker({
       // The functional API: `setOptions` before anything loads, then one import per library. The
       // `Loader` class this used at first is deprecated in v2 of the package.
       setOptions({ key: GOOGLE_KEY, v: 'weekly', region: 'IN', language: 'en' });
-      const [{ Map }, { Geocoder }, { Autocomplete }] = await Promise.all([
+      const [{ Map }, { Geocoder }, { PlaceAutocompleteElement }] = await Promise.all([
         importLibrary('maps'),
         importLibrary('geocoding'),
         importLibrary('places'),
@@ -134,33 +134,46 @@ export function LocationPicker({
       });
 
       /*
-       * Places autocomplete, restricted to India and biased to what is on screen.
+       * Places autocomplete, restricted to India.
        *
-       * `geocode` rather than `establishment`: a builder is looking for a locality or a survey
-       * number, not for a restaurant, and the business results crowd those out.
+       * `PlaceAutocompleteElement`, not the `Autocomplete` class this used first. That one is the
+       * legacy Places API, and Google does not enable it on projects created after March 2025 —
+       * ours answered every keystroke with "You're calling a legacy API, which is not enabled for
+       * your project" and showed no suggestions at all. The element is the supported replacement;
+       * it renders its own input, which is why it is mounted rather than bound to one.
        */
-      if (searchBox.current) {
-        const autocomplete = new Autocomplete(searchBox.current, {
-          componentRestrictions: { country: 'in' },
-          fields: ['geometry', 'formatted_address', 'name'],
-          types: ['geocode'],
+      if (searchHost.current) {
+        const autocomplete = new PlaceAutocompleteElement({
+          includedRegionCodes: ['in'],
+          // What the empty box says. Without it the element shows a bare magnifier and nothing
+          // tells anybody it is a search.
+          placeholder: 'Search a locality, road or landmark',
         });
-        autocomplete.bindTo('bounds', instance);
-        autocomplete.addListener('place_changed', () => {
-          const picked = autocomplete.getPlace();
-          const location = picked.geometry?.location;
-          if (!location) {
-            setNote('Pick one of the suggestions, or click the map.');
-            return;
-          }
-          setNote(null);
-          if (picked.geometry?.viewport) {
-            instance.fitBounds(picked.geometry.viewport);
-          } else {
-            instance.setCenter(location);
-            instance.setZoom(18);
-          }
-          void place(location.lat(), location.lng(), picked.formatted_address ?? null);
+        autocomplete.id = 'site-location-search';
+        searchHost.current.replaceChildren(autocomplete);
+
+        autocomplete.addEventListener('gmp-select', (event) => {
+          void (async () => {
+            // The element hands over a *prediction*, not a place: `toPlace()` turns it into one,
+            // and even then it carries an id and little else until the fields are asked for.
+            const selected = (
+              event as google.maps.places.PlacePredictionSelectEvent
+            ).placePrediction.toPlace();
+            await selected.fetchFields({ fields: ['location', 'formattedAddress', 'viewport'] });
+            const location = selected.location;
+            if (!location) {
+              setNote('That place has no coordinates. Click the map instead.');
+              return;
+            }
+            setNote(null);
+            if (selected.viewport) {
+              instance.fitBounds(selected.viewport);
+            } else {
+              instance.setCenter(location);
+              instance.setZoom(18);
+            }
+            void place(location.lat(), location.lng(), selected.formattedAddress ?? null);
+          })();
         });
       }
 
@@ -220,18 +233,16 @@ export function LocationPicker({
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
-          <Input
-            ref={searchBox}
-            placeholder="Search a locality, road or landmark"
-            className="pl-9"
-            // Enter would submit the dialog this usually sits in, before the suggestion is taken.
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.preventDefault();
-            }}
-          />
-        </div>
+        <div
+          ref={searchHost}
+          // Google's element brings its own input inside a closed shadow root, so it cannot be
+          // styled from here — this wrapper is the border somebody sees, and the element fills it.
+          className="flex h-12 min-w-[220px] flex-1 items-center overflow-hidden rounded-btn border border-line-strong bg-surface px-1 transition focus-within:border-accent"
+          // Enter would submit the dialog this usually sits in, before the suggestion is taken.
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.preventDefault();
+          }}
+        />
         <Button type="button" variant="secondary" size="sm" onClick={toggleSatellite}>
           <Layers className="size-4" /> {satellite ? 'Map' : 'Satellite'}
         </Button>
