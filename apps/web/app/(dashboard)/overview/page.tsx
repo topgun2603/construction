@@ -2,17 +2,18 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowRight, Building2, Users, Wallet } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
-import { moneyShort, timeOfDay } from '@/lib/format';
+import { moneyShort } from '@/lib/format';
 import type { DashboardOverview, DashboardToday } from '@/lib/api-types';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { FadeIn, Stagger, StaggerItem } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { SiteCard } from '@/components/site-card';
 import { DecisionPanel } from '@/components/decision-panel';
 import { HeadcountChart } from '@/components/headcount-chart';
 import { StartBanner } from './start-banner';
+import { AttentionStrip } from './attention-strip';
+import { SpendBar } from './spend-bar';
+import { TodayFeed } from './today-feed';
 
 export const metadata = { title: 'Overview · BUILDR' };
 
@@ -99,6 +100,12 @@ export default async function OverviewPage() {
       </FadeIn>
 
       {sorted.length > 0 && (
+        <FadeIn delay={0.03}>
+          <AttentionStrip sites={sites} totals={totals} />
+        </FadeIn>
+      )}
+
+      {sorted.length > 0 && (
         <div className="flex items-center justify-between gap-4">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
             Sites
@@ -129,71 +136,32 @@ export default async function OverviewPage() {
         in whatever cells were left over, and any site count that is not a multiple
         of three leaves a hole. A 1 + 2 split is the same every time.
       */}
+      {/*
+        Decisions beside the feed, trend beside the money.
+        
+        Each row answers one question: "what is waiting on me and what happened today", then "how
+        many people and how much money". Pairing them that way is what makes this readable top to
+        bottom rather than a wall of equally weighted cards.
+      */}
       <FadeIn delay={0.05}>
         <div className="grid gap-4 xl:grid-cols-3">
-          <DecisionPanel
-            approvals={today.approvals}
-            canApprove={canApprove}
-            className="h-full"
-          />
-          <HeadcountChart series={data.headcount_series} className="h-full xl:col-span-2" />
+          <DecisionPanel approvals={today.approvals} canApprove={canApprove} className="h-full" />
+          <TodayFeed reports={today.reports} className="h-full max-h-[460px] xl:col-span-2" />
         </div>
       </FadeIn>
 
-      {today.reports.length > 0 && (
-        <FadeIn delay={0.1}>
-          <Card className="flex flex-col">
-            <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
-              <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-                Today’s reports
-              </span>
-              <span className="font-mono text-[13px] text-ink-muted">{today.reports.length}</span>
-            </div>
-            <ul className="divide-y divide-line-soft">
-              {today.reports.map((report) => (
-                <li key={report.id} className="flex flex-wrap items-start gap-3 px-4 py-3">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/projects/${report.project_id}?tab=reports`}
-                        className="text-[14px] font-semibold hover:underline"
-                      >
-                        {report.project_name}
-                      </Link>
-                      <span className="text-[12.5px] text-ink-muted">
-                        {report.submitted_by} · {timeOfDay(report.submitted_at)}
-                      </span>
-                    </div>
-                    {report.work_done && (
-                      <p className="line-clamp-2 text-[13.5px] leading-relaxed text-ink-soft">
-                        {report.work_done}
-                      </p>
-                    )}
-                    {report.issues && (
-                      <p className="rounded-btn bg-blocked-bg px-2.5 py-1.5 text-[12.5px] leading-snug text-blocked-fg">
-                        {report.issues}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-none items-center gap-2">
-                    <span className="font-mono text-[13px] text-ink-muted">
-                      {report.headcount} on site
-                    </span>
-                    {report.photo_count > 0 && (
-                      <span className="font-mono text-[13px] text-ink-faint">
-                        {report.photo_count} photos
-                      </span>
-                    )}
-                    <Badge tone={report.status === 'submitted' ? 'done' : 'pending'}>
-                      {report.status === 'submitted' ? 'Submitted' : 'Draft'}
-                    </Badge>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </FadeIn>
-      )}
+      <FadeIn delay={0.1}>
+        <div className="grid gap-4 xl:grid-cols-3">
+          <HeadcountChart series={data.headcount_series} className="h-full xl:col-span-2" />
+          <SpendBar
+            spendMonth={totals.spend_month}
+            labourMonth={totals.labour_cost_month}
+            expensesMonth={totals.expenses_month}
+            budgetCommitted={totals.budget_committed}
+          />
+        </div>
+      </FadeIn>
+
     </div>
   );
 }
