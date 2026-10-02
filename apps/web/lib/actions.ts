@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { ScanBillResult } from '@sitebook/shared';
+import type { ScanBillResult, VoiceDprResult } from '@sitebook/shared';
 import { runAction, serverFetch, type ActionResult } from './server-api';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from './session';
 import type {
@@ -566,6 +566,8 @@ export async function fileDailyReport(input: {
   issues?: string;
   weather?: string;
   manpower?: Array<{ trade: string; count: number }>;
+  /** Measured work — "120 m³ of concrete". Spoken notes produce these; the typed form does not. */
+  activities?: Array<{ activity: string; quantity?: string; unit?: string }>;
   photos?: Array<{ s3_key: string; caption?: string }>;
 }): Promise<ActionResult<DailyReport>> {
   const created = await runAction(() =>
@@ -839,6 +841,23 @@ export async function documentHistory(familyId: string): Promise<ActionResult<Si
     const page = await serverFetch<{ items: SiteDocument[] }>(`/documents/${familyId}/history`);
     return page.items;
   });
+}
+
+/**
+ * Reads an uploaded voice note into a draft for the report form.
+ *
+ * Returns the transcript and the draft; files nothing. A supervisor speaks two lines, reads what
+ * came back, and presses the button they would have pressed anyway — the typing is what this
+ * removes, not the judgement.
+ */
+export async function transcribeVoiceNote(input: {
+  s3_key: string;
+  project_id: string;
+  report_date?: string;
+}): Promise<ActionResult<VoiceDprResult>> {
+  return runAction(() =>
+    serverFetch<VoiceDprResult>('/dpr/voice', { method: 'POST', body: input }),
+  );
 }
 
 export async function presignUpload(input: {

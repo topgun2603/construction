@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { PresignInput, ViewObjectInput } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
@@ -157,6 +162,26 @@ export class UploadsService {
     return { body, contentType: result.ContentType ?? 'application/octet-stream' };
   }
 
+  /**
+   * Forgets an object, for the uploads that exist only on their way to becoming something else.
+   *
+   * A voice note is the case: it is recorded, transcribed, and then it is a recording of somebody's
+   * voice sitting on a bucket with nothing left to do. Photographs and bills are evidence and are
+   * never deleted this way — the one caller that uses this owns the key it just read.
+   *
+   * Same tenant-prefix check as everything else here, because "delete this key" is the one
+   * operation where guessing a neighbour's key would actually cost them something.
+   */
+  async deleteObject(actor: RequestUser, s3Key: string): Promise<void> {
+    const prefix = `${actor.tenantId}/`;
+    if (!s3Key.startsWith(prefix) || s3Key.includes('..')) {
+      throw ApiError.forbidden('That file does not belong to this account');
+    }
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.config.S3_BUCKET, Key: s3Key }),
+    );
+  }
+
   private buildKey(actor: RequestUser, input: PresignInput): string {
     const now = new Date();
     const yyyymm = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -176,4 +201,12 @@ const EXTENSIONS: Record<string, string> = {
   'video/mp4': 'mp4',
   'video/quicktime': 'mov',
   'video/webm': 'webm',
+  // Spoken site notes. `audio/webm` is what a browser's MediaRecorder produces; `m4a` is what an
+  // Android phone records. Both are formats the transcriber accepts as they are.
+  'audio/webm': 'webm',
+  'audio/mp4': 'm4a',
+  'audio/m4a': 'm4a',
+  'audio/mpeg': 'mp3',
+  'audio/ogg': 'ogg',
+  'audio/wav': 'wav',
 };

@@ -2,10 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { FilePlus2, ImagePlus, Loader2, X } from 'lucide-react';
+import { FilePlus2, ImagePlus, Loader2, Quote, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { MAX_UPLOAD_BYTES } from '@sitebook/shared';
+import { MAX_UPLOAD_BYTES, type VoiceDprResult } from '@sitebook/shared';
 import { fileDailyReport, presignUpload } from '@/lib/actions';
+import { VoiceNoteButton } from '@/components/voice-note-button';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,6 +26,17 @@ interface Pending {
   preview: string;
 }
 
+/** What a spoken note left behind: the fields it filled, and the words it was read from. */
+interface Spoken {
+  transcript: string;
+  language: string | null;
+  caveats: string[];
+  manpower: { trade: string; count: number }[];
+  activities: { activity: string; quantity?: string; unit?: string }[];
+}
+
+const TODAY = () => new Date().toISOString().slice(0, 10);
+
 /**
  * File a daily progress report from the web.
  *
@@ -43,6 +55,22 @@ export function FileReportDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [photos, setPhotos] = useState<Pending[]>([]);
+  /*
+   * The form's fields live here rather than in the DOM so a spoken note can fill them.
+   *
+   * Still uncontrolled inputs underneath — `defaultValue` plus a remount key. A controlled
+   * textarea on a form this size means a re-render per keystroke for no benefit, and the only
+   * thing that ever writes these from outside is the voice draft.
+   */
+  const [fields, setFields] = useState({
+    report_date: TODAY(),
+    weather: '',
+    work_done: '',
+    issues: '',
+    headcount: '',
+  });
+  const [formKey, setFormKey] = useState(0);
+  const [spoken, setSpoken] = useState<Spoken | null>(null);
   const [uploading, setUploading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -74,6 +102,33 @@ export function FileReportDialog({
       URL.revokeObjectURL(current[index]!.preview);
       return current.filter((_, position) => position !== index);
     });
+  }
+
+  /**
+   * A spoken note arrived. Fill the form with it and show the words it came from.
+   *
+   * Filling, not filing. Every field stays editable and nothing is submitted — the draft is a head
+   * start on typing, and the transcript above it is how somebody checks the head start was right.
+   */
+  function applyDraft(result: VoiceDprResult) {
+    setError(null);
+    const total = result.draft.manpower.reduce((sum, row) => sum + row.count, 0);
+    setFields((current) => ({
+      report_date: result.draft.report_date || current.report_date,
+      // A note that mentioned no weather should not blank a weather somebody already typed.
+      weather: result.draft.weather ?? current.weather,
+      work_done: result.draft.work_done ?? current.work_done,
+      issues: result.draft.issues ?? current.issues,
+      headcount: total > 0 ? String(total) : current.headcount,
+    }));
+    setSpoken({
+      transcript: result.transcript,
+      language: result.language,
+      caveats: result.caveats,
+      manpower: result.draft.manpower,
+      activities: result.draft.activities,
+    });
+    setFormKey((key) => key + 1);
   }
 
   function onSubmit(formData: FormData) {
@@ -126,12 +181,8 @@ export function FileReportDialog({
         work_done: workDone,
         issues: String(formData.get('issues') ?? '').trim() || undefined,
         weather: String(formData.get('weather') ?? '').trim() || undefined,
-        // One line rather than a trade breakdown, matching the phone form: "24 people" is what
-        // somebody actually types, and a form that demands the split gets abandoned.
-        manpower:
-          Number.isFinite(headcount) && headcount > 0
-            ? [{ trade: 'On site', count: headcount }]
-            : [],
+        manpower: manpowerFor(headcount, spoken),
+        activities: spoken?.activities ?? [],
         photos: keys,
       });
 
@@ -141,6 +192,8 @@ export function FileReportDialog({
       }
       toast.success('Report filed');
       setPhotos([]);
+      setSpoken(null);
+      setFields({ report_date: TODAY(), weather: '', work_done: '', issues: '', headcount: '' });
       setOpen(false);
       router.refresh();
     });
@@ -161,7 +214,53 @@ export function FileReportDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={onSubmit} className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-line bg-raised px-3 py-2.5">
+          <p className="text-[12.5px] text-ink-muted">
+            Rather say it? Two lines in Tamil, Hindi or English fills the form in.
+          </p>
+          <VoiceNoteButton
+            projectId={projectId}
+            reportDate={fields.report_date}
+            onDraft={applyDraft}
+            onError={setError}
+            disabled={pending}
+          />
+        </div>
+
+        {spoken && (
+          <figure className="rounded-panel border border-line bg-surface p-3">
+            <figcaption className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+              <Quote className="size-3" />
+              What was said{spoken.language ? ` · heard as ${languageName(spoken.language)}` : ''}
+            </figcaption>
+            {/* Verbatim and in the speaker's own script. It is the only thing on this screen that
+                can be checked against a memory, so it is not translated, trimmed or tidied. */}
+            <blockquote className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">
+              {spoken.transcript}
+            </blockquote>
+            {spoken.manpower.length > 0 && (
+              <p className="mt-2 text-[12px] text-ink-muted">
+                {spoken.manpower.map((row) => `${row.count} ${row.trade}`).join(' · ')}
+              </p>
+            )}
+            {spoken.activities.length > 0 && (
+              <p className="mt-1 text-[12px] text-ink-muted">
+                {spoken.activities
+                  .map((row) =>
+                    row.quantity ? `${row.activity} — ${row.quantity} ${row.unit ?? ''}`.trim() : row.activity,
+                  )
+                  .join(' · ')}
+              </p>
+            )}
+            {spoken.caveats.map((caveat) => (
+              <p key={caveat} className="mt-1.5 text-[12px] text-attention-fg">
+                {caveat}
+              </p>
+            ))}
+          </figure>
+        )}
+
+        <form key={formKey} action={onSubmit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Date" htmlFor="report_date">
               <Input
@@ -169,12 +268,18 @@ export function FileReportDialog({
                 name="report_date"
                 type="date"
                 required
-                defaultValue={new Date().toISOString().slice(0, 10)}
-                max={new Date().toISOString().slice(0, 10)}
+                defaultValue={fields.report_date}
+                max={TODAY()}
               />
             </Field>
             <Field label="Weather" htmlFor="weather" hint="Optional">
-              <Input id="weather" name="weather" placeholder="Clear" maxLength={120} />
+              <Input
+                id="weather"
+                name="weather"
+                placeholder="Clear"
+                maxLength={120}
+                defaultValue={fields.weather}
+              />
             </Field>
           </div>
 
@@ -185,6 +290,7 @@ export function FileReportDialog({
               rows={4}
               required
               maxLength={4000}
+              defaultValue={fields.work_done}
               placeholder="Second floor slab shuttering completed, curing started on the columns…"
             />
           </Field>
@@ -195,6 +301,7 @@ export function FileReportDialog({
               name="issues"
               rows={3}
               maxLength={4000}
+              defaultValue={fields.issues}
               placeholder="Sand delivery did not arrive; masonry on hold from tomorrow"
             />
           </Field>
@@ -272,4 +379,43 @@ export function FileReportDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * The headcount to file: the spoken breakdown, or the single number somebody typed.
+ *
+ * One rule, so it is predictable. If the total in the field still matches what the note added up
+ * to, the trade split is what gets filed — "8 masons, 4 helpers" is worth more to whoever reads the
+ * report than "12 on site". The moment somebody changes that number they are overriding the note,
+ * and a split that no longer adds up to the stated total would be worse than no split at all.
+ */
+function manpowerFor(
+  headcount: number,
+  spoken: Spoken | null,
+): { trade: string; count: number }[] {
+  if (!Number.isFinite(headcount) || headcount <= 0) return [];
+  const spokenTotal = spoken?.manpower.reduce((sum, row) => sum + row.count, 0) ?? 0;
+  if (spoken && spokenTotal === headcount) return spoken.manpower;
+  // One line rather than a trade breakdown, matching the phone form: "24 people" is what somebody
+  // actually types, and a form that demands the split gets abandoned.
+  return [{ trade: 'On site', count: headcount }];
+}
+
+/** The transcriber's language code, in words. Anything unexpected is shown as it came. */
+function languageName(code: string): string {
+  const names: Record<string, string> = {
+    ta: 'Tamil',
+    tamil: 'Tamil',
+    hi: 'Hindi',
+    hindi: 'Hindi',
+    te: 'Telugu',
+    telugu: 'Telugu',
+    kn: 'Kannada',
+    kannada: 'Kannada',
+    ml: 'Malayalam',
+    malayalam: 'Malayalam',
+    en: 'English',
+    english: 'English',
+  };
+  return names[code.toLowerCase()] ?? code;
 }

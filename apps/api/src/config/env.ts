@@ -167,6 +167,15 @@ const envSchema = z
      * a vision model is asked to do.
      */
     OPENAI_ASK_MODEL: z.string().default('gpt-4o-mini'),
+    /*
+     * Listening to a spoken site note.
+     *
+     * `whisper-1` rather than a newer transcriber because it is the one that reports which language
+     * it heard. The interface says "heard as Tamil" above the draft, and a supervisor whose note
+     * was transcribed as Malayalam can see why the report reads like nonsense — which is worth more
+     * than a point of word accuracy.
+     */
+    OPENAI_TRANSCRIBE_MODEL: z.string().default('whisper-1'),
 
     /**
      * Map tiles and geocoding. Without it the geocoder falls back to Nominatim's volunteer

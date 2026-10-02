@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AskController } from './ask.controller';
 import { AskService } from './ask.service';
 import { BillReader } from './bill-reader.service';
+import { VoiceReader } from './voice-reader.service';
 
 /**
  * Everything that asks a model a question.
@@ -12,7 +13,7 @@ import { BillReader } from './bill-reader.service';
  */
 @Module({
   controllers: [AskController],
-  providers: [AskService, BillReader],
-  exports: [AskService, BillReader],
+  providers: [AskService, BillReader, VoiceReader],
+  exports: [AskService, BillReader, VoiceReader],
 })
 export class AiModule {}

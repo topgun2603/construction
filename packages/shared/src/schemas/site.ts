@@ -124,6 +124,8 @@ export type ListIndentsQuery = z.infer<typeof listIndentsQuerySchema>;
 
 const UPLOAD_KINDS = [
   'dpr_photo',
+  /** A spoken site note, on its way to becoming a daily report. Deleted once it is transcribed. */
+  'dpr_voice',
   'worker_photo',
   'worker_id_proof',
   'bill',
@@ -141,13 +143,18 @@ const UPLOAD_KINDS = [
  * cap generous enough for it would also let somebody push a 200 MB "photo" — so the two are bounded
  * separately rather than by whichever is more permissive.
  */
-export const MAX_UPLOAD_BYTES = { image: 25 * 1024 * 1024, video: 200 * 1024 * 1024 } as const;
+export const MAX_UPLOAD_BYTES = {
+  image: 25 * 1024 * 1024,
+  video: 200 * 1024 * 1024,
+  /** Two minutes of compressed speech is comfortably inside this; a site note is not a podcast. */
+  audio: 15 * 1024 * 1024,
+} as const;
 
 export const presignSchema = z.object({
   kind: z.enum(UPLOAD_KINDS),
   content_type: z
     .string()
-    .regex(/^(image|application|video)\/[\w.+-]+$/, 'unsupported content type'),
+    .regex(/^(image|application|video|audio)\/[\w.+-]+$/, 'unsupported content type'),
   /** Bytes. Bounded so a presigned URL cannot be used to upload something huge. */
   content_length: z.number().int().positive().max(MAX_UPLOAD_BYTES.video),
   project_id: uuidSchema.optional(),
@@ -157,7 +164,9 @@ export const presignSchema = z.object({
     (value) =>
       value.content_type.startsWith('video/')
         ? value.content_length <= MAX_UPLOAD_BYTES.video
-        : value.content_length <= MAX_UPLOAD_BYTES.image,
+        : value.content_type.startsWith('audio/')
+          ? value.content_length <= MAX_UPLOAD_BYTES.audio
+          : value.content_length <= MAX_UPLOAD_BYTES.image,
     {
       message: 'file is larger than this type allows',
       path: ['content_length'],

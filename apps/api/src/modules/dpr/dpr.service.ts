@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import {
   isoDateToUtcDate,
+  MAX_UPLOAD_BYTES,
+  todayInIst,
   utcDateToIsoDate,
   type CreateDprInput,
   type ListDprQuery,
   type Page,
+  type TranscribeDprInput,
   type UpdateDprInput,
+  type VoiceDprResult,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
@@ -13,6 +17,8 @@ import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { JobQueueService } from '../../jobs/job-queue.service';
+import { VoiceReader } from '../ai/voice-reader.service';
+import { UploadsService } from '../uploads/uploads.service';
 
 const SELECT = {
   id: true,
@@ -37,6 +43,8 @@ export class DprService {
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
     private readonly jobs: JobQueueService,
+    private readonly voice: VoiceReader,
+    private readonly uploads: UploadsService,
   ) {}
 
   async list(actor: RequestUser, query: ListDprQuery): Promise<Page<ReturnType<typeof toView>>> {
@@ -322,6 +330,86 @@ export class DprService {
         }
       }
     }
+  }
+
+  /**
+   * A spoken note, read into a report draft. Saves nothing.
+   *
+   * The whole point of this feature is that a supervisor who would not type a report will say one
+   * out loud, so the path from speaking to filed has to be short. It is still three steps and not
+   * two: the draft comes back, somebody looks at it, somebody submits it. A spoken "twelve masons"
+   * heard as "twenty" has to be a typo a person catches rather than twenty masons in the wage bill.
+   *
+   * The audio is deleted once it has been read. It served its purpose in the moment it became
+   * text, and keeping a recording of somebody's voice on a bucket for no further use is a cost
+   * with no benefit — and the transcript, which is what anybody would want, is in the response.
+   */
+  async transcribeNote(
+    actor: RequestUser,
+    input: TranscribeDprInput,
+  ): Promise<VoiceDprResult> {
+    await this.access.assertAccess(actor, input.project_id);
+
+    const audio = await this.uploads.readObject(actor, input.s3_key, MAX_UPLOAD_BYTES.audio);
+    if (!audio.contentType.startsWith('audio/')) {
+      throw ApiError.validationFailed(
+        { s3_key: 'not a recording' },
+        'That file is not a recording, so there is nothing to listen to.',
+      );
+    }
+
+    const { text, language } = await this.voice.transcribe(audio.body, audio.contentType);
+
+    // The trades this site's own people are registered under, so "kottanar" lands on the tenant's
+    // own word for mason instead of creating a second one that means the same thing.
+    const knownTrades = await this.tradesOn(actor, input.project_id);
+    const speech = await this.voice.readSpeech(text, knownTrades);
+
+    /*
+     * A trade nobody on this site has is reported, not dropped.
+     *
+     * Two things look identical here and mean the opposite: a plumber was on site today for the
+     * first time, or the note was misheard. Only the supervisor can tell which, and they can only
+     * tell if we say so.
+     */
+    const known = new Set(knownTrades.map((trade) => trade.toLowerCase()));
+    const caveats = speech.manpower
+      .filter((row) => !known.has(row.trade.toLowerCase()))
+      .map((row) => `No worker on this site is registered as "${row.trade}".`);
+
+    // Best effort: a note that was read successfully should not fail because the bucket was slow
+    // to forget it, and the janitor will take an orphan later.
+    void this.uploads.deleteObject(actor, input.s3_key).catch(() => undefined);
+
+    return {
+      transcript: text,
+      language,
+      draft: {
+        report_date: input.report_date ?? todayInIst(),
+        weather: speech.weather,
+        work_done: speech.work_done,
+        issues: speech.issues,
+        manpower: speech.manpower,
+        activities: speech.activities,
+      },
+      caveats,
+    };
+  }
+
+  /** Distinct trades among the workers currently posted to one site. */
+  private async tradesOn(actor: RequestUser, projectId: string): Promise<string[]> {
+    const rows = await this.tenantDb.clientFor(actor.tenantId).worker.findMany({
+      where: {
+        deletedAt: null,
+        trade: { not: null },
+        workerProjects: { some: { projectId } },
+      },
+      select: { trade: true },
+      distinct: ['trade'],
+      orderBy: { trade: 'asc' },
+      take: 40,
+    });
+    return rows.map((row) => row.trade).filter((trade): trade is string => Boolean(trade));
   }
 }
 

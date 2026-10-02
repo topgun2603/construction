@@ -12,12 +12,15 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   createDprSchema,
   listDprQuerySchema,
+  transcribeDprSchema,
   updateDprSchema,
   type CreateDprInput,
   type ListDprQuery,
+  type TranscribeDprInput,
   type UpdateDprInput,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
@@ -43,6 +46,28 @@ export class DprController {
   @ApiOperation({ summary: 'File a daily progress report' })
   create(@CurrentUser() user: RequestUser, @Body(zodBody(createDprSchema)) body: CreateDprInput) {
     return this.dpr.create(user, body);
+  }
+
+  /**
+   * Reads an uploaded voice note into a report draft. Saves nothing.
+   *
+   * `dpr.file` rather than `dpr.view`: this is the first half of filing one, and it spends money at
+   * a vendor per call. It sits above `:id` so "voice" is never read as a report id.
+   *
+   * Rate limited harder than the rest of this controller for the same reason the bill scan is.
+   * Forty an hour is more notes than a supervisor records in a week of long days, and far fewer
+   * than a loop would send.
+   */
+  @Throttle({ default: { limit: 40, ttl: 3_600_000 } })
+  @RequiresPermission('dpr.file')
+  @Post('voice')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Read a spoken site note into a report draft' })
+  voice(
+    @CurrentUser() user: RequestUser,
+    @Body(zodBody(transcribeDprSchema)) body: TranscribeDprInput,
+  ) {
+    return this.dpr.transcribeNote(user, body);
   }
 
   @RequiresPermission('dpr.view')
