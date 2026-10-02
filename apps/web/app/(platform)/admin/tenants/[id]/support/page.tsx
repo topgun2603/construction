@@ -6,6 +6,7 @@ import { Badge, type Tone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
+import { getT } from '@/lib/i18n-server';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Support · BUILDR platform' };
@@ -58,6 +59,7 @@ const STATUS_TONE: Record<string, Tone> = {
  * an intrusion even when it is the helpful thing to do.
  */
 export default async function SupportPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = await getT();
   const { id } = await params;
   const view = await platformFetch<SupportView>(`/tenants/${id}/support`);
   const { tenant, users, projects, activity } = view;
@@ -73,51 +75,51 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
           {tenant.name}
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[22px] font-semibold tracking-tight">Support view</h1>
-          <Badge tone={STATUS_TONE[tenant.status] ?? 'neutral'}>{titleCase(tenant.status)}</Badge>
-          <Badge tone="neutral">{titleCase(tenant.plan)}</Badge>
+          <h1 className="text-[22px] font-semibold tracking-tight">{t('Support view')}</h1>
+          <Badge tone={STATUS_TONE[tenant.status] ?? 'neutral'}>{t(titleCase(tenant.status))}</Badge>
+          <Badge tone="neutral">{t(titleCase(tenant.plan))}</Badge>
         </div>
         <p className="text-[13px] text-ink-muted">
-          Read-only. Opening this page is recorded in the audit trail.
+          {t('Read-only. Opening this page is recorded in the audit trail.')}
         </p>
       </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Reports, 14 days"
+          label={t('Reports, 14 days')}
           value={String(activity.reports)}
           note={activity.reports === 0 ? 'Nothing filed — worth asking why' : 'Filed on site'}
         />
         <StatTile
-          label="Attendance rows, 14 days"
+          label={t('Attendance rows, 14 days')}
           value={String(activity.attendance_rows)}
           note={activity.attendance_rows === 0 ? 'No roll call at all' : 'Marked on site'}
         />
         <StatTile
-          label="Indents waiting"
+          label={t('Indents waiting')}
           value={String(activity.indents_waiting)}
-          note="Undecided"
+          note={t('Undecided')}
         />
         <StatTile
-          label="Expenses waiting"
+          label={t('Expenses waiting')}
           value={String(activity.expenses_waiting)}
-          note="Unapproved"
+          note={t('Unapproved')}
         />
       </div>
 
       <Card className="flex flex-col">
         <div className="border-b border-line-soft px-4 py-3">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Modules on this plan
+            {t('Modules on this plan')}
           </span>
         </div>
         <div className="flex flex-wrap gap-2 p-4">
           {tenant.enabled_modules.length === 0 ? (
-            <span className="text-[13px] text-ink-muted">None enabled</span>
+            <span className="text-[13px] text-ink-muted">{t('None enabled')}</span>
           ) : (
             tenant.enabled_modules.map((module) => (
               <Badge key={module} tone="neutral">
-                {titleCase(module)}
+                {t(titleCase(module))}
               </Badge>
             ))
           )}
@@ -127,7 +129,7 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
       <Card className="flex flex-col">
         <div className="border-b border-line-soft px-4 py-3">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Who can sign in
+            {t('Who can sign in')}
           </span>
         </div>
         <ul className="divide-y divide-line-soft">
@@ -135,17 +137,17 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
             <li key={user.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
               <span className="text-[14px] font-medium">{user.name}</span>
               <span className="font-mono text-[12.5px] text-ink-muted">+{user.phone}</span>
-              <Badge tone="neutral">{titleCase(user.role)}</Badge>
-              {user.custom_role_id && <Badge tone="neutral">Custom role</Badge>}
+              <Badge tone="neutral">{t(titleCase(user.role))}</Badge>
+              {user.custom_role_id && <Badge tone="neutral">{t('Custom role')}</Badge>}
               {user.status !== 'active' && (
                 <Badge tone={STATUS_TONE[user.status] ?? 'neutral'}>
-                  {titleCase(user.status)}
+                  {t(titleCase(user.status))}
                 </Badge>
               )}
               <span className="ml-auto text-[12.5px] text-ink-faint">
                 {user.last_login
                   ? `Last in ${longDate(user.last_login.slice(0, 10))}`
-                  : 'Never signed in'}
+                  : t('Never signed in')}
               </span>
             </li>
           ))}
@@ -155,18 +157,18 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
       <Card className="flex flex-col">
         <div className="border-b border-line-soft px-4 py-3">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Sites
+            {t('Sites')}
           </span>
         </div>
         {projects.length === 0 ? (
-          <p className="px-4 py-4 text-[13px] text-ink-muted">No sites on this account.</p>
+          <p className="px-4 py-4 text-[13px] text-ink-muted">{t('No sites on this account.')}</p>
         ) : (
           <ul className="divide-y divide-line-soft">
             {projects.map((project) => (
               <li key={project.id} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="text-[14px]">{project.name}</span>
                 <Badge tone="neutral" className="ml-auto">
-                  {titleCase(project.status)}
+                  {t(titleCase(project.status))}
                 </Badge>
               </li>
             ))}

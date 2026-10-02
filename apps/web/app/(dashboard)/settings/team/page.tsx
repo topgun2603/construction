@@ -12,10 +12,12 @@ import { removeTeamMember } from '@/lib/actions';
 import { requireSelf } from '@/lib/session';
 import { titleCase, timeOfDay } from '@/lib/format';
 import { InviteDialog } from './invite-dialog';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Team · BUILDR' };
 
 export default async function TeamPage() {
+  const t = await getT();
   const [team, projects, roles, me] = await Promise.all([
     serverFetch<TeamMember[]>('/tenants/current/team'),
     serverFetch<Page<ProjectSummary>>('/projects?limit=200'),
@@ -32,8 +34,7 @@ export default async function TeamPage() {
     <FadeIn className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <p className="max-w-xl text-[13.5px] leading-relaxed text-ink-muted">
-          Invited people are created as pending and activate themselves the first time they sign
-          in with their number — no password to send, nothing to reset.
+          {t('Invited people are created as pending and activate themselves the first time they sign in with their number — no password to send, nothing to reset.')}
         </p>
         <InviteDialog
           projects={projects.items}
@@ -54,7 +55,7 @@ export default async function TeamPage() {
             </div>
             <div className="flex flex-none items-center gap-3">
               <span className="hidden text-[13px] text-ink-muted sm:inline">
-                {member.last_login ? `Last seen ${timeOfDay(member.last_login)}` : 'Never signed in'}
+                {member.last_login ? `Last seen ${timeOfDay(member.last_login)}` : t('Never signed in')}
               </span>
               {/*
                 Offered to anyone who has not signed in yet — an invite nobody was told about is the
@@ -87,15 +88,15 @@ export default async function TeamPage() {
                   roles={roles}
                 />
               ) : (
-                <span className="text-[13px] text-ink-soft">{titleCase(member.role)}</span>
+                <span className="text-[13px] text-ink-soft">{t(titleCase(member.role))}</span>
               )}
               <Badge tone={member.status === 'active' ? 'done' : 'pending'}>
-                {titleCase(member.status)}
+                {t(titleCase(member.status))}
               </Badge>
               {canRemove && member.id !== me.user.id && !(member.role === 'owner' && ownerCount <= 1) && (
                 <DeleteRowButton
                   what={member.name}
-                  title="Remove this person?"
+                  title={t('Remove this person?')}
                   body={
                     <>
                       <strong className="font-semibold text-ink">{member.name}</strong> loses access
@@ -103,7 +104,7 @@ export default async function TeamPage() {
                       attendance they filed are kept.
                     </>
                   }
-                  confirmLabel="Remove access"
+                  confirmLabel={t('Remove access')}
                   successMessage={`${member.name} removed`}
                   onConfirm={removeTeamMember.bind(null, member.id)}
                 />

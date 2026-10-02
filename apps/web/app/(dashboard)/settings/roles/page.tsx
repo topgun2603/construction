@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { RoleDialog } from './role-dialog';
 import { RoleActions } from './role-actions';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Roles · BUILDR' };
 
@@ -19,6 +20,7 @@ export const metadata = { title: 'Roles · BUILDR' };
  * back. Creating a role based on one is the supported way to get something narrower.
  */
 export default async function RolesPage() {
+  const t = await getT();
   const [roles, me] = await Promise.all([
     serverFetch<Role[]>('/roles'),
     requireSelf(),
@@ -41,13 +43,13 @@ export default async function RolesPage() {
 
       <section className="flex flex-col gap-2.5">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Your roles
+          {t('Your roles')}
         </span>
         {custom.length === 0 ? (
           <EmptyState
             icon={<ShieldCheck />}
-            title="No custom roles yet"
-            body="Start from a built-in role and tick only what the job needs. People keep whatever role they are on until you move them."
+            title={t('No custom roles yet')}
+            body={t('Start from a built-in role and tick only what the job needs. People keep whatever role they are on until you move them.')}
             action={canManage ? <RoleDialog systemRoles={system} /> : undefined}
           />
         ) : (
@@ -61,7 +63,7 @@ export default async function RolesPage() {
 
       <section className="flex flex-col gap-2.5">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Built in
+          {t('Built in')}
         </span>
         <div className="grid gap-3 md:grid-cols-2">
           {system.map((role) => (
@@ -73,7 +75,7 @@ export default async function RolesPage() {
   );
 }
 
-function RoleCard({
+async function RoleCard({
   role,
   canManage,
   systemRoles,
@@ -82,6 +84,7 @@ function RoleCard({
   canManage: boolean;
   systemRoles: Role[];
 }) {
+  const t = await getT();
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -89,7 +92,7 @@ function RoleCard({
           <span className="flex items-center gap-2 text-[15px] font-semibold leading-snug">
             {role.name}
             {role.is_system && (
-              <span title="Built in — cannot be edited">
+              <span title={t('Built in — cannot be edited')}>
                 <Lock className="size-3.5 text-ink-faint" />
               </span>
             )}
@@ -102,11 +105,11 @@ function RoleCard({
             <span className="font-mono">{role.permissions.length} permissions</span>
             {role.sees_all_projects ? (
               <Badge tone="accent" dot={false}>
-                All sites
+                {t('All sites')}
               </Badge>
             ) : (
               <Badge tone="neutral" dot={false}>
-                Assigned sites
+                {t('Assigned sites')}
               </Badge>
             )}
           </span>

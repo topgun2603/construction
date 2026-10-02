@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The date range for one worker's account.
@@ -20,6 +21,7 @@ export function LedgerRange({
   from: string | null;
   to: string | null;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
 
   function navigate(next: { from?: string | null; to?: string | null }) {
@@ -39,7 +41,7 @@ export function LedgerRange({
         value={from ?? ''}
         onChange={(event) => navigate({ from: event.target.value || null })}
         className="w-[160px]"
-        aria-label="From date"
+        aria-label={t('From date')}
       />
       <span className="pb-2.5 text-ink-muted">→</span>
       <Input
@@ -47,11 +49,11 @@ export function LedgerRange({
         value={to ?? ''}
         onChange={(event) => navigate({ to: event.target.value || null })}
         className="w-[160px]"
-        aria-label="To date"
+        aria-label={t('To date')}
       />
       {(from || to) && (
         <Button variant="ghost" size="sm" onClick={() => navigate({ from: null, to: null })}>
-          Full history
+          {t('Full history')}
         </Button>
       )}
     </div>

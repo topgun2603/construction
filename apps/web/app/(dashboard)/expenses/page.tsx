@@ -6,6 +6,7 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { RecordExpenseDialog } from './record-expense-dialog';
 import { ExpensesTable } from './expenses-table';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Expenses · BUILDR' };
 
@@ -16,6 +17,7 @@ export const metadata = { title: 'Expenses · BUILDR' };
  * only part of the screen anybody is blocked on.
  */
 export default async function ExpensesPage() {
+  const t = await getT();
   const to = todayIso();
   const from = addDaysIso(to, -29);
 
@@ -35,27 +37,27 @@ export default async function ExpensesPage() {
     <FadeIn className="flex flex-col gap-5">
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Spent, last 30 days"
+          label={t('Spent, last 30 days')}
           value={money(summary.total)}
           note={`${summary.groups.length} categories`}
         />
         <StatTile
-          label="Awaiting approval"
+          label={t('Awaiting approval')}
           value={String(pending.length)}
           animate
           note={pending.length > 0 ? money(pendingTotal.toString()) : 'Nothing waiting'}
           noteTone={pending.length > 0 ? 'pending' : 'done'}
         />
         <StatTile
-          label="Biggest category"
+          label={t('Biggest category')}
           value={topCategory ? money(topCategory.amount) : '—'}
           note={topCategory ? categoryLabel(topCategory.label) : 'No spend recorded'}
         />
         <StatTile
-          label="Bills recorded"
+          label={t('Bills recorded')}
           value={String(expenses.items.length)}
           animate
-          note="All time"
+          note={t('All time')}
         />
       </div>
 

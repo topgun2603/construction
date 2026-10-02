@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { whatsappHref } from '@sitebook/shared';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Opens WhatsApp with a message already written, addressed to one person.
@@ -41,6 +42,7 @@ export function WhatsappButton({
   iconOnly?: boolean;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
 
   function compose(): string {
@@ -77,8 +79,8 @@ export function WhatsappButton({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Copy the message instead"
-          title="Copy the message instead"
+          aria-label={t('Copy the message instead')}
+          title={t('Copy the message instead')}
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(compose());

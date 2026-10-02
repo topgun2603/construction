@@ -2,6 +2,7 @@ import { ShieldCheck } from 'lucide-react';
 import { platformFetch } from '@/lib/platform-session';
 import { FadeIn } from '@/components/motion';
 import { OperatorControls } from './operator-controls';
+import { getT } from '@/lib/i18n-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,7 @@ interface Operator {
  * does.
  */
 export default async function OperatorsPage() {
+  const t = await getT();
   const [{ items }, me] = await Promise.all([
     platformFetch<{ items: Operator[] }>('/operators'),
     platformFetch<{ phone: string; root: boolean }>('/me'),
@@ -40,15 +42,15 @@ export default async function OperatorsPage() {
     // of its own, so a page without this one sits flush against the window edge.
     <FadeIn className="mx-auto flex max-w-[1400px] flex-col gap-5 px-6 pb-12 pt-5">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[22px] font-semibold leading-tight">Operators</h1>
+        <h1 className="text-[22px] font-semibold leading-tight">{t('Operators')}</h1>
         <p className="text-[13.5px] text-ink-muted">
-          Everyone who can sign in to this console.
+          {t('Everyone who can sign in to this console.')}
         </p>
       </div>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          From the deployment config
+          {t('From the deployment config')}
         </h2>
         <div className="overflow-hidden rounded-panel border border-line bg-surface">
           {root.map((operator) => (
@@ -59,7 +61,7 @@ export default async function OperatorsPage() {
               <ShieldCheck className="size-4 text-accent" aria-hidden />
               <span className="font-mono text-[14px]">+{operator.phone}</span>
               <span className="ml-auto text-[12.5px] text-ink-faint">
-                Changed by redeploying, not here
+                {t('Changed by redeploying, not here')}
               </span>
             </div>
           ))}

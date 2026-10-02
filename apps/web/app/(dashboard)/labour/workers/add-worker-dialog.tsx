@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { rupeesToPaiseString } from '@/lib/money-input';
 import { todayIso } from '@/lib/format';
 import type { Contractor, ProjectSummary } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 const DIRECT = 'direct';
 
@@ -30,6 +31,7 @@ export function AddWorkerDialog({
   contractors: Contractor[];
   projects: ProjectSummary[];
 }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [contractorId, setContractorId] = useState<string>(DIRECT);
   const [projectId, setProjectId] = useState<string>('');
@@ -65,62 +67,61 @@ export function AddWorkerDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <UserPlus /> Add worker
+          <UserPlus /> {t('Add worker')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a worker</DialogTitle>
+          <DialogTitle>{t('Add a worker')}</DialogTitle>
           <DialogDescription>
-            The wage set here is frozen onto each day’s attendance, so changing it later
-            never alters what has already been earned.
+            {t('The wage set here is frozen onto each day’s attendance, so changing it later never alters what has already been earned.')}
           </DialogDescription>
         </DialogHeader>
 
         <form action={onSubmit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Name" htmlFor="name">
+            <Field label={t('Name')} htmlFor="name">
               <Input id="name" name="name" required placeholder="Raju M" />
             </Field>
-            <Field label="Phone" htmlFor="phone">
-              <Input id="phone" name="phone" inputMode="numeric" placeholder="Optional" />
+            <Field label={t('Phone')} htmlFor="phone">
+              <Input id="phone" name="phone" inputMode="numeric" placeholder={t('Optional')} />
             </Field>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Trade" htmlFor="trade">
-              <Input id="trade" name="trade" placeholder="Mason" />
+            <Field label={t('Trade')} htmlFor="trade">
+              <Input id="trade" name="trade" placeholder={t('Mason')} />
             </Field>
-            <Field label="Skill level">
+            <Field label={t('Skill level')}>
               <Select value={skill} onValueChange={setSkill}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unskilled">Unskilled</SelectItem>
-                  <SelectItem value="semi">Semi-skilled</SelectItem>
-                  <SelectItem value="skilled">Skilled</SelectItem>
+                  <SelectItem value="unskilled">{t('Unskilled')}</SelectItem>
+                  <SelectItem value="semi">{t('Semi-skilled')}</SelectItem>
+                  <SelectItem value="skilled">{t('Skilled')}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Daily wage (₹)" htmlFor="daily_wage">
+            <Field label={t('Daily wage (₹)')} htmlFor="daily_wage">
               <Input id="daily_wage" name="daily_wage" required inputMode="decimal" placeholder="850" />
             </Field>
-            <Field label="Overtime per hour (₹)" htmlFor="ot_rate">
+            <Field label={t('Overtime per hour (₹)')} htmlFor="ot_rate">
               <Input id="ot_rate" name="ot_rate" inputMode="decimal" defaultValue="0" />
             </Field>
           </div>
 
-          <Field label="Contractor">
+          <Field label={t('Contractor')}>
             <Select value={contractorId} onValueChange={setContractorId}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={DIRECT}>Direct labour</SelectItem>
+                <SelectItem value={DIRECT}>{t('Direct labour')}</SelectItem>
                 {contractors.map((contractor) => (
                   <SelectItem key={contractor.id} value={contractor.id}>
                     {contractor.name}
@@ -130,10 +131,10 @@ export function AddWorkerDialog({
             </Select>
           </Field>
 
-          <Field label="Assign to site" hint="Optional — they appear in that site’s roll call from today">
+          <Field label={t('Assign to site')} hint={t('Optional — they appear in that site’s roll call from today')}>
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger>
-                <SelectValue placeholder="No site yet" />
+                <SelectValue placeholder={t('No site yet')} />
               </SelectTrigger>
               <SelectContent>
                 {projects.map((project) => (
@@ -153,10 +154,10 @@ export function AddWorkerDialog({
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? 'Adding…' : 'Add worker'}
+              {pending ? 'Adding…' : t('Add worker')}
             </Button>
           </DialogFooter>
         </form>

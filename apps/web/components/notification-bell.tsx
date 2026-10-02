@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { markAllNotificationsRead } from '@/lib/actions';
 import { relativeTime } from '@/lib/format';
+import { useLanguage } from '@/components/language-provider';
 
 export interface NotificationRow {
   id: string;
@@ -31,6 +32,7 @@ export interface NotificationRow {
  * page it sits on.
  */
 export function NotificationBell({ items }: { items: NotificationRow[] }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -48,7 +50,7 @@ export function NotificationBell({ items }: { items: NotificationRow[] }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+          aria-label={unread > 0 ? `Notifications, ${unread} unread` : t('Notifications')}
           className="relative flex size-9 min-h-0 flex-none items-center justify-center rounded-full text-ink-soft transition hover:bg-neutral-bg"
         >
           <Bell className="size-[18px]" />
@@ -60,7 +62,7 @@ export function NotificationBell({ items }: { items: NotificationRow[] }) {
 
       <DropdownMenuContent align="end" className="w-[330px] p-0">
         <div className="flex items-center justify-between gap-2 border-b border-line-soft px-3 py-2.5">
-          <span className="text-[13px] font-semibold">Notifications</span>
+          <span className="text-[13px] font-semibold">{t('Notifications')}</span>
           {unread > 0 && (
             <button
               type="button"
@@ -68,14 +70,14 @@ export function NotificationBell({ items }: { items: NotificationRow[] }) {
               disabled={pending}
               className="flex min-h-0 items-center gap-1.5 text-[12.5px] font-medium text-accent transition hover:underline disabled:opacity-60"
             >
-              <CheckCheck className="size-3.5" /> Mark all read
+              <CheckCheck className="size-3.5" /> {t('Mark all read')}
             </button>
           )}
         </div>
 
         {items.length === 0 ? (
           <p className="px-3 py-6 text-center text-[13px] text-ink-muted">
-            Nothing yet. Approvals and reports will show up here.
+            {t('Nothing yet. Approvals and reports will show up here.')}
           </p>
         ) : (
           <ul className="max-h-[340px] overflow-y-auto">

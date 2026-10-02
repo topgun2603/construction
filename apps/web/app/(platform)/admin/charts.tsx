@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Chart primitives for the platform console.
@@ -50,8 +51,9 @@ export function GrowthChart({
   data: Array<{ week: string; count: number; cumulative: number }>;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const gradientId = useId();
-  if (data.length === 0) return <ChartEmpty className={className} label="No signups yet" />;
+  if (data.length === 0) return <ChartEmpty className={className} label={t('No signups yet')} />;
 
   const maxCount = Math.max(...data.map((d) => d.count), 1);
   const maxCumulative = Math.max(...data.map((d) => d.cumulative), 1);
@@ -140,6 +142,7 @@ export function FunnelChart({
   steps: Array<{ key: string; label: string; count: number; percent: number; dropped: number }>;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const worst = steps.reduce(
     (best, step) => (step.dropped > best.dropped ? step : best),
     { dropped: 0, key: '' } as { dropped: number; key: string },
@@ -153,7 +156,7 @@ export function FunnelChart({
           <div key={step.key} className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-3 text-[13px]">
               <span className="flex items-center gap-2">
-                <span className="font-medium">{step.label}</span>
+                <span className="font-medium">{t(step.label)}</span>
                 {biggestDrop && (
                   <span className="rounded-full bg-blocked-bg px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-blocked-fg">
                     biggest drop
@@ -199,7 +202,8 @@ export function EngagementChart({
   data: Array<{ week: string; active: number; existing: number; percent: number }>;
   className?: string;
 }) {
-  if (data.length === 0) return <ChartEmpty className={className} label="No activity yet" />;
+  const { t } = useLanguage();
+  if (data.length === 0) return <ChartEmpty className={className} label={t('No activity yet')} />;
 
   return (
     <div className={cn('flex flex-col gap-3', className)}>
@@ -250,7 +254,8 @@ export function VolumeChart({
   data: Array<{ day: string; attendance: number; reports: number; expenses: number }>;
   className?: string;
 }) {
-  if (data.length === 0) return <ChartEmpty className={className} label="Nothing recorded yet" />;
+  const { t } = useLanguage();
+  if (data.length === 0) return <ChartEmpty className={className} label={t('Nothing recorded yet')} />;
 
   const totals = data.map((d) => d.attendance + d.reports + d.expenses);
   const max = Math.max(...totals, 1);
@@ -345,11 +350,12 @@ export function PlanMixBar({
   mix: { three_months: number; six_months: number; one_year: number; lifetime: number };
   className?: string;
 }) {
+  const { t } = useLanguage();
   const segments = [
     { key: 'three_months', label: '3 months', count: mix.three_months, tone: 'bg-ink/20' },
     { key: 'six_months', label: '6 months', count: mix.six_months, tone: 'bg-ink/40' },
     { key: 'one_year', label: '1 year', count: mix.one_year, tone: 'bg-accent/70' },
-    { key: 'lifetime', label: 'Lifetime', count: mix.lifetime, tone: 'bg-accent' },
+    { key: 'lifetime', label: t('Lifetime'), count: mix.lifetime, tone: 'bg-accent' },
   ];
   const total = segments.reduce((sum, segment) => sum + segment.count, 0);
 
@@ -363,7 +369,7 @@ export function PlanMixBar({
                 key={segment.key}
                 className={cn('transition-all', segment.tone)}
                 style={{ width: `${(segment.count / total) * 100}%` }}
-                title={`${segment.count} on ${segment.label}`}
+                title={`${segment.count} on ${t(segment.label)}`}
               />
             ))}
       </div>
@@ -372,7 +378,7 @@ export function PlanMixBar({
           <span key={segment.key} className="flex items-center gap-1.5">
             <span className={cn('h-2 w-3 rounded-[2px]', segment.tone)} />
             <span className="font-semibold">{segment.count}</span>
-            <span className="text-ink-muted">{segment.label}</span>
+            <span className="text-ink-muted">{t(segment.label)}</span>
           </span>
         ))}
       </div>

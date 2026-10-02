@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The site timeline: the milestones of a project, in order, with everything needed
@@ -50,6 +51,7 @@ export function ProjectTimeline({
   milestones: Milestone[];
   canEdit: boolean;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export function ProjectTimeline({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
         <div className="flex items-baseline gap-2.5">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Timeline
+            {t('Timeline')}
           </span>
           {milestones.length > 0 && (
             <span className="font-mono text-[13px] text-ink-muted">
@@ -108,7 +110,7 @@ export function ProjectTimeline({
         {canEdit && !adding && (
           <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
             <Plus className="size-4" />
-            Add stage
+            {t('Add stage')}
           </Button>
         )}
       </div>
@@ -117,13 +119,13 @@ export function ProjectTimeline({
         <div className="p-4">
           <EmptyState
             icon={<Flag />}
-            title="No stages on the timeline yet"
-            body="Break the site into the stages you actually track — excavation, footing, slab, brickwork — and tick them off as they finish."
+            title={t('No stages on the timeline yet')}
+            body={t('Break the site into the stages you actually track — excavation, footing, slab, brickwork — and tick them off as they finish.')}
             action={
               canEdit ? (
                 <Button size="sm" onClick={() => setAdding(true)}>
                   <Plus className="size-4" />
-                  Add the first stage
+                  {t('Add the first stage')}
                 </Button>
               ) : undefined
             }
@@ -189,6 +191,7 @@ function MilestoneRow({
   onToggleDone: (complete: boolean) => void;
   onMove: (direction: -1 | 1) => void;
 }) {
+  const { t } = useLanguage();
   const complete = Boolean(milestone.actual_date);
   // Overdue only matters for a stage that is still open: a stage finished late is
   // history, and painting it red forever hides the stages still at risk.
@@ -252,23 +255,23 @@ function MilestoneRow({
                 {milestone.planned_date ? (
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarDays className="size-3.5" />
-                    Planned {shortDate(milestone.planned_date)}
+                    {t('Planned')} {shortDate(milestone.planned_date)}
                   </span>
                 ) : (
-                  <span className="text-ink-faint">No planned date</span>
+                  <span className="text-ink-faint">{t('No planned date')}</span>
                 )}
-                {complete && <span>Done {shortDate(milestone.actual_date)}</span>}
+                {complete && <span>{t('Done')} {shortDate(milestone.actual_date)}</span>}
               </span>
             </div>
 
             <div className="flex flex-none items-center gap-1.5">
               {complete ? (
-                <Badge tone={lateBy ? 'pending' : 'done'}>{lateBy ? 'Done late' : 'Done'}</Badge>
+                <Badge tone={lateBy ? 'pending' : 'done'}>{lateBy ? 'Done late' : t('Done')}</Badge>
               ) : overdue ? (
-                <Badge tone="blocked">Overdue</Badge>
+                <Badge tone="blocked">{t('Overdue')}</Badge>
               ) : (
                 <Badge tone="neutral" dot={false}>
-                  Open
+                  {t('Open')}
                 </Badge>
               )}
 
@@ -294,8 +297,8 @@ function MilestoneRow({
                     variant="ghost"
                     className="size-8"
                     onClick={onEdit}
-                    title="Edit stage"
-                    aria-label="Edit stage"
+                    title={t('Edit stage')}
+                    aria-label={t('Edit stage')}
                   >
                     <Pencil className="size-4" />
                   </Button>
@@ -305,8 +308,8 @@ function MilestoneRow({
                     className="size-8"
                     disabled={busy || index === 0}
                     onClick={() => onMove(-1)}
-                    title="Move up"
-                    aria-label="Move up"
+                    title={t('Move up')}
+                    aria-label={t('Move up')}
                   >
                     <ChevronUp className="size-4" />
                   </Button>
@@ -316,20 +319,20 @@ function MilestoneRow({
                     className="size-8"
                     disabled={busy || last}
                     onClick={() => onMove(1)}
-                    title="Move down"
-                    aria-label="Move down"
+                    title={t('Move down')}
+                    aria-label={t('Move down')}
                   >
                     <ChevronDown className="size-4" />
                   </Button>
                   <ConfirmDialog
-                    title="Remove this stage?"
+                    title={t('Remove this stage?')}
                     body={
                       <>
                         <strong className="font-semibold text-ink">{milestone.name}</strong> comes
                         off the timeline. Daily reports and attendance are not affected.
                       </>
                     }
-                    confirmLabel="Remove stage"
+                    confirmLabel={t('Remove stage')}
                     successMessage="Stage removed"
                     onConfirm={() => deleteMilestone({ projectId, milestoneId: milestone.id })}
                     trigger={
@@ -337,8 +340,8 @@ function MilestoneRow({
                         size="icon"
                         variant="ghost"
                         className="size-8 text-ink-muted hover:text-blocked-fg"
-                        title="Remove stage"
-                        aria-label="Remove stage"
+                        title={t('Remove stage')}
+                        aria-label={t('Remove stage')}
                       >
                         <Trash2 className="size-4" />
                       </Button>
@@ -363,6 +366,7 @@ function AddStageForm({
   nextIndex: number;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -398,18 +402,18 @@ function AddStageForm({
     >
       <div className="flex flex-wrap items-end gap-3">
         <Field label={`Stage ${nextIndex + 1}`} className="min-w-[200px] flex-1">
-          <Input name="name" placeholder="Slab casting — 2nd floor" autoFocus maxLength={160} />
+          <Input name="name" placeholder={t('Slab casting — 2nd floor')} autoFocus maxLength={160} />
         </Field>
-        <Field label="Planned date" className="w-[170px]">
+        <Field label={t('Planned date')} className="w-[170px]">
           <Input name="planned_date" type="date" />
         </Field>
         <div className="flex items-center gap-2 pb-0.5">
           <Button type="submit" size="sm" disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" />}
-            Add
+            {t('Add')}
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={onClose} disabled={pending}>
-            Cancel
+            {t('Cancel')}
           </Button>
         </div>
       </div>
@@ -431,6 +435,7 @@ function EditStageForm({
   milestone: Milestone;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -464,16 +469,16 @@ function EditStageForm({
   return (
     <form action={submit} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Stage" className="min-w-[200px] flex-1">
+        <Field label={t('Stage')} className="min-w-[200px] flex-1">
           <Input name="name" defaultValue={milestone.name} autoFocus maxLength={160} />
         </Field>
-        <Field label="Planned date" className="w-[170px]">
+        <Field label={t('Planned date')} className="w-[170px]">
           <Input name="planned_date" type="date" defaultValue={milestone.planned_date ?? ''} />
         </Field>
         <div className="flex items-center gap-1.5 pb-0.5">
           <Button type="submit" size="sm" disabled={pending}>
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            Save
+            {t('Save')}
           </Button>
           <Button
             type="button"
@@ -482,7 +487,7 @@ function EditStageForm({
             className="size-9"
             onClick={onClose}
             disabled={pending}
-            aria-label="Cancel"
+            aria-label={t('Cancel')}
           >
             <X className="size-4" />
           </Button>

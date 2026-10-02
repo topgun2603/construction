@@ -6,6 +6,7 @@ import { DataTable } from '@/components/data-table';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { money, titleCase } from '@/lib/format';
+import { useLanguage } from '@/components/language-provider';
 
 type Row = PersonLedger['people'][number];
 
@@ -24,6 +25,7 @@ export function PeopleTable({
   ledger: PersonLedger;
   currentUserId: string;
 }) {
+  const { t } = useLanguage();
   const columns: ColumnDef<Row>[] = [
     {
       accessorKey: 'name',
@@ -39,7 +41,7 @@ export function PeopleTable({
               )}
             </span>
             <span className="font-mono text-[11.5px] text-ink-muted">
-              {titleCase(row.original.role)}
+              {t(titleCase(row.original.role))}
             </span>
           </div>
         </div>

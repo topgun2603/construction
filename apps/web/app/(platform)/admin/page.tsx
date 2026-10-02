@@ -20,6 +20,7 @@ import { StatTile } from '@/components/stat-tile';
 import { moneyShort, titleCase } from '@/lib/format';
 import { EngagementChart, FunnelChart, GrowthChart, PlanMixBar, VolumeChart } from './charts';
 import { RangePicker } from './range-picker';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Overview · BUILDR platform' };
 
@@ -39,6 +40,7 @@ export default async function PlatformOverviewPage({
 }: {
   searchParams: Promise<{ weeks?: string }>;
 }) {
+  const t = await getT();
   const params = await searchParams;
   const weeks = params.weeks ?? '12';
 
@@ -61,9 +63,9 @@ export default async function PlatformOverviewPage({
     <FadeIn className="mx-auto flex max-w-[1400px] flex-col gap-5 px-6 pb-12 pt-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-[22px] font-semibold leading-tight">Platform overview</h1>
+          <h1 className="text-[22px] font-semibold leading-tight">{t('Platform overview')}</h1>
           <p className="text-[13.5px] text-ink-muted">
-            Growth, activation and engagement across every tenant.
+            {t('Growth, activation and engagement across every tenant.')}
           </p>
         </div>
         <RangePicker weeks={analytics.weeks} />
@@ -88,7 +90,7 @@ export default async function PlatformOverviewPage({
           icon={<IndianRupee className="size-4" />}
         />
         <StatTile
-          label="Tenants"
+          label={t('Tenants')}
           value={String(metrics.tenants.total)}
           animate
           note={`${metrics.tenants.new_this_month} joined this month`}
@@ -96,7 +98,7 @@ export default async function PlatformOverviewPage({
           icon={<Building2 className="size-4" />}
         />
         <StatTile
-          label="Working this week"
+          label={t('Working this week')}
           value={latestWeek ? `${latestWeek.active} / ${latestWeek.existing}` : '—'}
           animate
           note={
@@ -110,7 +112,7 @@ export default async function PlatformOverviewPage({
           icon={<TrendingUp className="size-4" />}
         />
         <StatTile
-          label="Gone quiet"
+          label={t('Gone quiet')}
           value={String(analytics.dormant.length)}
           animate
           note={
@@ -122,7 +124,7 @@ export default async function PlatformOverviewPage({
           icon={<AlertTriangle className="size-4" />}
         />
         <StatTile
-          label="People"
+          label={t('People')}
           value={String(metrics.usage.users)}
           animate
           note={`${metrics.usage.workers} workers · ${metrics.usage.active_projects} live sites`}
@@ -134,7 +136,7 @@ export default async function PlatformOverviewPage({
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Signups per week
+              {t('Signups per week')}
             </span>
             <span className="font-mono text-[13px] text-ink-muted">
               {metrics.tenants.total} total
@@ -146,7 +148,7 @@ export default async function PlatformOverviewPage({
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Activation funnel
+              {t('Activation funnel')}
             </span>
             <span className="font-mono text-[13px] text-ink-muted">all time</span>
           </div>
@@ -167,7 +169,7 @@ export default async function PlatformOverviewPage({
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Tenants doing work
+              {t('Tenants doing work')}
             </span>
             {latestWeek && (
               <span className="font-mono text-[13px] text-ink-muted">{latestWeek.percent}% now</span>
@@ -179,7 +181,7 @@ export default async function PlatformOverviewPage({
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              What the platform processed · 30 days
+              {t('What the platform processed · 30 days')}
             </span>
             <span className="font-mono text-[13px] text-ink-muted">
               {analytics.volume.reduce((sum, d) => sum + d.attendance, 0).toLocaleString('en-IN')}{' '}
@@ -193,7 +195,7 @@ export default async function PlatformOverviewPage({
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="flex flex-col gap-3 p-4">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Plan mix
+            {t('Plan mix')}
           </span>
           <PlanMixBar
             mix={{
@@ -204,9 +206,9 @@ export default async function PlatformOverviewPage({
             }}
           />
           <div className="mt-auto flex flex-col gap-1.5 border-t border-line-soft pt-3 text-[12.5px]">
-            <Row label="Active" value={metrics.tenants.active} />
-            <Row label="Suspended" value={metrics.tenants.suspended} tone="blocked" />
-            <Row label="Cancelled" value={metrics.tenants.cancelled} />
+            <Row label={t('Active')} value={metrics.tenants.active} />
+            <Row label={t('Suspended')} value={metrics.tenants.suspended} tone="blocked" />
+            <Row label={t('Cancelled')} value={metrics.tenants.cancelled} />
           </div>
         </Card>
 
@@ -214,12 +216,12 @@ export default async function PlatformOverviewPage({
           <div className="flex items-center justify-between border-b border-line-soft px-4 py-3">
             <span className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
               <Flame className="size-3.5" />
-              Busiest accounts · 30 days
+              {t('Busiest accounts · 30 days')}
             </span>
           </div>
           {analytics.leaders.length === 0 ? (
             <p className="px-4 py-5 text-[13.5px] text-ink-muted">
-              Nobody has recorded work in the last month.
+              {t('Nobody has recorded work in the last month.')}
             </p>
           ) : (
             <ul className="divide-y divide-line-soft">
@@ -239,7 +241,7 @@ export default async function PlatformOverviewPage({
                       {leader.name}
                     </Link>
                     <Badge tone={leader.plan === 'lifetime' ? 'accent' : 'neutral'} dot={false}>
-                      {titleCase(leader.plan)}
+                      {t(titleCase(leader.plan))}
                     </Badge>
                   </div>
                   <span className="flex flex-none items-baseline gap-3 font-mono text-[12.5px]">
@@ -263,19 +265,19 @@ export default async function PlatformOverviewPage({
       <Card className="flex flex-col">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Needs a call · quiet for two weeks or more
+            {t('Needs a call · quiet for two weeks or more')}
           </span>
           <Link
             href="/admin/tenants?status=active"
             className="flex items-center gap-1.5 text-[13px] text-accent hover:underline"
           >
-            All tenants <ArrowRight className="size-3.5" />
+            {t('All tenants')} <ArrowRight className="size-3.5" />
           </Link>
         </div>
 
         {analytics.dormant.length === 0 ? (
           <p className="px-4 py-5 text-[13.5px] text-ink-muted">
-            Nothing to chase — every active tenant has recorded work in the last fortnight.
+            {t('Nothing to chase — every active tenant has recorded work in the last fortnight.')}
           </p>
         ) : (
           <ul className="divide-y divide-line-soft">
@@ -289,11 +291,11 @@ export default async function PlatformOverviewPage({
                     {row.name}
                   </Link>
                   <Badge tone={row.plan === 'lifetime' ? 'accent' : 'neutral'} dot={false}>
-                    {titleCase(row.plan)}
+                    {t(titleCase(row.plan))}
                   </Badge>
                 </div>
                 {row.quiet_days === null ? (
-                  <Badge tone="blocked">Never recorded anything</Badge>
+                  <Badge tone="blocked">{t('Never recorded anything')}</Badge>
                 ) : (
                   <span className="font-mono text-[12.5px] text-pending-fg">
                     quiet {row.quiet_days} days

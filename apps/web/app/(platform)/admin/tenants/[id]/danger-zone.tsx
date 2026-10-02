@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The three things an operator does that are not a plan change: look at what a customer is seeing,
@@ -25,6 +26,7 @@ export function DangerZone({
   tenantId: string;
   tenantName: string;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [confirmName, setConfirmName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -52,23 +54,22 @@ export function DangerZone({
       <Card className="flex flex-wrap items-center gap-3 p-4">
         <LifeBuoy className="size-4 text-ink-muted" aria-hidden />
         <div className="flex min-w-0 flex-col">
-          <span className="text-[14px] font-medium">Support view</span>
+          <span className="text-[14px] font-medium">{t('Support view')}</span>
           <span className="text-[12.5px] text-ink-muted">
-            Who can sign in, what the plan allows, and what has been filed lately
+            {t('Who can sign in, what the plan allows, and what has been filed lately')}
           </span>
         </div>
         <Button asChild size="sm" variant="secondary" className="ml-auto">
-          <a href={`/admin/tenants/${tenantId}/support`}>Open</a>
+          <a href={`/admin/tenants/${tenantId}/support`}>{t('Open')}</a>
         </Button>
       </Card>
 
       <Card className="flex flex-wrap items-center gap-3 p-4">
         <Download className="size-4 text-ink-muted" aria-hidden />
         <div className="flex min-w-0 flex-col">
-          <span className="text-[14px] font-medium">Export everything</span>
+          <span className="text-[14px] font-medium">{t('Export everything')}</span>
           <span className="text-[12.5px] text-ink-muted">
-            A JSON file of every row this account owns. Photographs are referenced by key, not
-            embedded.
+            {t('A JSON file of every row this account owns. Photographs are referenced by key, not embedded.')}
           </span>
         </div>
         {/*
@@ -77,7 +78,7 @@ export function DangerZone({
         */}
         <Button asChild size="sm" variant="secondary" className="ml-auto">
           <a href={`/admin/tenants/${tenantId}/export`} download>
-            Download
+            {t('Download')}
           </a>
         </Button>
       </Card>
@@ -85,10 +86,10 @@ export function DangerZone({
       <Card className="flex flex-col gap-3 border-blocked-fg/30 p-4">
         <div className="flex items-center gap-2">
           <Trash2 className="size-4 text-blocked-fg" aria-hidden />
-          <span className="text-[14px] font-medium text-blocked-fg">Delete this account</span>
+          <span className="text-[14px] font-medium text-blocked-fg">{t('Delete this account')}</span>
         </div>
         <p className="text-[13px] text-ink-muted">
-          Removes {tenantName} and everything under it — sites, workers, attendance, wages,
+          {t('Removes')} {tenantName} and everything under it — sites, workers, attendance, wages,
           photographs. This cannot be undone. If you only need to stop them using the product,
           suspend the account instead: that is reversible and keeps their data.
         </p>

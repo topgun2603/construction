@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { titleCase } from '@/lib/format';
 import { GoogleLink } from './google-link';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Your account · BUILDR' };
 
@@ -15,14 +16,15 @@ export const metadata = { title: 'Your account · BUILDR' };
  * wants to sign in with Google must be able to reach the switch.
  */
 export default async function AccountPage() {
+  const t = await getT();
   const me = await requireSelf();
 
   return (
     <FadeIn className="flex max-w-[760px] flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[22px] font-semibold leading-tight">Your account</h1>
+        <h1 className="text-[22px] font-semibold leading-tight">{t('Your account')}</h1>
         <p className="text-[13.5px] text-ink-muted">
-          How you sign in, and what this login can see.
+          {t('How you sign in, and what this login can see.')}
         </p>
       </div>
 
@@ -42,12 +44,12 @@ export default async function AccountPage() {
               <Phone className="size-4 text-ink-soft" />
             </span>
             <div className="flex min-w-0 flex-col">
-              <span className="text-[12.5px] text-ink-muted">Mobile number</span>
+              <span className="text-[12.5px] text-ink-muted">{t('Mobile number')}</span>
               <span className="font-mono text-[14.5px] font-medium">+{me.user.phone}</span>
             </div>
             <span className="ml-auto flex items-center gap-1.5 text-[12.5px] text-ink-faint">
               <ShieldCheck className="size-3.5" />
-              Always works
+              {t('Always works')}
             </span>
           </div>
 
@@ -56,7 +58,7 @@ export default async function AccountPage() {
               <KeyRound className="size-4 text-ink-soft" />
             </span>
             <div className="flex min-w-0 flex-col">
-              <span className="text-[12.5px] text-ink-muted">Google account</span>
+              <span className="text-[12.5px] text-ink-muted">{t('Google account')}</span>
               <span className="text-[13.5px] text-ink-soft">
                 {me.user.email
                   ? 'Sign in with one tap, no code to wait for.'

@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * "Are you sure" for destructive actions, shared by every delete in the app.
@@ -53,6 +54,7 @@ export function ConfirmDialog({
   onConfirm: () => Promise<ActionResult>;
   successMessage?: string;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +109,7 @@ export function ConfirmDialog({
 
         <DialogFooter>
           <Button variant="secondary" onClick={() => setOpen(false)} disabled={pending}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button variant="destructive" onClick={confirm} disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" />}

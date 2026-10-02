@@ -9,6 +9,7 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { DangerZone } from './danger-zone';
 import { TenantControls } from './tenant-controls';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Tenant · BUILDR platform' };
 
@@ -26,6 +27,7 @@ const STATUS_TONE: Record<string, Tone> = {
  * much work is inside it.
  */
 export default async function PlatformTenantPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = await getT();
   const { id } = await params;
   const [detail, catalogue] = await Promise.all([
     platformFetch<PlatformTenantDetail>(`/tenants/${id}`),
@@ -41,23 +43,23 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
           className="flex w-fit items-center gap-1.5 text-[13px] text-ink-muted hover:text-ink"
         >
           <ArrowLeft className="size-3.5" />
-          All tenants
+          {t('All tenants')}
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[22px] font-semibold leading-tight">{tenant.name}</h1>
-          <Badge tone={STATUS_TONE[tenant.status] ?? 'neutral'}>{titleCase(tenant.status)}</Badge>
+          <Badge tone={STATUS_TONE[tenant.status] ?? 'neutral'}>{t(titleCase(tenant.status))}</Badge>
           <Badge tone={tenant.plan_expires_on === null ? 'accent' : 'neutral'} dot={false}>
             {catalogue.items.find((plan) => plan.code === tenant.plan)?.name ??
               titleCase(tenant.plan)}
           </Badge>
           {tenant.plan_standing !== 'active' && (
             <Badge tone={tenant.plan_standing === 'expired' ? 'blocked' : 'pending'}>
-              {tenant.plan_standing === 'expired' ? 'Term run out — read-only' : 'In grace'}
+              {tenant.plan_standing === 'expired' ? 'Term run out — read-only' : t('In grace')}
             </Badge>
           )}
         </div>
         <span className="text-[13px] text-ink-muted">
-          Joined {longDate(tenant.created_at.slice(0, 10))} ·{' '}
+          {t('Joined')} {longDate(tenant.created_at.slice(0, 10))} ·{' '}
           {/*
             * The term, spelled out where the account is worked on. Without it an operator had to
             * open the builder's own plan page to answer "when does this run out", which is the
@@ -67,21 +69,21 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
             ? `Term ${tenant.plan_standing === 'active' ? 'runs until' : 'ended'} ${longDate(
                 tenant.plan_expires_on.slice(0, 10),
               )}`
-            : 'Never expires'}{' '}
+            : t('Never expires')}{' '}
           · <span className="font-mono text-[12.5px]">{tenant.id}</span>
         </span>
       </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Sites" value={String(projects.length)} note="Not archived" />
-        <StatTile label="Workers" value={String(usage.workers)} note="On the roster" />
+        <StatTile label={t('Sites')} value={String(projects.length)} note={t('Not archived')} />
+        <StatTile label={t('Workers')} value={String(usage.workers)} note={t('On the roster')} />
         <StatTile
-          label="Attendance rows"
+          label={t('Attendance rows')}
           value={usage.attendance_rows.toLocaleString('en-IN')}
-          note="Since they joined"
+          note={t('Since they joined')}
         />
         <StatTile
-          label="Reports"
+          label={t('Reports')}
           value={usage.reports.toLocaleString('en-IN')}
           note={`${usage.expenses} expenses recorded`}
         />
@@ -100,7 +102,7 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
         <Card className="flex flex-col">
           <div className="flex items-center justify-between border-b border-line-soft px-4 py-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Team
+              {t('Team')}
             </span>
             <span className="font-mono text-[13px] text-ink-muted">{team.length}</span>
           </div>
@@ -112,9 +114,9 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
                   <span className="font-mono text-[12px] text-ink-muted">+{member.phone}</span>
                 </div>
                 <div className="flex flex-none items-center gap-2.5">
-                  <span className="text-[12.5px] text-ink-soft">{titleCase(member.role)}</span>
+                  <span className="text-[12.5px] text-ink-soft">{t(titleCase(member.role))}</span>
                   <Badge tone={member.status === 'active' ? 'done' : 'pending'} dot={false}>
-                    {titleCase(member.status)}
+                    {t(titleCase(member.status))}
                   </Badge>
                 </div>
               </li>
@@ -125,13 +127,13 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
         <Card className="flex flex-col">
           <div className="flex items-center justify-between border-b border-line-soft px-4 py-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Sites
+              {t('Sites')}
             </span>
             <span className="font-mono text-[13px] text-ink-muted">{projects.length}</span>
           </div>
           {projects.length === 0 ? (
             <p className="px-4 py-5 text-[13.5px] text-ink-muted">
-              No sites yet — this account signed up but never started work.
+              {t('No sites yet — this account signed up but never started work.')}
             </p>
           ) : (
             <ul className="divide-y divide-line-soft">
@@ -152,7 +154,7 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
                       </span>
                     )}
                     <Badge tone={project.status === 'active' ? 'done' : 'neutral'} dot={false}>
-                      {titleCase(project.status)}
+                      {t(titleCase(project.status))}
                     </Badge>
                   </div>
                 </li>
@@ -164,11 +166,11 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
 
       <Card className="flex flex-col">
         <div className="border-b border-line-soft px-4 py-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          What the console has done to this account
+          {t('What the console has done to this account')}
         </div>
         {audit.length === 0 ? (
           <p className="px-4 py-5 text-[13.5px] text-ink-muted">
-            Nothing. No operator has changed this tenant.
+            {t('Nothing. No operator has changed this tenant.')}
           </p>
         ) : (
           <ul className="divide-y divide-line-soft">

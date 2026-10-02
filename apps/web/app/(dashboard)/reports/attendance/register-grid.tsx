@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { money } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The register grid: workers down the side, calendar days across the top.
@@ -28,6 +29,7 @@ const CELL: Record<string, { label: string; className: string; title: string }> 
 };
 
 export function RegisterGrid({ register }: { register: AttendanceRegister }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
 
   const workers = useMemo(() => {
@@ -86,9 +88,9 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search workers, trades, contractors"
+          placeholder={t('Search workers, trades, contractors')}
           className="w-[280px]"
-          aria-label="Search the register"
+          aria-label={t('Search the register')}
         />
         <div className="flex items-center gap-3">
           <Legend />
@@ -105,7 +107,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
           <thead>
             <tr>
               <th className="sticky left-0 z-20 min-w-[200px] border-b border-line-soft bg-surface px-4 py-2.5 text-left font-semibold">
-                Worker
+                {t('Worker')}
               </th>
               {register.dates.map((date) => {
                 const day = new Date(`${date}T00:00:00.000Z`);
@@ -127,13 +129,13 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                 );
               })}
               <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-right font-semibold">
-                Days
+                {t('Days')}
               </th>
               <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-right font-semibold">
                 OT
               </th>
               <th className="border-b border-line-soft bg-surface px-4 py-2.5 text-right font-semibold">
-                Earned
+                {t('Earned')}
               </th>
             </tr>
           </thead>
@@ -173,7 +175,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                             style.className,
                           )}
                         >
-                          {style.label}
+                          {t(style.label)}
                           {/* A dot rather than the number: at 24px the hours would not
                               fit, and the figure is in the tooltip and the CSV. */}
                           {overtime && (
@@ -222,6 +224,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
 }
 
 function Legend() {
+  const { t } = useLanguage();
   return (
     <div className="flex items-center gap-2.5 text-[12px] text-ink-muted">
       {Object.entries(CELL).map(([status, style]) => (
@@ -232,14 +235,14 @@ function Legend() {
               style.className,
             )}
           >
-            {style.label}
+            {t(style.label)}
           </span>
           {style.title}
         </span>
       ))}
       <span className="flex items-center gap-1.5">
         <span className="size-1.5 rounded-full bg-accent" />
-        Overtime
+        {t('Overtime')}
       </span>
     </div>
   );

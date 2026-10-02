@@ -3,6 +3,7 @@
 import * as React from 'react';
 import * as LabelPrimitive from '@radix-ui/react-label';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const Label = React.forwardRef<
   React.ElementRef<typeof LabelPrimitive.Root>,
@@ -36,11 +37,12 @@ function Field({
   className?: string;
   children: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       <div className="flex items-baseline gap-2">
         <Label htmlFor={htmlFor}>{label}</Label>
-        {optional && <span className="text-[12px] font-normal text-ink-faint">Optional</span>}
+        {optional && <span className="text-[12px] font-normal text-ink-faint">{t('Optional')}</span>}
       </div>
       {children}
       {error ? (

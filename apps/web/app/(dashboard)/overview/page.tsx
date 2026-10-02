@@ -16,6 +16,7 @@ import { AttentionStrip } from './attention-strip';
 import { OverrunAlert } from './overrun-alert';
 import { SpendBar } from './spend-bar';
 import { TodayFeed } from './today-feed';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Overview · BUILDR' };
 
@@ -28,6 +29,7 @@ export const metadata = { title: 'Overview · BUILDR' };
  * or a missing report floats to the top.
  */
 export default async function OverviewPage() {
+  const t = await getT();
   const [data, today, me] = await Promise.all([
     serverFetch<DashboardOverview>('/dashboard/overview'),
     serverFetch<DashboardToday>('/dashboard/today'),
@@ -46,11 +48,11 @@ export default async function OverviewPage() {
       <FadeIn>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile
-            label="DPRs in"
+            label={t('DPRs in')}
             value={`${totals.dprs_in} / ${totals.site_count}`}
             note={
               missingDpr.length === 0
-                ? 'Every site has reported'
+                ? t('Every site has reported')
                 : `${missingDpr.map((s) => s.name).slice(0, 2).join(', ')} pending`
             }
             noteTone={missingDpr.length === 0 ? 'done' : 'pending'}
@@ -60,7 +62,7 @@ export default async function OverviewPage() {
             hrefLabel="Open sites"
           />
           <StatTile
-            label="Headcount today"
+            label={t('Headcount today')}
             value={String(totals.headcount_today)}
             animate
             note={totals.headcount_today === 0 ? 'No attendance recorded yet' : 'On site now'}
@@ -71,7 +73,7 @@ export default async function OverviewPage() {
             hrefLabel="Open attendance"
           />
           <StatTile
-            label="Spend this month"
+            label={t('Spend this month')}
             value={moneyShort(totals.spend_month)}
             note={
               BigInt(totals.budget_committed) > 0n
@@ -84,7 +86,7 @@ export default async function OverviewPage() {
             hrefLabel="Open expenses"
           />
           <StatTile
-            label="Needs you"
+            label={t('Needs you')}
             value={String(totals.pending_indents)}
             animate
             note={
@@ -110,11 +112,11 @@ export default async function OverviewPage() {
       {sorted.length > 0 && (
         <div className="flex items-center justify-between gap-4">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Sites
+            {t('Sites')}
           </span>
           <Button asChild variant="ghost" size="sm">
             <Link href="/indents">
-              All approvals <ArrowRight className="size-4" />
+              {t('All approvals')} <ArrowRight className="size-4" />
             </Link>
           </Button>
         </div>

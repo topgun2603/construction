@@ -1,5 +1,6 @@
 import { apiFetch } from '@/lib/api';
 import { money, shortDate, titleCase } from '@/lib/format';
+import { getT } from '@/lib/i18n-server';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Your work and pay' };
@@ -43,6 +44,7 @@ interface WorkerSummary {
  * carries meaning on its own — it will be read on a cracked screen in daylight.
  */
 export default async function WorkerLinkPage({ params }: { params: Promise<{ token: string }> }) {
+  const t = await getT();
   const { token } = await params;
 
   let summary: WorkerSummary;
@@ -56,9 +58,9 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
     // and a page that distinguishes them tells a stranger which links are real.
     return (
       <main className="mx-auto flex min-h-dvh max-w-[520px] flex-col justify-center gap-3 px-6 text-center">
-        <h1 className="text-[20px] font-semibold">This link has stopped working</h1>
+        <h1 className="text-[20px] font-semibold">{t('This link has stopped working')}</h1>
         <p className="text-[15px] leading-relaxed text-ink-muted">
-          Links last thirty days. Ask the site office to send you a new one.
+          {t('Links last thirty days. Ask the site office to send you a new one.')}
         </p>
       </main>
     );
@@ -83,41 +85,41 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
         Earned and drawn sit under it as the working, so the total is never just asserted.
       */}
       <section className="rounded-panel border border-line bg-surface px-5 py-5">
-        <span className="text-[13px] text-ink-muted">Still owed to you</span>
+        <span className="text-[13px] text-ink-muted">{t('Still owed to you')}</span>
         <p className="mt-1 font-mono text-[34px] font-bold leading-none">
           {money(totals.balance)}
         </p>
         <dl className="mt-4 grid grid-cols-2 gap-3 text-[14px]">
           <div className="flex flex-col">
-            <dt className="text-ink-muted">Earned</dt>
+            <dt className="text-ink-muted">{t('Earned')}</dt>
             <dd className="font-mono font-semibold">{money(totals.earned)}</dd>
           </div>
           <div className="flex flex-col">
-            <dt className="text-ink-muted">Already paid</dt>
+            <dt className="text-ink-muted">{t('Already paid')}</dt>
             <dd className="font-mono font-semibold">{money(totals.drawn)}</dd>
           </div>
           <div className="flex flex-col">
-            <dt className="text-ink-muted">Full days</dt>
+            <dt className="text-ink-muted">{t('Full days')}</dt>
             <dd className="font-semibold">{totals.days_present}</dd>
           </div>
           <div className="flex flex-col">
-            <dt className="text-ink-muted">Half days</dt>
+            <dt className="text-ink-muted">{t('Half days')}</dt>
             <dd className="font-semibold">{totals.half_days}</dd>
           </div>
         </dl>
         <p className="mt-4 text-[12.5px] text-ink-faint">
-          Since {shortDate(totals.since)}. Your daily wage is {money(worker.daily_wage)}.
+          {t('Since')} {shortDate(totals.since)}. Your daily wage is {money(worker.daily_wage)}.
         </p>
       </section>
 
       <section className="flex flex-col gap-2">
         <h2 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Days you were marked
+          {t('Days you were marked')}
         </h2>
         <div className="overflow-hidden rounded-panel border border-line bg-surface">
           {days.length === 0 ? (
             <p className="px-4 py-5 text-[14px] text-ink-muted">
-              Nothing recorded in the last three months.
+              {t('Nothing recorded in the last three months.')}
             </p>
           ) : (
             <ul className="divide-y divide-line-soft">
@@ -126,7 +128,7 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
                   <div className="flex min-w-0 flex-col">
                     <span className="text-[15px] font-medium">{shortDate(day.date)}</span>
                     <span className="truncate text-[12.5px] text-ink-muted">
-                      {titleCase(day.status)}
+                      {t(titleCase(day.status))}
                       {Number(day.overtime_hours) > 0 ? ` · ${day.overtime_hours}h extra` : ''} ·{' '}
                       {day.site}
                     </span>
@@ -144,7 +146,7 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
       {payments.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Money you have taken
+            {t('Money you have taken')}
           </h2>
           <div className="overflow-hidden rounded-panel border border-line bg-surface">
             <ul className="divide-y divide-line-soft">
@@ -156,7 +158,7 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
                   <div className="flex min-w-0 flex-col">
                     <span className="text-[15px] font-medium">{shortDate(payment.date)}</span>
                     <span className="text-[12.5px] text-ink-muted">
-                      {titleCase(payment.type)} · {titleCase(payment.mode)}
+                      {t(titleCase(payment.type))} · {t(titleCase(payment.mode))}
                     </span>
                   </div>
                   <span className="ml-auto font-mono text-[14px] font-semibold">
@@ -170,8 +172,7 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
       )}
 
       <p className="pb-6 text-center text-[12.5px] leading-relaxed text-ink-faint">
-        If a day is missing or wrong, tell your supervisor. This page is read-only and updates
-        whenever your site office records something.
+        {t('If a day is missing or wrong, tell your supervisor. This page is read-only and updates whenever your site office records something.')}
       </p>
     </main>
   );

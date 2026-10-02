@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import { relativeTime, titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const STATUS: Record<Approval['status'], { label: string; tone: Tone }> = {
   pending: { label: 'Waiting', tone: 'pending' },
@@ -63,6 +64,7 @@ export function SiteApprovals({
   canRequest: boolean;
   canDecide: boolean;
 }) {
+  const { t } = useLanguage();
   const waiting = approvals.filter((approval) => approval.status === 'pending');
   const settled = approvals.filter((approval) => approval.status !== 'pending');
 
@@ -77,7 +79,7 @@ export function SiteApprovals({
       {approvals.length === 0 && (
         <EmptyState
           icon={<ClipboardCheck />}
-          title="Nothing waiting to be signed off"
+          title={t('Nothing waiting to be signed off')}
           body={
             canRequest
               ? 'Ask the client to approve a drawing, a selection or a variation, and their answer stays on the job with their name on it.'
@@ -89,7 +91,7 @@ export function SiteApprovals({
       {waiting.length > 0 && (
         <div className="flex flex-col gap-2">
           <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Waiting on an answer
+            {t('Waiting on an answer')}
           </h3>
           <Card className="divide-y divide-line-soft">
             {waiting.map((approval) => (
@@ -107,7 +109,7 @@ export function SiteApprovals({
       {settled.length > 0 && (
         <div className="flex flex-col gap-2">
           <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Decided
+            {t('Decided')}
           </h3>
           <Card className="divide-y divide-line-soft">
             {settled.map((approval) => (
@@ -129,6 +131,7 @@ function Row({
   canDecide: boolean;
   canRequest: boolean;
 }) {
+  const { t } = useLanguage();
   const status = STATUS[approval.status];
 
   return (
@@ -137,10 +140,10 @@ function Row({
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[15px] font-medium">{approval.title}</span>
-            <Badge tone={status.tone}>{status.label}</Badge>
+            <Badge tone={status.tone}>{t(status.label)}</Badge>
           </div>
           <span className="text-[12.5px] text-ink-muted" suppressHydrationWarning>
-            Asked by {approval.requested_by.name} · {relativeTime(approval.created_at)}
+            {t('Asked by')} {approval.requested_by.name} · {relativeTime(approval.created_at)}
           </span>
         </div>
 
@@ -149,18 +152,18 @@ function Row({
             {canDecide && <DecideButtons approval={approval} />}
             {canRequest && !canDecide && (
               <ConfirmDialog
-                title="Withdraw this request?"
+                title={t('Withdraw this request?')}
                 body={
                   <>
                     <strong className="font-semibold text-ink">{approval.title}</strong> comes off
                     the list. Nobody has answered it yet, so nothing is lost.
                   </>
                 }
-                confirmLabel="Withdraw"
+                confirmLabel={t('Withdraw')}
                 successMessage="Withdrawn"
                 onConfirm={() => deleteApproval(approval.id, approval.project_id)}
                 trigger={
-                  <Button size="icon" variant="ghost" aria-label="Withdraw">
+                  <Button size="icon" variant="ghost" aria-label={t('Withdraw')}>
                     <Trash2 className="size-4" />
                   </Button>
                 }
@@ -203,7 +206,7 @@ function Row({
             from the client having clicked it, and the record should never blur the two.
           */}
           <span className="font-semibold">
-            {status.label} by {approval.decided_by.name} ({titleCase(approval.decided_by.role)})
+            {t(status.label)} by {approval.decided_by.name} ({t(titleCase(approval.decided_by.role))})
           </span>
           <span suppressHydrationWarning> · {relativeTime(approval.decided_at ?? '')}</span>
           {approval.decision_note && <p className="mt-1">{approval.decision_note}</p>}
@@ -214,6 +217,7 @@ function Row({
 }
 
 function DecideButtons({ approval }: { approval: Approval }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState<'approved' | 'rejected' | null>(null);
   const [note, setNote] = useState('');
@@ -231,7 +235,7 @@ function DecideButtons({ approval }: { approval: Approval }) {
         ...(note.trim() ? { note: note.trim() } : {}),
       });
       if (!result.ok) return setError(result.error ?? 'Could not record that');
-      toast.success(open === 'approved' ? 'Approved' : 'Rejected');
+      toast.success(open === 'approved' ? t('Approved') : t('Rejected'));
       setOpen(null);
       setNote('');
       router.refresh();
@@ -241,24 +245,23 @@ function DecideButtons({ approval }: { approval: Approval }) {
   return (
     <>
       <Button size="sm" variant="secondary" onClick={() => setOpen('rejected')}>
-        <X className="size-4" /> Reject
+        <X className="size-4" /> {t('Reject')}
       </Button>
       <Button size="sm" onClick={() => setOpen('approved')}>
-        <Check className="size-4" /> Approve
+        <Check className="size-4" /> {t('Approve')}
       </Button>
 
       <Dialog open={open !== null} onOpenChange={(next) => !next && setOpen(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {open === 'approved' ? 'Approve' : 'Reject'} — {approval.title}
+              {open === 'approved' ? t('Approve') : t('Reject')} — {approval.title}
             </DialogTitle>
             <DialogDescription>
-              This is recorded against your name and cannot be changed afterwards. That is what
-              makes it worth anything if it is ever questioned.
+              {t('This is recorded against your name and cannot be changed afterwards. That is what makes it worth anything if it is ever questioned.')}
             </DialogDescription>
           </DialogHeader>
-          <Field label="Anything to add" optional htmlFor="decision-note">
+          <Field label={t('Anything to add')} optional htmlFor="decision-note">
             <Textarea
               id="decision-note"
               value={note}
@@ -275,11 +278,11 @@ function DecideButtons({ approval }: { approval: Approval }) {
           )}
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(null)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="button" onClick={submit} disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" />}
-              {open === 'approved' ? 'Approve' : 'Reject'}
+              {open === 'approved' ? t('Approve') : t('Reject')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -295,6 +298,7 @@ function RequestDialog({
   projectId: string;
   documents: SiteDocument[];
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -326,38 +330,38 @@ function RequestDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <Plus className="size-4" /> Ask for approval
+          <Plus className="size-4" /> {t('Ask for approval')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Ask the client to approve something</DialogTitle>
+          <DialogTitle>{t('Ask the client to approve something')}</DialogTitle>
           <DialogDescription>
-            Their answer stays on the job with their name and the date on it.
+            {t('Their answer stays on the job with their name and the date on it.')}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <Field label="What are they deciding" htmlFor="approval-title">
+          <Field label={t('What are they deciding')} htmlFor="approval-title">
             <Input
               id="approval-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               maxLength={200}
-              placeholder="Bathroom tile — the darker one?"
+              placeholder={t('Bathroom tile — the darker one?')}
             />
           </Field>
-          <Field label="Anything they need to know" optional htmlFor="approval-body">
+          <Field label={t('Anything they need to know')} optional htmlFor="approval-body">
             <Textarea
               id="approval-body"
               value={body}
               onChange={(event) => setBody(event.target.value)}
               rows={3}
               maxLength={4000}
-              placeholder="Sample is up on the second floor."
+              placeholder={t('Sample is up on the second floor.')}
             />
           </Field>
           <Field
-            label="Drawing or document"
+            label={t('Drawing or document')}
             hint={
               documents.length === 0
                 ? 'Only documents already shared with the client can be attached.'
@@ -369,7 +373,7 @@ function RequestDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Nothing attached</SelectItem>
+                <SelectItem value="none">{t('Nothing attached')}</SelectItem>
                 {documents.map((document) => (
                   <SelectItem key={document.id} value={document.id}>
                     {document.title} (rev {document.version})
@@ -386,10 +390,10 @@ function RequestDialog({
         </div>
         <DialogFooter>
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="button" onClick={submit} disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />} Ask
+            {pending && <Loader2 className="size-4 animate-spin" />} {t('Ask')}
           </Button>
         </DialogFooter>
       </DialogContent>

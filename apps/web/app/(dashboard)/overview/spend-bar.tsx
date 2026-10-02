@@ -1,5 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { moneyShort } from '@/lib/format';
+import { getT } from '@/lib/i18n-server';
 
 /**
  * This month's spend against what the sites are committed to.
@@ -11,7 +12,7 @@ import { moneyShort } from '@/lib/format';
  * Labour and materials are split because they behave differently: labour is a weekly rhythm
  * somebody can slow down, materials arrive in lumps that were ordered a month ago.
  */
-export function SpendBar({
+export async function SpendBar({
   spendMonth,
   labourMonth,
   expensesMonth,
@@ -22,6 +23,7 @@ export function SpendBar({
   expensesMonth: string;
   budgetCommitted: string;
 }) {
+  const t = await getT();
   const spend = BigInt(spendMonth);
   const labour = BigInt(labourMonth);
   const expenses = BigInt(expensesMonth);
@@ -39,7 +41,7 @@ export function SpendBar({
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          This month against budget
+          {t('This month against budget')}
         </span>
         {budget > 0n && (
           <span className="font-mono text-[13px] text-ink-muted">
@@ -75,11 +77,11 @@ export function SpendBar({
           <div className="flex flex-wrap gap-x-5 gap-y-1">
             <span className="flex items-center gap-1.5 text-[12.5px] text-ink-soft">
               <span aria-hidden className="size-2 rounded-full bg-accent" />
-              Labour {moneyShort(labourMonth)}
+              {t('Labour')} {moneyShort(labourMonth)}
             </span>
             <span className="flex items-center gap-1.5 text-[12.5px] text-ink-soft">
               <span aria-hidden className="size-2 rounded-full bg-pending" />
-              Materials and expenses {moneyShort(expensesMonth)}
+              {t('Materials and expenses')} {moneyShort(expensesMonth)}
             </span>
           </div>
         </>
@@ -87,7 +89,7 @@ export function SpendBar({
         // No budgets set is a real and common state, and it should read as a prompt rather than
         // as a chart that failed to draw.
         <p className="text-[12.5px] text-ink-muted">
-          Set a budget on each site and this becomes a burn rate.
+          {t('Set a budget on each site and this becomes a burn rate.')}
         </p>
       )}
     </Card>

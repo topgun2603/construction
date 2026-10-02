@@ -6,6 +6,7 @@ import type { ProjectListItem } from '@/lib/api-types';
 import { SiteCardGrid } from './site-card-grid';
 import { ProjectsTable } from './projects-table';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const STORAGE_KEY = 'sb.sites.view';
 
@@ -29,6 +30,7 @@ export function SitesView({
   /** Rendered by the server page — the New site dialog, for whoever may create one. */
   action?: ReactNode;
 }) {
+  const { t } = useLanguage();
   const [view, setView] = useState<'cards' | 'table'>('cards');
 
   // Read after mount, never during render: the server has no localStorage and reading it in the
@@ -57,11 +59,11 @@ export function SitesView({
    */
   const controls = (
     <div className="ml-auto flex items-center gap-2">
-      <div className="flex gap-1 rounded-btn bg-neutral-bg p-1" role="group" aria-label="View">
+      <div className="flex gap-1 rounded-btn bg-neutral-bg p-1" role="group" aria-label={t('View')}>
         {(
           [
-            { value: 'cards', label: 'Cards', icon: LayoutGrid },
-            { value: 'table', label: 'Table', icon: Rows3 },
+            { value: 'cards', label: t('Cards'), icon: LayoutGrid },
+            { value: 'table', label: t('Table'), icon: Rows3 },
           ] as const
         ).map((option) => {
           const Icon = option.icon;
@@ -79,7 +81,7 @@ export function SitesView({
               )}
             >
               <Icon className="size-4" />
-              {option.label}
+              {t(option.label)}
             </button>
           );
         })}

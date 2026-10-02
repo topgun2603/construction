@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { PlatformNav } from './platform-nav';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The console header, and the decision of when there should not be one.
@@ -18,6 +19,7 @@ import { PlatformNav } from './platform-nav';
  * remove chrome its parent rendered.
  */
 export function PlatformChrome() {
+  const { t } = useLanguage();
   const pathname = usePathname();
   if (pathname === '/admin/login') return null;
 
@@ -30,7 +32,7 @@ export function PlatformChrome() {
         <span className="flex flex-col leading-tight">
           <span className="text-[13.5px] font-semibold tracking-[0.02em] text-white">BUILDR</span>
           <span className="text-[11px] uppercase tracking-[0.1em] text-accent-onDark">
-            Platform
+            {t('Platform')}
           </span>
         </span>
       </Link>

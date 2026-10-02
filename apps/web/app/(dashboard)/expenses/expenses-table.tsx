@@ -13,6 +13,7 @@ import { Badge, type Tone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { money, shortDate, titleCase } from '@/lib/format';
 import type { Expense } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 const STATUS_TONE: Record<Expense['status'], Tone> = {
   pending: 'pending',
@@ -29,6 +30,7 @@ export function ExpensesTable({
   canApprove: boolean;
   currentUserId: string;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -47,28 +49,28 @@ export function ExpensesTable({
   const columns: ColumnDef<Expense>[] = [
     {
       accessorKey: 'spent_on',
-      header: 'Spent on',
+      header: t('Spent on'),
       cell: ({ row }) => (
         <span className="font-mono text-[13px]">{shortDate(row.original.spent_on)}</span>
       ),
     },
     {
       accessorKey: 'project_name',
-      header: 'Site',
+      header: t('Site'),
       cell: ({ row }) => <span className="font-medium">{row.original.project_name}</span>,
     },
     {
       accessorKey: 'category',
-      header: 'Category',
+      header: t('Category'),
       cell: ({ row }) => (
         <Badge tone="neutral" dot={false}>
-          {expenseCategoryLabel(row.original.category)}
+          {t(expenseCategoryLabel(row.original.category))}
         </Badge>
       ),
     },
     {
       accessorKey: 'note',
-      header: 'Note',
+      header: t('Note'),
       cell: ({ row }) => (
         <span className="line-clamp-1 max-w-[280px] text-ink-soft">
           {row.original.note ?? '—'}
@@ -85,7 +87,7 @@ export function ExpensesTable({
     },
     {
       accessorKey: 'amount',
-      header: 'Amount',
+      header: t('Amount'),
       meta: { align: 'right' },
       // Sort on the paise integer; the rendered string would sort lexically.
       sortingFn: (a, b) => Number(BigInt(a.original.amount) - BigInt(b.original.amount)),
@@ -95,9 +97,9 @@ export function ExpensesTable({
     },
     {
       accessorKey: 'status',
-      header: 'Status',
+      header: t('Status'),
       cell: ({ row }) => (
-        <Badge tone={STATUS_TONE[row.original.status]}>{titleCase(row.original.status)}</Badge>
+        <Badge tone={STATUS_TONE[row.original.status]}>{t(titleCase(row.original.status))}</Badge>
       ),
     },
     {
@@ -109,7 +111,7 @@ export function ExpensesTable({
         // Nobody signs off their own spend — the API refuses it, so the buttons
         // should not be there to click.
         if (!canApprove || expense.submitted_by.id === currentUserId) {
-          return <span className="text-[12.5px] text-ink-faint">Awaiting approval</span>;
+          return <span className="text-[12.5px] text-ink-faint">{t('Awaiting approval')}</span>;
         }
         return (
           <div className="flex justify-end gap-1.5">
@@ -119,7 +121,7 @@ export function ExpensesTable({
               disabled={pending}
               onClick={() => decide(expense.id, 'approved')}
             >
-              <Check /> Approve
+              <Check /> {t('Approve')}
             </Button>
             <Button
               variant="secondary"
@@ -146,16 +148,16 @@ export function ExpensesTable({
         if (expense.status === 'approved') return null;
         return (
           <DeleteRowButton
-            what={`this ${expenseCategoryLabel(expense.category).toLowerCase()} expense`}
-            title="Discard this expense?"
+            what={`this ${t(expenseCategoryLabel(expense.category).toLowerCase())} expense`}
+            title={t('Discard this expense?')}
             body={
               <>
                 <strong className="font-semibold text-ink">{money(expense.amount)}</strong> on{' '}
-                {expenseCategoryLabel(expense.category).toLowerCase()} at {expense.project_name}{' '}
+                {t(expenseCategoryLabel(expense.category).toLowerCase())} at {expense.project_name}{' '}
                 will be removed from the books.
               </>
             }
-            confirmLabel="Discard expense"
+            confirmLabel={t('Discard expense')}
             successMessage="Expense discarded"
             onConfirm={() => discardExpense(expense.id)}
           />

@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { money, longDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { AttendanceDay, ProjectSummary, Worker } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 type Status = 'present' | 'half_day' | 'absent';
 
@@ -43,6 +44,7 @@ export function RollCall({
   roster: Worker[];
   recorded: AttendanceDay;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -169,11 +171,11 @@ export function RollCall({
           value={date}
           onChange={(event) => navigate({ date: event.target.value })}
           className="w-[180px]"
-          aria-label="Attendance date"
+          aria-label={t('Attendance date')}
         />
         {recorded.locked && (
           <Badge tone="blocked">
-            <Lock className="size-3" /> Locked by a finalised wage period
+            <Lock className="size-3" /> {t('Locked by a finalised wage period')}
           </Badge>
         )}
       </div>
@@ -191,7 +193,7 @@ export function RollCall({
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end">
             <span className="text-[12px] uppercase tracking-[0.08em] text-ink-muted">
-              Earned today
+              {t('Earned today')}
             </span>
             <AnimatePresence mode="popLayout">
               <motion.span
@@ -207,7 +209,7 @@ export function RollCall({
             </AnimatePresence>
           </div>
           <Button onClick={save} disabled={pending || recorded.locked || roster.length === 0}>
-            <Save /> {pending ? 'Saving…' : 'Save roll call'}
+            <Save /> {pending ? t('Saving…') : t('Save roll call')}
           </Button>
         </div>
       </Card>
@@ -215,8 +217,8 @@ export function RollCall({
       {roster.length === 0 ? (
         <EmptyState
           icon={<HardHat />}
-          title="Nobody assigned to this site"
-          body="Add workers to the roster and assign them to this site to take a roll call."
+          title={t('Nobody assigned to this site')}
+          body={t('Add workers to the roster and assign them to this site to take a roll call.')}
         />
       ) : (
         groups.map(([key, group]) => (
@@ -235,7 +237,7 @@ export function RollCall({
                   disabled={recorded.locked}
                   onClick={() => markGroup(group.workers, 'present')}
                 >
-                  All present
+                  {t('All present')}
                 </Button>
                 <Button
                   variant="ghost"
@@ -243,7 +245,7 @@ export function RollCall({
                   disabled={recorded.locked}
                   onClick={() => markGroup(group.workers, 'absent')}
                 >
-                  All absent
+                  {t('All absent')}
                 </Button>
               </div>
             </div>
@@ -287,7 +289,7 @@ export function RollCall({
                                 recorded.locked && 'opacity-60',
                               )}
                             >
-                              {option.label}
+                              {t(option.label)}
                             </button>
                           );
                         })}

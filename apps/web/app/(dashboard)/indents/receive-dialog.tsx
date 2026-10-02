@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Receiving a delivery, counted line by line.
@@ -30,6 +31,7 @@ import { Field } from '@/components/ui/label';
  * person checking only has to change the ones that differ.
  */
 export function ReceiveDialog({ indent, amend = false }: { indent: Indent; amend?: boolean }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [quantities, setQuantities] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -73,12 +75,12 @@ export function ReceiveDialog({ indent, amend = false }: { indent: Indent; amend
       <DialogTrigger asChild>
         {amend ? (
           <Button variant="ghost" size="sm">
-            Correct the count
+            {t('Correct the count')}
           </Button>
         ) : (
           <Button variant="approve" size="sm">
             <PackageCheck className="size-4" />
-            Received
+            {t('Received')}
           </Button>
         )}
       </DialogTrigger>
@@ -125,7 +127,7 @@ export function ReceiveDialog({ indent, amend = false }: { indent: Indent; amend
                   </div>
                   {isShort && (
                     <span className="w-full text-[12px] text-pending-fg">
-                      Short by {Number(item.quantity) - Number(entered || '0')} {item.unit}
+                      {t('Short by')} {Number(item.quantity) - Number(entered || '0')} {item.unit}
                     </span>
                   )}
                 </div>
@@ -143,7 +145,7 @@ export function ReceiveDialog({ indent, amend = false }: { indent: Indent; amend
 
           <Field
             label={amend ? 'Corrected challan number' : 'Challan or bill number'}
-            hint="Optional"
+            hint={t('Optional')}
           >
             <Input name="note" maxLength={80} placeholder="CH-10482" />
           </Field>
@@ -164,7 +166,7 @@ export function ReceiveDialog({ indent, amend = false }: { indent: Indent; amend
               onClick={() => setOpen(false)}
               disabled={pending}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" variant={amend ? 'primary' : 'approve'} disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" />}

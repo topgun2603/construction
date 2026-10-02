@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The reports tab row, plus this report's own filters.
@@ -38,6 +39,7 @@ export function OverrunFilters({
   showAll: boolean;
   isOwnerOrAccounts: boolean;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
 
   function push(next: { project_id?: string; all?: boolean }) {
@@ -54,7 +56,7 @@ export function OverrunFilters({
 
   return (
     <div className="flex flex-col gap-3">
-      <nav className="flex gap-1 rounded-btn bg-neutral-bg p-1" aria-label="Reports">
+      <nav className="flex gap-1 rounded-btn bg-neutral-bg p-1" aria-label={t('Reports')}>
         {tabs.map((tab) => {
           const active = tab.href === '/reports/overrun';
           const Icon = tab.icon;
@@ -71,7 +73,7 @@ export function OverrunFilters({
               )}
             >
               <Icon className="size-4" />
-              {tab.label}
+              {t(tab.label)}
             </Link>
           );
         })}
@@ -82,11 +84,11 @@ export function OverrunFilters({
           value={projectId || 'all'}
           onValueChange={(value) => push({ project_id: value === 'all' ? '' : value })}
         >
-          <SelectTrigger className="w-[260px]" aria-label="Site">
-            <SelectValue placeholder="All sites" />
+          <SelectTrigger className="w-[260px]" aria-label={t('Site')}>
+            <SelectValue placeholder={t('All sites')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All sites</SelectItem>
+            <SelectItem value="all">{t('All sites')}</SelectItem>
             {projects.map((project) => (
               <SelectItem key={project.id} value={project.id}>
                 {project.name}
@@ -104,7 +106,7 @@ export function OverrunFilters({
           />
           {/* Off by default: a material with no estimate has nothing to exceed, and listing it
               turns a report you act on into an inventory you scroll. */}
-          Include materials with no estimate
+          {t('Include materials with no estimate')}
         </label>
       </div>
     </div>

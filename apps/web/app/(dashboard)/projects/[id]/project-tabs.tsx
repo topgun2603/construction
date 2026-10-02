@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 export function ProjectTabs({
   projectId,
@@ -33,19 +34,20 @@ export function ProjectTabs({
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
+  const { t } = useLanguage();
   const tabs = [
-    { key: 'timeline', label: 'Timeline' },
-    { key: 'reports', label: 'Daily reports', count: reportCount },
+    { key: 'timeline', label: t('Timeline') },
+    { key: 'reports', label: t('Daily reports'), count: reportCount },
     ...(showConversation
-      ? [{ key: 'conversation', label: 'Conversation', count: unreadCount }]
+      ? [{ key: 'conversation', label: t('Conversation'), count: unreadCount }]
       : []),
-    ...(showDocuments ? [{ key: 'documents', label: 'Documents' }] : []),
+    ...(showDocuments ? [{ key: 'documents', label: t('Documents') }] : []),
     ...(showApprovals
-      ? [{ key: 'approvals', label: 'Approvals', count: pendingApprovals }]
+      ? [{ key: 'approvals', label: t('Approvals'), count: pendingApprovals }]
       : []),
-    ...(showPayments ? [{ key: 'payments', label: 'Payments' }] : []),
-    { key: 'people', label: 'People' },
-    ...(showMaterials ? [{ key: 'materials', label: 'Materials' }] : []),
+    ...(showPayments ? [{ key: 'payments', label: t('Payments') }] : []),
+    { key: 'people', label: t('People') },
+    ...(showMaterials ? [{ key: 'materials', label: t('Materials') }] : []),
   ];
 
   return (
@@ -64,7 +66,7 @@ export function ProjectTabs({
                 : 'border-transparent font-medium text-ink-muted hover:text-ink',
             )}
           >
-            {tab.label}
+            {t(tab.label)}
             {typeof tab.count === 'number' && tab.count > 0 && (
               <span className="rounded-full bg-neutral-bg px-1.5 font-mono text-[11px] text-ink-soft">
                 {tab.count}

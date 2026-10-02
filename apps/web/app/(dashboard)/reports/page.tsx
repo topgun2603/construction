@@ -11,6 +11,7 @@ import { FadeIn, Stagger, StaggerItem } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { ReportFilters } from './report-filters';
 import { ReportsNav } from './reports-nav';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Reports · BUILDR' };
 
@@ -27,6 +28,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ group_by?: string; from?: string; to?: string }>;
 }) {
+  const t = await getT();
   const params = await searchParams;
   const to = params.to ?? todayIso();
   const from = params.from ?? addDaysIso(to, -29);
@@ -57,24 +59,24 @@ export default async function ReportsPage({
 
       <div className="grid gap-3.5 sm:grid-cols-3">
         <StatTile
-          label="Labour cost"
+          label={t('Labour cost')}
           value={moneyShort(report.total)}
           note={`${shortDate(from)} – ${shortDate(to)}`}
         />
-        <StatTile label="Worker-days" value={days.toFixed(1)} note="Half days counted as 0.5" />
-        <StatTile label="Overtime hours" value={overtime.toFixed(1)} note="Paid on top of the day rate" />
+        <StatTile label={t('Worker-days')} value={days.toFixed(1)} note={t('Half days counted as 0.5')} />
+        <StatTile label={t('Overtime hours')} value={overtime.toFixed(1)} note={t('Paid on top of the day rate')} />
       </div>
 
       {report.groups.length === 0 ? (
         <EmptyState
           icon={<PieChart />}
-          title="No attendance in this range"
-          body="Pick a wider date range, or record a roll call to see labour cost here."
+          title={t('No attendance in this range')}
+          body={t('Pick a wider date range, or record a roll call to see labour cost here.')}
         />
       ) : (
         <Card className="flex flex-col gap-4 p-4">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            By {groupBy}
+            {t('By')} {groupBy}
           </span>
           <Stagger className="flex flex-col gap-3.5">
             {report.groups.map((group) => {
@@ -83,7 +85,7 @@ export default async function ReportsPage({
               return (
                 <StaggerItem key={group.key} className="flex flex-col gap-1.5">
                   <div className="flex items-baseline justify-between gap-4">
-                    <span className="truncate text-[14px] font-medium">{group.label}</span>
+                    <span className="truncate text-[14px] font-medium">{t(group.label)}</span>
                     <div className="flex flex-none items-baseline gap-3">
                       <span className="font-mono text-[12.5px] text-ink-muted">
                         {group.days} d · {group.overtime_hours} h
@@ -103,16 +105,16 @@ export default async function ReportsPage({
 
       <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex flex-col">
-          <span className="text-[15px] font-semibold">Wage sheets</span>
+          <span className="text-[15px] font-semibold">{t('Wage sheets')}</span>
           <span className="text-[13px] text-ink-muted">
-            Printable sheet with a signature column, for cash disbursement at site.
+            {t('Printable sheet with a signature column, for cash disbursement at site.')}
           </span>
         </div>
         <Link
           href="/labour/wage-periods"
           className="text-[13.5px] font-semibold text-accent hover:underline"
         >
-          Go to wage periods →
+          {t('Go to wage periods →')}
         </Link>
       </Card>
     </FadeIn>

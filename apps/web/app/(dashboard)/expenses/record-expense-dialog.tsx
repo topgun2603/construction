@@ -22,8 +22,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { rupeesToPaiseString } from '@/lib/money-input';
 import { todayIso } from '@/lib/format';
 import type { ProjectSummary } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [projectId, setProjectId] = useState(projects[0]?.id ?? '');
@@ -139,22 +141,21 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <Receipt /> Record expense
+          <Receipt /> {t('Record expense')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Record an expense</DialogTitle>
+          <DialogTitle>{t('Record an expense')}</DialogTitle>
           <DialogDescription>
-            Counts toward the site spend straight away; a project manager or the owner signs
-            it off.
+            {t('Counts toward the site spend straight away; a project manager or the owner signs it off.')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-2 rounded-card border border-line-soft bg-raised p-3.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-col">
-              <span className="text-[13.5px] font-medium">Photograph of the bill</span>
+              <span className="text-[13.5px] font-medium">{t('Photograph of the bill')}</span>
               <span className="text-[12.5px] text-ink-muted">
                 {scanned
                   ? 'Read from the photo — check it before recording.'
@@ -187,7 +188,7 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
             // Saying what it could not read is the honest half of this feature. A form that looks
             // filled in but has a wrong date is worse than one with an obvious gap.
             <p className="text-[12.5px] text-pending-fg">
-              Could not read the {unread.join(', ')} — fill {unread.length === 1 ? 'it' : 'them'} in
+              {t('Could not read the')} {unread.join(', ')} — fill {unread.length === 1 ? 'it' : 'them'} in
               yourself.
             </p>
           )}
@@ -195,10 +196,10 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
 
         <form ref={formRef} action={onSubmit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Site">
+            <Field label={t('Site')}>
               <Select value={projectId} onValueChange={setProjectId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a site" />
+                  <SelectValue placeholder={t('Choose a site')} />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((project) => (
@@ -209,13 +210,13 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Amount (Rs)" htmlFor="amount">
+            <Field label={t('Amount (Rs)')} htmlFor="amount">
               <Input id="amount" name="amount" required inputMode="decimal" placeholder="4200" />
             </Field>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Category">
+            <Field label={t('Category')}>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger>
                   <SelectValue />
@@ -223,19 +224,19 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
                 <SelectContent>
                   {EXPENSE_CATEGORIES.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {expenseCategoryLabel(value)}
+                      {t(expenseCategoryLabel(value))}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Spent on" htmlFor="spent_on" hint="The day the money left">
+            <Field label={t('Spent on')} htmlFor="spent_on" hint={t('The day the money left')}>
               <Input id="spent_on" name="spent_on" type="date" defaultValue={todayIso()} required />
             </Field>
           </div>
 
-          <Field label="Note" htmlFor="note">
-            <Textarea id="note" name="note" placeholder="What it was for: lorry hire, diesel, repairs" />
+          <Field label={t('Note')} htmlFor="note">
+            <Textarea id="note" name="note" placeholder={t('What it was for: lorry hire, diesel, repairs')} />
           </Field>
 
           {error && (
@@ -246,10 +247,10 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? 'Recording...' : 'Record'}
+              {pending ? 'Recording...' : t('Record')}
             </Button>
           </DialogFooter>
         </form>

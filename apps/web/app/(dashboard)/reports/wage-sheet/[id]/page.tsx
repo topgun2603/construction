@@ -4,6 +4,7 @@ import { serverFetch } from '@/lib/server-api';
 import type { WageSheet } from '@/lib/api-types';
 import { money, longDate } from '@/lib/format';
 import { PrintButton } from './print-button';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Wage sheet · BUILDR' };
 
@@ -14,6 +15,7 @@ export const metadata = { title: 'Wage sheet · BUILDR' };
  * drop the app chrome — this page exists to become paper.
  */
 export default async function WageSheetPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = await getT();
   const { id } = await params;
 
   let sheet: WageSheet;
@@ -30,7 +32,7 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
     <div className="mx-auto flex max-w-4xl flex-col gap-5">
       <div className="flex items-start justify-between gap-4 print:hidden">
         <div>
-          <h2 className="text-[21px] font-semibold">Wage sheet</h2>
+          <h2 className="text-[21px] font-semibold">{t('Wage sheet')}</h2>
           <p className="text-[13.5px] text-ink-muted">
             {sheet.contractor.name} · {longDate(sheet.period_start)} to {longDate(sheet.period_end)}
           </p>
@@ -43,7 +45,7 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
           <div>
             <div className="text-[18px] font-semibold">{sheet.builder}</div>
             <div className="text-[13.5px] text-ink-muted">
-              Wage sheet · {sheet.contractor.name}
+              {t('Wage sheet ·')} {sheet.contractor.name}
               {sheet.contractor.phone && ` · +${sheet.contractor.phone}`}
             </div>
           </div>
@@ -58,13 +60,13 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
             <thead>
               <tr className="border-b border-line text-left">
                 <Th className="w-10">#</Th>
-                <Th>Worker</Th>
-                <Th className="text-right">Days</Th>
-                <Th className="text-right">OT hrs</Th>
-                <Th className="text-right">Gross</Th>
-                <Th className="text-right">Advance</Th>
-                <Th className="text-right">Net</Th>
-                <Th className="w-40">Signature</Th>
+                <Th>{t('Worker')}</Th>
+                <Th className="text-right">{t('Days')}</Th>
+                <Th className="text-right">{t('OT hrs')}</Th>
+                <Th className="text-right">{t('Gross')}</Th>
+                <Th className="text-right">{t('Advance')}</Th>
+                <Th className="text-right">{t('Net')}</Th>
+                <Th className="w-40">{t('Signature')}</Th>
               </tr>
             </thead>
             <tbody>
@@ -90,7 +92,7 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
             <tfoot>
               <tr className="border-t-2 border-line font-semibold">
                 <Td colSpan={4} className="text-right">
-                  Total
+                  {t('Total')}
                 </Td>
                 <Td className="text-right font-mono">{money(sheet.totals.gross)}</Td>
                 <Td className="text-right font-mono">− {money(sheet.totals.advances)}</Td>
@@ -102,9 +104,9 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
         </div>
 
         <footer className="mt-8 flex justify-between gap-8 text-[12.5px] text-ink-muted">
-          <div className="border-t border-line pt-2">Prepared by</div>
-          <div className="border-t border-line pt-2">Contractor signature</div>
-          <div className="border-t border-line pt-2">Approved by</div>
+          <div className="border-t border-line pt-2">{t('Prepared by')}</div>
+          <div className="border-t border-line pt-2">{t('Contractor signature')}</div>
+          <div className="border-t border-line pt-2">{t('Approved by')}</div>
         </footer>
       </div>
     </div>

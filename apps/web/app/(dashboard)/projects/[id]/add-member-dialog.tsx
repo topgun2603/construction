@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { titleCase } from '@/lib/format';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * What somebody does on this particular site.
@@ -57,6 +58,7 @@ export function AddMemberDialog({
   /** Team members not already on this site. */
   candidates: TeamMember[];
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [userId, setUserId] = useState('');
@@ -94,30 +96,29 @@ export function AddMemberDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="secondary">
-          <UserPlus className="size-4" /> Add someone
+          <UserPlus className="size-4" /> {t('Add someone')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add someone to this site</DialogTitle>
+          <DialogTitle>{t('Add someone to this site')}</DialogTitle>
           <DialogDescription>
-            They see this site from their next sign-in. To bring in somebody who is not in the
-            account yet, invite them from Settings → Team.
+            {t('They see this site from their next sign-in. To bring in somebody who is not in the account yet, invite them from Settings → Team.')}
           </DialogDescription>
         </DialogHeader>
 
         {candidates.length === 0 ? (
           <div className="flex flex-col items-start gap-3 rounded-panel border border-dashed border-line-strong bg-raised px-4 py-5">
             <p className="text-[13.5px] text-ink-muted">
-              Everybody in the account is already on this site.
+              {t('Everybody in the account is already on this site.')}
             </p>
             <Button asChild size="sm" variant="secondary">
-              <Link href="/settings/team">Invite somebody new</Link>
+              <Link href="/settings/team">{t('Invite somebody new')}</Link>
             </Button>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            <Field label="Who">
+            <Field label={t('Who')}>
               <div className="flex max-h-56 flex-col gap-1 overflow-y-auto rounded-btn border border-line-strong p-2">
                 {candidates.map((member) => (
                   <label
@@ -139,14 +140,14 @@ export function AddMemberDialog({
                       <span className="font-mono text-[12px] text-ink-muted">+{member.phone}</span>
                     </span>
                     <span className="ml-auto text-[12.5px] text-ink-faint">
-                      {titleCase(member.role)}
+                      {t(titleCase(member.role))}
                     </span>
                   </label>
                 ))}
               </div>
             </Field>
 
-            <Field label="On this site they are" hint="Their account role is unchanged">
+            <Field label={t('On this site they are')} hint={t('Their account role is unchanged')}>
               <Select value={role} onValueChange={setRole}>
                 <SelectTrigger>
                   <SelectValue />
@@ -154,7 +155,7 @@ export function AddMemberDialog({
                 <SelectContent>
                   {SITE_ROLES.map((entry) => (
                     <SelectItem key={entry.value} value={entry.value}>
-                      {entry.label}
+                      {t(entry.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -171,7 +172,7 @@ export function AddMemberDialog({
 
         <DialogFooter>
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           {candidates.length > 0 && (
             <Button type="button" onClick={onSubmit} disabled={pending}>

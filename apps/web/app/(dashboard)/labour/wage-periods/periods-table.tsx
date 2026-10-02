@@ -6,6 +6,8 @@ import { DataTable } from '@/components/data-table';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { money, shortDate } from '@/lib/format';
 import type { WagePeriod } from '@/lib/api-types';
+import type { Translator } from '@/lib/i18n';
+import { useLanguage } from '@/components/language-provider';
 
 const STATUS_TONE: Record<WagePeriod['status'], Tone> = {
   open: 'neutral',
@@ -19,10 +21,11 @@ const STATUS_LABEL: Record<WagePeriod['status'], string> = {
   paid: 'Paid',
 };
 
-const columns: ColumnDef<WagePeriod>[] = [
+function buildColumns(t: Translator): ColumnDef<WagePeriod>[] {
+  return [
   {
     accessorKey: 'contractor_name',
-    header: 'Contractor',
+    header: t('Contractor'),
     cell: ({ row }) => <span className="font-medium">{row.original.contractor_name}</span>,
   },
   {
@@ -37,13 +40,13 @@ const columns: ColumnDef<WagePeriod>[] = [
   },
   {
     accessorKey: 'line_count',
-    header: 'Workers',
+    header: t('Workers'),
     meta: { align: 'right' },
     cell: ({ row }) => <span className="font-mono">{row.original.line_count}</span>,
   },
   {
     accessorKey: 'total_earned',
-    header: 'Gross',
+    header: t('Gross'),
     meta: { align: 'right' },
     sortingFn: (a, b) => Number(BigInt(a.original.total_earned) - BigInt(b.original.total_earned)),
     cell: ({ row }) => <span className="font-mono">{money(row.original.total_earned)}</span>,
@@ -58,7 +61,7 @@ const columns: ColumnDef<WagePeriod>[] = [
   },
   {
     id: 'outstanding',
-    header: 'Outstanding',
+    header: t('Outstanding'),
     meta: { align: 'right' },
     accessorFn: (row) => Number(BigInt(row.total_earned) - BigInt(row.total_paid)),
     cell: ({ row }) => {
@@ -72,9 +75,9 @@ const columns: ColumnDef<WagePeriod>[] = [
   },
   {
     accessorKey: 'status',
-    header: 'Status',
+    header: t('Status'),
     cell: ({ row }) => (
-      <Badge tone={STATUS_TONE[row.original.status]}>{STATUS_LABEL[row.original.status]}</Badge>
+      <Badge tone={STATUS_TONE[row.original.status]}>{t(STATUS_LABEL[row.original.status])}</Badge>
     ),
   },
   {
@@ -85,19 +88,21 @@ const columns: ColumnDef<WagePeriod>[] = [
       row.original.source === 'scheduled' ? (
         <span
           className="text-[11.5px] text-ink-faint"
-          title="Drafted by the nightly job, not by a person. Settings → Automation explains what runs."
+          title={t('Drafted by the nightly job, not by a person. Settings → Automation explains what runs.')}
         >
           auto
         </span>
       ) : null,
   },
 ];
+}
 
 export function PeriodsTable({ periods }: { periods: WagePeriod[] }) {
+  const { t } = useLanguage();
   const router = useRouter();
   return (
     <DataTable
-      columns={columns}
+      columns={buildColumns(t)}
       data={periods}
       searchPlaceholder="Search contractors"
       pageSize={20}

@@ -6,6 +6,7 @@ import { AskDocuments } from '@/components/ask-documents';
 import { DocumentsList } from '@/components/documents-list';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Documents · BUILDR' };
 
@@ -23,14 +24,15 @@ export const metadata = { title: 'Documents · BUILDR' };
  * query parameter here it becomes the place the rule was bypassed.
  */
 export default async function DocumentsPage() {
+  const t = await getT();
   const me = await requireSelf();
 
   if (!me.enabled_modules.includes('documents') || !me.permissions.includes('documents.view')) {
     return (
       <EmptyState
         icon={<FolderOpen />}
-        title="Documents are not switched on"
-        body="Drawings, contracts and approvals come with the Pro plan."
+        title={t('Documents are not switched on')}
+        body={t('Drawings, contracts and approvals come with the Pro plan.')}
       />
     );
   }
@@ -49,9 +51,9 @@ export default async function DocumentsPage() {
   return (
     <FadeIn className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
-        <h2 className="text-[21px] font-semibold leading-tight">Documents</h2>
+        <h2 className="text-[21px] font-semibold leading-tight">{t('Documents')}</h2>
         <span className="text-[13px] text-ink-muted">
-          The current revision of everything filed against your sites.
+          {t('The current revision of everything filed against your sites.')}
         </span>
       </div>
 

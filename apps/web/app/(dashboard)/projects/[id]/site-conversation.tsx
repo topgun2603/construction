@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/select';
 import { relativeTime, titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 interface Pending {
   file: File;
@@ -80,6 +81,7 @@ export function SiteConversation({
   /** Whether team-only notes are even offered. */
   canWriteInternal: boolean;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [body, setBody] = useState('');
   const [audience, setAudience] = useState<Audience>('everyone');
@@ -189,13 +191,13 @@ export function SiteConversation({
   }
 
   const options: Array<{ value: Audience; label: string; hint: string; icon: typeof Users }> = [
-    { value: 'everyone', label: 'Everyone', hint: 'The client and the team', icon: Users },
+    { value: 'everyone', label: t('Everyone'), hint: t('The client and the team'), icon: Users },
     ...(canWriteInternal
       ? [
           {
             value: 'team' as const,
-            label: 'Team only',
-            hint: 'The client never sees this',
+            label: t('Team only'),
+            hint: t('The client never sees this'),
             icon: Lock,
           },
         ]
@@ -204,8 +206,8 @@ export function SiteConversation({
       ? [
           {
             value: 'direct' as const,
-            label: 'One person',
-            hint: 'Only you and them',
+            label: t('One person'),
+            hint: t('Only you and them'),
             icon: User,
           },
         ]
@@ -217,7 +219,7 @@ export function SiteConversation({
       {thread.length === 0 ? (
         <EmptyState
           icon={<Users />}
-          title="Nothing said yet"
+          title={t('Nothing said yet')}
           body={
             canPost
               ? 'Questions from the client and answers from the site live here, against the job, instead of in somebody’s WhatsApp.'
@@ -260,7 +262,7 @@ export function SiteConversation({
                     )}
                   >
                     <option.icon className="size-3.5" />
-                    {option.label}
+                    {t(option.label)}
                   </button>
                 ))}
               </div>
@@ -268,12 +270,12 @@ export function SiteConversation({
               {audience === 'direct' && (
                 <Select value={recipientId} onValueChange={setRecipientId}>
                   <SelectTrigger className="h-9 w-auto min-w-[210px]">
-                    <SelectValue placeholder="Who is this for?" />
+                    <SelectValue placeholder={t('Who is this for?')} />
                   </SelectTrigger>
                   <SelectContent>
                     {recipients.map((person) => (
                       <SelectItem key={person.id} value={person.id}>
-                        {person.name} · {titleCase(person.role)}
+                        {person.name} · {t(titleCase(person.role))}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -351,7 +353,7 @@ export function SiteConversation({
                 size="sm"
                 onClick={() => photoInput.current?.click()}
               >
-                <ImagePlus className="size-4" /> Photo
+                <ImagePlus className="size-4" /> {t('Photo')}
               </Button>
               <Button
                 type="button"
@@ -359,7 +361,7 @@ export function SiteConversation({
                 size="sm"
                 onClick={() => fileInput.current?.click()}
               >
-                <Paperclip className="size-4" /> File
+                <Paperclip className="size-4" /> {t('File')}
               </Button>
             </div>
             <input
@@ -405,6 +407,7 @@ export function SiteConversation({
 }
 
 function Message({ message, projectId }: { message: SiteMessage; projectId: string }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pending, start] = useTransition();
   const team = message.audience === 'team';
@@ -418,7 +421,7 @@ function Message({ message, projectId }: { message: SiteMessage; projectId: stri
           <span className="text-[13px] font-semibold">{message.author.name}</span>
           {/* Rendered once on the server and again here; a minute either way must not throw. */}
           <span className="text-[12px] text-ink-faint" suppressHydrationWarning>
-            {titleCase(message.author.role)} · {relativeTime(message.created_at)}
+            {t(titleCase(message.author.role))} · {relativeTime(message.created_at)}
           </span>
         </div>
 
@@ -438,7 +441,7 @@ function Message({ message, projectId }: { message: SiteMessage; projectId: stri
         >
           {team && (
             <span className="flex items-center gap-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-pending-fg">
-              <Lock className="size-3" /> Team only — the client cannot see this
+              <Lock className="size-3" /> {t('Team only — the client cannot see this')}
             </span>
           )}
           {direct && (
@@ -496,7 +499,7 @@ function Message({ message, projectId }: { message: SiteMessage; projectId: stri
                     key={attachment.id}
                     className="grid size-24 place-items-center rounded-btn border border-line bg-neutral-bg text-[11px] text-ink-faint"
                   >
-                    Not available
+                    {t('Not available')}
                   </span>
                 ),
               )}
@@ -525,7 +528,7 @@ function Message({ message, projectId }: { message: SiteMessage; projectId: stri
                 }
                 className="flex items-center gap-1 text-[12px] text-ink-faint transition hover:text-blocked"
               >
-                <Trash2 className="size-3" /> Remove
+                <Trash2 className="size-3" /> {t('Remove')}
               </button>
             )}
           </div>
@@ -544,13 +547,14 @@ function Message({ message, projectId }: { message: SiteMessage; projectId: stri
  * receipt into a team watching each other's reading habits.
  */
 function ReadReceipt({ readBy }: { readBy: SiteMessage['read_by'] }) {
+  const { t } = useLanguage();
   if (readBy.length === 0) {
     return (
       <span
         className="flex items-center gap-1 text-[12px] text-ink-faint"
-        title="Sent — not read yet"
+        title={t('Sent — not read yet')}
       >
-        <Check className="size-3.5" /> Sent
+        <Check className="size-3.5" /> {t('Sent')}
       </span>
     );
   }

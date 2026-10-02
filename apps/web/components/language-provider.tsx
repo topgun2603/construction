@@ -2,18 +2,18 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import type { LanguageCode } from '@sitebook/shared';
-import { LANGUAGE_COOKIE, translate, type MessageKey } from '@/lib/i18n';
+import { LANGUAGE_COOKIE, translate, type Translator } from '@/lib/i18n';
 
 interface LanguageContextValue {
   language: LanguageCode;
-  /** Look up one string. Falls back to English when it has not been translated yet. */
-  t: (key: MessageKey) => string;
+  /** One string, keyed by its own English. Falls back to the English when untranslated. */
+  t: Translator;
   setLanguage: (language: LanguageCode) => void;
 }
 
 const LanguageContext = createContext<LanguageContextValue>({
   language: 'en',
-  t: (key) => translate('en', key),
+  t: (english) => translate('en', english),
   setLanguage: () => undefined,
 });
 
@@ -47,7 +47,7 @@ export function LanguageProvider({
   }, []);
 
   const value = useMemo(
-    () => ({ language, t: (key: MessageKey) => translate(language, key), setLanguage }),
+    () => ({ language, t: (english: string) => translate(language, english), setLanguage }),
     [language, setLanguage],
   );
 

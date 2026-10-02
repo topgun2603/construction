@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { viewUrl } from '@/lib/actions';
 import type { DailyReport } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The photographs attached to one day's report.
@@ -23,6 +24,7 @@ export function ReportPhotos({ photos }: { photos: DailyReport['photos'] }) {
 }
 
 function Thumb({ s3Key, caption }: { s3Key: string; caption: string | null }) {
+  const { t } = useLanguage();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -41,7 +43,7 @@ function Thumb({ s3Key, caption }: { s3Key: string; caption: string | null }) {
   if (failed) {
     return (
       <span className="grid size-[92px] place-items-center rounded-panel border border-line bg-neutral-bg text-[11px] text-ink-faint">
-        Not available
+        {t('Not available')}
       </span>
     );
   }

@@ -9,6 +9,7 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { ReportsNav } from '../reports-nav';
 import { RegisterGrid } from './register-grid';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Attendance register · BUILDR' };
 
@@ -25,6 +26,7 @@ export default async function AttendanceRegisterPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const t = await getT();
   const params = await searchParams;
   const to = params.to ?? todayIso();
 
@@ -60,7 +62,7 @@ export default async function AttendanceRegisterPage({
 
       {clamped && (
         <p className="rounded-btn bg-pending-bg px-3 py-2 text-[13px] leading-snug text-pending-fg">
-          The register shows at most {ATTENDANCE_REGISTER_MAX_DAYS} days at a time, so this
+          {t('The register shows at most')} {ATTENDANCE_REGISTER_MAX_DAYS} days at a time, so this
           is {shortDate(from)} to {shortDate(to)}. A wider range needs the labour cost
           report, which totals rather than listing each day.
         </p>
@@ -68,32 +70,32 @@ export default async function AttendanceRegisterPage({
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Workers on the roll"
+          label={t('Workers on the roll')}
           value={String(register.totals.worker_count)}
           note={`${register.dates.length} days · ${shortDate(from)} – ${shortDate(to)}`}
         />
         <StatTile
-          label="Worker-days"
+          label={t('Worker-days')}
           value={register.totals.days_present}
-          note="Half days count as 0.5"
+          note={t('Half days count as 0.5')}
         />
         <StatTile
-          label="Overtime hours"
+          label={t('Overtime hours')}
           value={register.totals.overtime_hours}
-          note="Paid on top of the day rate"
+          note={t('Paid on top of the day rate')}
         />
         <StatTile
-          label="Earned in range"
+          label={t('Earned in range')}
           value={moneyShort(register.totals.earned)}
-          note="From the frozen wage snapshots"
+          note={t('From the frozen wage snapshots')}
         />
       </div>
 
       {register.workers.length === 0 ? (
         <EmptyState
           icon={<CalendarRange />}
-          title="No attendance in this period"
-          body="Pick a wider range, or take a roll call to start building the register."
+          title={t('No attendance in this period')}
+          body={t('Pick a wider range, or take a roll call to start building the register.')}
         />
       ) : (
         <RegisterGrid register={register} />

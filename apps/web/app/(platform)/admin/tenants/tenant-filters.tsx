@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import type { PlanView } from '@sitebook/shared';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Filters for the tenant list.
@@ -31,6 +32,7 @@ export function TenantFilters({
   /** The catalogue, so the filter offers whatever is actually sold. */
   plans: PlanView[];
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [term, setTerm] = useState(search);
 
@@ -72,29 +74,29 @@ export function TenantFilters({
         <Input
           value={term}
           onChange={(event) => setTerm(event.target.value)}
-          placeholder="Search name or owner number"
+          placeholder={t('Search name or owner number')}
           className="w-[280px] pl-9"
-          aria-label="Search tenants"
+          aria-label={t('Search tenants')}
         />
       </div>
 
       <Segmented
-        label="Status"
+        label={t('Status')}
         value={status}
         options={[
-          { value: '', label: 'All' },
-          { value: 'active', label: 'Active' },
-          { value: 'suspended', label: 'Suspended' },
-          { value: 'cancelled', label: 'Cancelled' },
+          { value: '', label: t('All') },
+          { value: 'active', label: t('Active') },
+          { value: 'suspended', label: t('Suspended') },
+          { value: 'cancelled', label: t('Cancelled') },
         ]}
         onChange={(value) => push({ status: value })}
       />
 
       <Segmented
-        label="Plan"
+        label={t('Plan')}
         value={plan}
         options={[
-          { value: '', label: 'All' },
+          { value: '', label: t('All') },
           ...plans.map((option) => ({ value: option.code, label: option.name })),
         ]}
         onChange={(value) => push({ plan: value })}
@@ -110,7 +112,7 @@ export function TenantFilters({
           }}
         >
           <X className="size-4" />
-          Clear
+          {t('Clear')}
         </Button>
       )}
     </div>
@@ -128,6 +130,7 @@ function Segmented({
   options: Array<{ value: string; label: string }>;
   onChange: (value: string) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="flex gap-1 rounded-btn bg-neutral-bg p-1" role="group" aria-label={label}>
       {options.map((option) => (
@@ -143,7 +146,7 @@ function Segmented({
               : 'text-ink-soft hover:text-ink',
           )}
         >
-          {option.label}
+          {t(option.label)}
         </button>
       ))}
     </div>

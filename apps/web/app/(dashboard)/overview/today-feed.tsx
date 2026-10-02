@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { timeOfDay } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { getT } from '@/lib/i18n-server';
 
 /**
  * What came in from the sites today.
@@ -14,18 +15,19 @@ import { cn } from '@/lib/utils';
  * other sections, or not at all. It holds its place now — an empty feed at four in the afternoon
  * is itself the news.
  */
-export function TodayFeed({
+export async function TodayFeed({
   reports,
   className,
 }: {
   reports: DashboardToday['reports'];
   className?: string;
 }) {
+  const t = await getT();
   return (
     <Card className={cn('flex flex-col', className)}>
       <div className="flex flex-none items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Today&rsquo;s reports
+          {t('Today&rsquo;s reports')}
         </span>
         <span className="font-mono text-[13px] text-ink-muted">{reports.length}</span>
       </div>
@@ -36,7 +38,7 @@ export function TodayFeed({
             <FileText className="size-4" />
           </span>
           <p className="text-[13.5px] text-ink-muted">
-            Nothing filed yet today. Reports land here as the sites send them.
+            {t('Nothing filed yet today. Reports land here as the sites send them.')}
           </p>
         </div>
       ) : (
@@ -76,7 +78,7 @@ export function TodayFeed({
                     </span>
                   )}
                   <Badge tone={report.status === 'submitted' ? 'done' : 'pending'}>
-                    {report.status === 'submitted' ? 'Submitted' : 'Draft'}
+                    {report.status === 'submitted' ? t('Submitted') : t('Draft')}
                   </Badge>
                 </div>
               </li>

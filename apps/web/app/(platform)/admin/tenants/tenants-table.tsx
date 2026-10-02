@@ -7,6 +7,8 @@ import type { PlatformTenantRow } from '@/lib/platform-session';
 import { DataTable } from '@/components/data-table';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { shortDate, titleCase } from '@/lib/format';
+import type { Translator } from '@/lib/i18n';
+import { useLanguage } from '@/components/language-provider';
 
 const STATUS_TONE: Record<string, Tone> = {
   active: 'done',
@@ -36,7 +38,7 @@ function daysUntil(iso: string): number {
   return Math.round((end - start) / 86_400_000);
 }
 
-const columnsFor = (planNames: Record<string, string>): ColumnDef<PlatformTenantRow>[] => [
+const columnsFor = (planNames: Record<string, string>, t: Translator): ColumnDef<PlatformTenantRow>[] => [
   {
     accessorKey: 'name',
     header: 'Tenant',
@@ -60,7 +62,7 @@ const columnsFor = (planNames: Record<string, string>): ColumnDef<PlatformTenant
   },
   {
     accessorKey: 'plan',
-    header: 'Plan',
+    header: t('Plan'),
     // The catalogue's own name where there is one. A retired or deleted plan falls back to the
     // code title-cased, which still says something rather than going blank.
     cell: ({ row }) => (
@@ -82,16 +84,16 @@ const columnsFor = (planNames: Record<string, string>): ColumnDef<PlatformTenant
      */
     cell: ({ row }) => {
       const { plan_expires_on: expiresOn, plan_standing: standing } = row.original;
-      if (!expiresOn) return <span className="text-[12.5px] text-ink-faint">Never ends</span>;
+      if (!expiresOn) return <span className="text-[12.5px] text-ink-faint">{t('Never ends')}</span>;
 
       const days = daysUntil(expiresOn);
       const date = shortDate(expiresOn.slice(0, 10));
 
       if (standing === 'expired') {
-        return <span className="text-[12.5px] font-medium text-blocked-fg">Read-only</span>;
+        return <span className="text-[12.5px] font-medium text-blocked-fg">{t('Read-only')}</span>;
       }
       if (standing === 'grace') {
-        return <span className="text-[12.5px] font-medium text-pending-fg">In grace</span>;
+        return <span className="text-[12.5px] font-medium text-pending-fg">{t('In grace')}</span>;
       }
       return (
         <span
@@ -107,28 +109,28 @@ const columnsFor = (planNames: Record<string, string>): ColumnDef<PlatformTenant
   },
   {
     accessorKey: 'status',
-    header: 'Status',
+    header: t('Status'),
     cell: ({ row }) => (
       <Badge tone={STATUS_TONE[row.original.status] ?? 'neutral'}>
-        {titleCase(row.original.status)}
+        {t(titleCase(row.original.status))}
       </Badge>
     ),
   },
   {
     accessorKey: 'user_count',
-    header: 'People',
+    header: t('People'),
     meta: { align: 'right' },
     cell: ({ row }) => <span className="font-mono">{row.original.user_count}</span>,
   },
   {
     accessorKey: 'project_count',
-    header: 'Sites',
+    header: t('Sites'),
     meta: { align: 'right' },
     cell: ({ row }) => <span className="font-mono">{row.original.project_count}</span>,
   },
   {
     accessorKey: 'worker_count',
-    header: 'Workers',
+    header: t('Workers'),
     meta: { align: 'right' },
     cell: ({ row }) => (
       <span className="font-mono text-ink-muted">{row.original.worker_count}</span>
@@ -145,12 +147,12 @@ const columnsFor = (planNames: Record<string, string>): ColumnDef<PlatformTenant
         </span>
       ) : (
         // Signed up and never came back, which is the signal worth colouring.
-        <span className="text-[12.5px] text-pending-fg">Never</span>
+        <span className="text-[12.5px] text-pending-fg">{t('Never')}</span>
       ),
   },
   {
     accessorKey: 'created_at',
-    header: 'Joined',
+    header: t('Joined'),
     meta: { align: 'right' },
     cell: ({ row }) => (
       <span className="font-mono text-[12.5px] text-ink-muted">
@@ -167,8 +169,9 @@ export function TenantsTable({
   tenants: PlatformTenantRow[];
   planNames: Record<string, string>;
 }) {
+  const { t } = useLanguage();
   // Rebuilt only when the catalogue changes, which is never within a page's life.
-  const columns = useMemo(() => columnsFor(planNames), [planNames]);
+  const columns = useMemo(() => columnsFor(planNames, t), [planNames, t]);
 
   return (
     <DataTable

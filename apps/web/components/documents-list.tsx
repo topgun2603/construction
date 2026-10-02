@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { instantDate, timeOfDay, titleCase } from '@/lib/format';
+import { useLanguage } from '@/components/language-provider';
 
 const CATEGORIES: DocumentCategory[] = [
   'drawing',
@@ -135,6 +136,7 @@ function DocumentsTable({
   canManage: boolean;
   showProject: boolean;
 }) {
+  const { t } = useLanguage();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
@@ -191,7 +193,7 @@ function DocumentsTable({
       {
         accessorKey: 'category',
         header: 'What it is',
-        cell: ({ getValue }) => <Badge tone="neutral">{titleCase(getValue<string>())}</Badge>,
+        cell: ({ getValue }) => <Badge tone="neutral">{t(titleCase(getValue<string>()))}</Badge>,
       },
     ];
 
@@ -273,14 +275,14 @@ function DocumentsTable({
       }
       toolbar={
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[12.5px] text-ink-muted">Filed</span>
+          <span className="text-[12.5px] text-ink-muted">{t('Filed')}</span>
           <Input
             type="date"
             value={from}
             max={to || undefined}
             onChange={(event) => setFrom(event.target.value)}
             className="h-10 w-[150px]"
-            aria-label="Filed on or after"
+            aria-label={t('Filed on or after')}
           />
           <span className="text-[12.5px] text-ink-muted">to</span>
           <Input
@@ -289,7 +291,7 @@ function DocumentsTable({
             min={from || undefined}
             onChange={(event) => setTo(event.target.value)}
             className="h-10 w-[150px]"
-            aria-label="Filed on or before"
+            aria-label={t('Filed on or before')}
           />
           {/*
             Only once a range is set. A clear button that does nothing is one more thing to read on
@@ -305,7 +307,7 @@ function DocumentsTable({
               }}
             >
               <X className="size-4" />
-              Clear
+              {t('Clear')}
             </Button>
           )}
           <span className="text-[12.5px] text-ink-faint">
@@ -326,6 +328,7 @@ function RowActions({
   document: SiteDocument;
   canManage: boolean;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -354,7 +357,7 @@ function RowActions({
         {document.url && (
           <Button asChild size="sm" variant="secondary">
             <a href={document.url} target="_blank" rel="noreferrer noopener">
-              Open
+              {t('Open')}
             </a>
           </Button>
         )}
@@ -405,7 +408,7 @@ function RowActions({
             />
 
             <ConfirmDialog
-              title="Remove this revision?"
+              title={t('Remove this revision?')}
               body={
                 <>
                   <strong className="font-semibold text-ink">{document.title}</strong> rev{' '}
@@ -413,7 +416,7 @@ function RowActions({
                   itself is kept.
                 </>
               }
-              confirmLabel="Remove revision"
+              confirmLabel={t('Remove revision')}
               successMessage="Removed"
               onConfirm={() => deleteDocument(document.id, document.project_id)}
               trigger={
@@ -449,6 +452,7 @@ function UploadDialog({
   /** Present only when the caller has no site of its own to file against. */
   sites?: { id: string; name: string }[];
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -535,7 +539,7 @@ function UploadDialog({
       <DialogTrigger asChild>
         {trigger ?? (
           <Button size="sm" variant="secondary">
-            <Upload className="size-4" /> Upload document
+            <Upload className="size-4" /> {t('Upload document')}
           </Button>
         )}
       </DialogTrigger>
@@ -552,7 +556,7 @@ function UploadDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          <Field label="File">
+          <Field label={t('File')}>
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
@@ -578,13 +582,13 @@ function UploadDialog({
           </Field>
 
           {!supersedes && sites && (
-            <Field label="Which site">
+            <Field label={t('Which site')}>
               <Select value={chosenSite} onValueChange={setChosenSite}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_SITE}>Not a site — company-wide</SelectItem>
+                  <SelectItem value={NO_SITE}>{t('Not a site — company-wide')}</SelectItem>
                   {sites.map((site) => (
                     <SelectItem key={site.id} value={site.id}>
                       {site.name}
@@ -597,17 +601,17 @@ function UploadDialog({
 
           {!supersedes && (
             <>
-              <Field label="Name" htmlFor="document-title">
+              <Field label={t('Name')} htmlFor="document-title">
                 <Input
                   id="document-title"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   maxLength={200}
-                  placeholder="Ground floor slab layout"
+                  placeholder={t('Ground floor slab layout')}
                 />
               </Field>
 
-              <Field label="What is it">
+              <Field label={t('What is it')}>
                 <Select value={category} onValueChange={(value) => setCategory(value as DocumentCategory)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -615,7 +619,7 @@ function UploadDialog({
                   <SelectContent>
                     {CATEGORIES.map((option) => (
                       <SelectItem key={option} value={option}>
-                        {titleCase(option)}
+                        {t(titleCase(option))}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -630,10 +634,9 @@ function UploadDialog({
                   className="mt-0.5 size-4 accent-accent"
                 />
                 <span className="flex flex-col">
-                  <span className="text-[14px] font-medium">Let the client open this</span>
+                  <span className="text-[14px] font-medium">{t('Let the client open this')}</span>
                   <span className="text-[12.5px] text-ink-muted">
-                    Off by default. A contract or a costing shared by accident is not something you
-                    can take back.
+                    {t('Off by default. A contract or a costing shared by accident is not something you can take back.')}
                   </span>
                 </span>
               </label>
@@ -649,7 +652,7 @@ function UploadDialog({
 
         <DialogFooter>
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="button" onClick={submit} disabled={pending}>
             {pending ? <Loader2 className="size-4 animate-spin" /> : null}

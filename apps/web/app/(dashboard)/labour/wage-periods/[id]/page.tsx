@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { PeriodActions } from './period-actions';
 import { LinesTable } from './lines-table';
+import { getT } from '@/lib/i18n-server';
 
 const STATUS_TONE: Record<WagePeriodDetail['status'], Tone> = {
   open: 'neutral',
@@ -19,6 +20,7 @@ const STATUS_TONE: Record<WagePeriodDetail['status'], Tone> = {
 };
 
 export default async function WagePeriodPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = await getT();
   const { id } = await params;
 
   let period: WagePeriodDetail;
@@ -45,12 +47,12 @@ export default async function WagePeriodPage({ params }: { params: Promise<{ id:
             href="/labour/wage-periods"
             className="inline-flex items-center gap-1 text-[12.5px] text-ink-faint hover:underline"
           >
-            <ArrowLeft className="size-3" /> Wage periods
+            <ArrowLeft className="size-3" /> {t('Wage periods')}
           </Link>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-[21px] font-semibold leading-tight">{period.contractor_name}</h2>
             <Badge tone={STATUS_TONE[period.status]}>
-              {period.status === 'open' ? 'Draft' : period.status === 'paid' ? 'Paid' : 'To pay'}
+              {period.status === 'open' ? t('Draft') : period.status === 'paid' ? t('Paid') : 'To pay'}
             </Badge>
             {/*
               Said on the screen the owner actually lands on. A sheet they do not remember
@@ -59,7 +61,7 @@ export default async function WagePeriodPage({ params }: { params: Promise<{ id:
             */}
             {period.source === 'scheduled' && (
               <Badge tone="neutral" dot={false}>
-                Drafted automatically
+                {t('Drafted automatically')}
               </Badge>
             )}
           </div>
@@ -73,11 +75,11 @@ export default async function WagePeriodPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-        <Summary label="Gross earned" value={money(gross.toString())} />
-        <Summary label="Advances deducted" value={money(advances.toString())} muted />
-        <Summary label="Net payable" value={money(net.toString())} />
+        <Summary label={t('Gross earned')} value={money(gross.toString())} />
+        <Summary label={t('Advances deducted')} value={money(advances.toString())} muted />
+        <Summary label={t('Net payable')} value={money(net.toString())} />
         <Summary
-          label="Outstanding"
+          label={t('Outstanding')}
           value={money(outstanding.toString())}
           tone={outstanding > 0n ? 'pending' : 'done'}
         />
@@ -86,12 +88,12 @@ export default async function WagePeriodPage({ params }: { params: Promise<{ id:
       {period.status !== 'open' && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="max-w-xl text-[13.5px] leading-relaxed text-ink-muted">
-            This period is frozen. Attendance between {shortDate(period.period_start)} and{' '}
+            {t('This period is frozen. Attendance between')} {shortDate(period.period_start)} and{' '}
             {shortDate(period.period_end)} can no longer be edited — corrections go in the next
             period as a bonus or deduction.
           </p>
           <Button asChild variant="secondary" size="sm">
-            <Link href={`/reports/wage-sheet/${period.id}`}>Open wage sheet</Link>
+            <Link href={`/reports/wage-sheet/${period.id}`}>{t('Open wage sheet')}</Link>
           </Button>
         </Card>
       )}

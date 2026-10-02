@@ -10,11 +10,14 @@ import { Badge } from '@/components/ui/badge';
 import { money } from '@/lib/format';
 import { titleCase } from '@/lib/format';
 import type { Worker } from '@/lib/api-types';
+import type { Translator } from '@/lib/i18n';
+import { useLanguage } from '@/components/language-provider';
 
-const columns: ColumnDef<Worker>[] = [
+function buildColumns(t: Translator): ColumnDef<Worker>[] {
+  return [
   {
     accessorKey: 'name',
-    header: 'Worker',
+    header: t('Worker'),
     cell: ({ row }) => (
       <div className="flex items-center gap-2.5">
         <Avatar name={row.original.name} size="sm" />
@@ -36,10 +39,10 @@ const columns: ColumnDef<Worker>[] = [
   { accessorKey: 'trade', header: 'Trade', cell: ({ row }) => row.original.trade ?? '—' },
   {
     accessorKey: 'contractor_name',
-    header: 'Contractor',
+    header: t('Contractor'),
     // Direct labour is a real group, not a blank — the wage sheet pays them too.
     cell: ({ row }) =>
-      row.original.contractor_name ?? <span className="text-ink-muted">Direct labour</span>,
+      row.original.contractor_name ?? <span className="text-ink-muted">{t('Direct labour')}</span>,
   },
   {
     accessorKey: 'skill_level',
@@ -65,10 +68,10 @@ const columns: ColumnDef<Worker>[] = [
   },
   {
     accessorKey: 'status',
-    header: 'Status',
+    header: t('Status'),
     cell: ({ row }) => (
       <Badge tone={row.original.status === 'active' ? 'done' : 'neutral'}>
-        {titleCase(row.original.status)}
+        {t(titleCase(row.original.status))}
       </Badge>
     ),
   },
@@ -80,7 +83,7 @@ const columns: ColumnDef<Worker>[] = [
     cell: ({ row }) => (
       <DeleteRowButton
         what={row.original.name}
-        title="Delete this worker?"
+        title={t('Delete this worker?')}
         body={
           <>
             <strong className="font-semibold text-ink">{row.original.name}</strong> comes off the
@@ -94,11 +97,13 @@ const columns: ColumnDef<Worker>[] = [
     ),
   },
 ];
+}
 
 export function WorkersTable({ workers }: { workers: Worker[] }) {
+  const { t } = useLanguage();
   return (
     <DataTable
-      columns={columns}
+      columns={buildColumns(t)}
       data={workers}
       searchPlaceholder="Search workers, trades, contractors"
       pageSize={25}

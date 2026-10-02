@@ -11,12 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { moneyShort, shortDate } from '@/lib/format';
 import { schedule, statusLabel, statusTone } from '@/lib/projects';
 import type { ProjectSummary } from '@/lib/api-types';
+import type { Translator } from '@/lib/i18n';
+import { useLanguage } from '@/components/language-provider';
 
-function buildColumns(canDelete: boolean): ColumnDef<ProjectSummary>[] {
+function buildColumns(canDelete: boolean, t: Translator): ColumnDef<ProjectSummary>[] {
   return [
   {
     accessorKey: 'name',
-    header: 'Site',
+    header: t('Site'),
     cell: ({ row }) => (
       <div className="flex flex-col">
         <span className="font-medium">{row.original.name}</span>
@@ -28,7 +30,7 @@ function buildColumns(canDelete: boolean): ColumnDef<ProjectSummary>[] {
   },
   {
     accessorKey: 'client_name',
-    header: 'Client',
+    header: t('Client'),
     cell: ({ row }) => row.original.client_name ?? '—',
   },
   {
@@ -39,25 +41,25 @@ function buildColumns(canDelete: boolean): ColumnDef<ProjectSummary>[] {
     accessorFn: (row) => schedule(row)?.daysRemaining ?? Number.MAX_SAFE_INTEGER,
     cell: ({ row }) => {
       const timeline = schedule(row.original);
-      if (!timeline) return <span className="text-ink-faint">No dates</span>;
+      if (!timeline) return <span className="text-ink-faint">{t('No dates')}</span>;
       return (
         <div className="flex items-center gap-2">
           <span className="font-mono text-[13px]">{timeline.elapsedPercent}%</span>
-          <span className="text-[12.5px] text-ink-muted">{timeline.label}</span>
+          <span className="text-[12.5px] text-ink-muted">{t(timeline.label)}</span>
         </div>
       );
     },
   },
   {
     accessorKey: 'target_end_date',
-    header: 'Handover',
+    header: t('Handover'),
     cell: ({ row }) => (
       <span className="font-mono text-[13px]">{shortDate(row.original.target_end_date)}</span>
     ),
   },
   {
     accessorKey: 'budget_amount',
-    header: 'Budget',
+    header: t('Budget'),
     meta: { align: 'right' },
     cell: ({ row }) => (
       <span className="font-mono">
@@ -67,9 +69,9 @@ function buildColumns(canDelete: boolean): ColumnDef<ProjectSummary>[] {
   },
   {
     accessorKey: 'status',
-    header: 'Status',
+    header: t('Status'),
     cell: ({ row }) => (
-      <Badge tone={statusTone(row.original.status)}>{statusLabel(row.original.status)}</Badge>
+      <Badge tone={statusTone(row.original.status)}>{t(statusLabel(row.original.status))}</Badge>
     ),
   },
   // Owner only, matching the API's @Roles on DELETE /projects/:id.
@@ -83,7 +85,7 @@ function buildColumns(canDelete: boolean): ColumnDef<ProjectSummary>[] {
           cell: ({ row }: { row: Row<ProjectSummary> }) => (
             <DeleteRowButton
               what={row.original.name}
-              title="Archive this site?"
+              title={t('Archive this site?')}
               body={
                 <>
                   <strong className="font-semibold text-ink">{row.original.name}</strong> comes off
@@ -91,7 +93,7 @@ function buildColumns(canDelete: boolean): ColumnDef<ProjectSummary>[] {
                   hides a site that is finished or was created by mistake.
                 </>
               }
-              confirmLabel="Archive site"
+              confirmLabel={t('Archive site')}
               successMessage={`${row.original.name} archived`}
               onConfirm={() => deleteProject(row.original.id)}
             />
@@ -111,8 +113,9 @@ export function ProjectsTable({
   canDelete?: boolean;
   toolbar?: ReactNode;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
-  const columns = buildColumns(canDelete);
+  const columns = buildColumns(canDelete, t);
   return (
     <DataTable
       columns={columns}

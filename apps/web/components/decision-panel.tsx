@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { DashboardToday } from '@/lib/api-types';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Approvals cleared inline from the dashboard (design note on artboard 3a): the
@@ -26,6 +27,7 @@ export function DecisionPanel({
   canApprove: boolean;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pending, start] = useTransition();
   const shown = approvals.slice(0, 2);
@@ -46,7 +48,7 @@ export function DecisionPanel({
     <Card className={cn('flex flex-col gap-3 p-4', className)}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Needs your decision
+          {t('Needs your decision')}
         </span>
         {approvals.length > 0 && (
           <span className="font-mono text-[13px] text-ink-muted">{approvals.length}</span>
@@ -58,7 +60,7 @@ export function DecisionPanel({
           <span className="flex size-9 items-center justify-center rounded-full bg-done-bg text-done-fg">
             <Check className="size-4" />
           </span>
-          <p className="text-[13.5px] text-ink-muted">Nothing waiting on you.</p>
+          <p className="text-[13.5px] text-ink-muted">{t('Nothing waiting on you.')}</p>
         </div>
       ) : (
         <AnimatePresence mode="popLayout">
@@ -78,7 +80,7 @@ export function DecisionPanel({
                     {approval.project_name} · {approval.requested_by}
                   </span>
                 </div>
-                {approval.urgency === 'high' && <Badge tone="blocked">Urgent</Badge>}
+                {approval.urgency === 'high' && <Badge tone="blocked">{t('Urgent')}</Badge>}
               </div>
 
               {canApprove ? (
@@ -90,7 +92,7 @@ export function DecisionPanel({
                     disabled={pending}
                     onClick={() => decide(approval.id, 'approved', 'Indent approved')}
                   >
-                    <Check /> Approve
+                    <Check /> {t('Approve')}
                   </Button>
                   <Button
                     variant="secondary"
@@ -99,12 +101,12 @@ export function DecisionPanel({
                     disabled={pending}
                     onClick={() => decide(approval.id, 'rejected', 'Indent rejected')}
                   >
-                    <X /> Reject
+                    <X /> {t('Reject')}
                   </Button>
                 </div>
               ) : (
                 <p className="text-[12.5px] text-ink-muted">
-                  Waiting on a project manager or the owner.
+                  {t('Waiting on a project manager or the owner.')}
                 </p>
               )}
             </motion.div>

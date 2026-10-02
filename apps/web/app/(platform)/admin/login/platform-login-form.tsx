@@ -9,6 +9,7 @@ import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { platformLogin } from '@/lib/platform-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useLanguage } from '@/components/language-provider';
 
 
 /**
@@ -39,6 +40,7 @@ const DEV_AUTH_BYPASS =
  * they are not on it.
  */
 export function PlatformLoginForm() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -106,10 +108,10 @@ export function PlatformLoginForm() {
       <div className="flex flex-col gap-1.5">
         <span className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-muted">
           <Lock className="size-3.5" />
-          Restricted
+          {t('Restricted')}
         </span>
         <h2 className="text-[20px] font-semibold leading-tight">
-          {step === 'phone' ? 'Operator sign in' : 'Enter the code'}
+          {step === 'phone' ? 'Operator sign in' : t('Enter the code')}
         </h2>
         <p className="text-[13.5px] leading-relaxed text-ink-muted">
           {step === 'phone'
@@ -121,7 +123,7 @@ export function PlatformLoginForm() {
       {step === 'phone' ? (
         <form onSubmit={submitPhone} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-semibold">Mobile number</span>
+            <span className="text-[13px] font-semibold">{t('Mobile number')}</span>
             <div className="flex items-center gap-2 rounded-control border border-line-strong bg-surface px-3 focus-within:border-accent">
               <span className="font-mono text-[14px] text-ink-muted">+91</span>
               <input
@@ -145,7 +147,7 @@ export function PlatformLoginForm() {
       ) : (
         <form onSubmit={submitCode} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-semibold">Six digit code</span>
+            <span className="text-[13px] font-semibold">{t('Six digit code')}</span>
             <Input
               value={code}
               onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -158,7 +160,7 @@ export function PlatformLoginForm() {
           <div className="flex items-center gap-2">
             <Button type="submit" size="lg" disabled={busy || code.length !== 6} className="flex-1">
               {busy && <Loader2 className="size-4 animate-spin" />}
-              Verify
+              {t('Verify')}
             </Button>
             <Button
               type="button"
@@ -170,7 +172,7 @@ export function PlatformLoginForm() {
               }}
               disabled={busy}
             >
-              Back
+              {t('Back')}
             </Button>
           </div>
         </form>
@@ -190,7 +192,7 @@ export function PlatformLoginForm() {
         company's plan should read this before they sign in, not once they already have.
       */}
       <p className="border-t border-line-soft pt-3 text-[12.5px] leading-relaxed text-ink-muted">
-        Every action you take here is written to the platform audit trail against your number.
+        {t('Every action you take here is written to the platform audit trail against your number.')}
       </p>
 
       <div id="platform-recaptcha" ref={recaptchaHost} />

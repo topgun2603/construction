@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { OverrunFilters } from './overrun-filters';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Material overrun · BUILDR' };
 
@@ -27,6 +28,7 @@ export default async function OverrunPage({
 }: {
   searchParams: Promise<{ project_id?: string; all?: string }>;
 }) {
+  const t = await getT();
   const params = await searchParams;
   const showAll = params.all === 'true';
 
@@ -55,7 +57,7 @@ export default async function OverrunPage({
 
       <div className="grid gap-3.5 sm:grid-cols-3">
         <StatTile
-          label="Over estimate"
+          label={t('Over estimate')}
           value={String(report.totals.over_estimate)}
           note={
             report.totals.over_estimate === 0
@@ -66,13 +68,13 @@ export default async function OverrunPage({
           icon={<AlertTriangle className="size-4" />}
         />
         <StatTile
-          label="Materials measured"
+          label={t('Materials measured')}
           value={String(report.totals.material_count)}
           note={showAll ? 'Including those with no estimate' : 'With an estimate set'}
           icon={<PackageSearch className="size-4" />}
         />
         <StatTile
-          label="Worst overrun"
+          label={t('Worst overrun')}
           value={over[0] ? `${over[0].variance} ${over[0].unit}` : '—'}
           note={over[0]?.material_name ?? 'Nothing over'}
           noteTone={over[0] ? 'blocked' : 'done'}
@@ -82,14 +84,14 @@ export default async function OverrunPage({
       {report.items.length === 0 ? (
         <EmptyState
           icon={<PackageSearch />}
-          title="Nothing to measure yet"
-          body="Set what a site should consume on its Materials tab, then record what it actually uses. This report is the difference."
+          title={t('Nothing to measure yet')}
+          body={t('Set what a site should consume on its Materials tab, then record what it actually uses. This report is the difference.')}
         />
       ) : (
         <Card className="flex flex-col">
           <div className="flex items-center justify-between border-b border-line-soft px-4 py-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Worst first
+              {t('Worst first')}
             </span>
             <span className="font-mono text-[13px] text-ink-muted">
               {report.items.length} materials
@@ -100,11 +102,11 @@ export default async function OverrunPage({
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="border-b border-line-soft text-[12px] uppercase tracking-[0.06em] text-ink-muted">
-                  <th className="px-4 py-2.5 text-left font-semibold">Material</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Should take</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Used</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Delivered</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">Variance</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">{t('Material')}</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">{t('Should take')}</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">{t('Used')}</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">{t('Delivered')}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">{t('Variance')}</th>
                 </tr>
               </thead>
               <tbody>

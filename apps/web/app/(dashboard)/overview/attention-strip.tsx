@@ -8,6 +8,7 @@ import {
   Siren,
 } from 'lucide-react';
 import type { DashboardOverview } from '@/lib/api-types';
+import { getT } from '@/lib/i18n-server';
 
 /**
  * What is wrong today, in one line, with somewhere to go about each of it.
@@ -19,7 +20,7 @@ import type { DashboardOverview } from '@/lib/api-types';
  * Nothing appears when nothing is wrong except the line saying so. A strip that always has four
  * chips in it teaches people to stop looking at the strip.
  */
-export function AttentionStrip({
+export async function AttentionStrip({
   sites,
   totals,
   wagePeriods,
@@ -28,6 +29,7 @@ export function AttentionStrip({
   totals: DashboardOverview['totals'];
   wagePeriods: DashboardOverview['wage_periods'];
 }) {
+  const t = await getT();
   const missingDpr = sites.filter((site) => site.dpr_status !== 'submitted');
   const onHold = sites.filter((site) => site.status === 'on_hold');
   const reportingIssues = sites.filter((site) => site.dpr_has_issues);
@@ -109,7 +111,7 @@ export function AttentionStrip({
       <div className="flex items-center gap-2.5 rounded-card border border-done/25 bg-done-bg/50 px-4 py-2.5">
         <CheckCircle2 className="size-4 flex-none text-done-fg" />
         <span className="text-[13.5px] font-medium text-done-fg">
-          Nothing needs you right now — every site has reported and nothing is waiting.
+          {t('Nothing needs you right now — every site has reported and nothing is waiting.')}
         </span>
       </div>
     );
@@ -118,7 +120,7 @@ export function AttentionStrip({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-        Needs attention
+        {t('Needs attention')}
       </span>
       {items.map(({ key, icon: Icon, tone, label, href, detail }) => (
         <Link

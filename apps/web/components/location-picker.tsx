@@ -5,6 +5,7 @@ import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
 import { Crosshair, Layers, Loader2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The browser key. Public by design — it travels with every map request, so hiding it is not a
@@ -49,6 +50,7 @@ export function LocationPicker({
   onChange: (next: PickedLocation) => void;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const host = useRef<HTMLDivElement | null>(null);
   /** Where Google mounts its own autocomplete element — it renders the input itself. */
   const searchHost = useRef<HTMLDivElement | null>(null);
@@ -118,7 +120,7 @@ export function LocationPicker({
             position: { lat, lng },
             map: instance,
             draggable: true,
-            title: 'Drag to adjust',
+            title: t('Drag to adjust'),
           });
           marker.current.addListener('dragend', () => {
             const position = marker.current?.getPosition();
@@ -147,7 +149,7 @@ export function LocationPicker({
           includedRegionCodes: ['in'],
           // What the empty box says. Without it the element shows a bare magnifier and nothing
           // tells anybody it is a search.
-          placeholder: 'Search a locality, road or landmark',
+          placeholder: t('Search a locality, road or landmark'),
         });
         autocomplete.id = 'site-location-search';
         searchHost.current.replaceChildren(autocomplete);
@@ -244,11 +246,11 @@ export function LocationPicker({
           }}
         />
         <Button type="button" variant="secondary" size="sm" onClick={toggleSatellite}>
-          <Layers className="size-4" /> {satellite ? 'Map' : 'Satellite'}
+          <Layers className="size-4" /> {satellite ? t('Map') : t('Satellite')}
         </Button>
         <Button type="button" variant="secondary" size="sm" onClick={useMyLocation} disabled={locating}>
           {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
-          I am on site
+          {t('I am on site')}
         </Button>
       </div>
 

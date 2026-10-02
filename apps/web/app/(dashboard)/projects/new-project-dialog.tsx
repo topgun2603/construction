@@ -19,8 +19,10 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { rupeesToPaiseString } from '@/lib/money-input';
 import { LocationField } from '@/components/location-field';
+import { useLanguage } from '@/components/language-provider';
 
 export function NewProjectDialog() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,31 +67,31 @@ export function NewProjectDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <Plus /> New site
+          <Plus /> {t('New site')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New site</DialogTitle>
+          <DialogTitle>{t('New site')}</DialogTitle>
           <DialogDescription>
-            You can add the team, milestones and budget later.
+            {t('You can add the team, milestones and budget later.')}
           </DialogDescription>
         </DialogHeader>
 
         <form action={onSubmit} className="flex flex-col gap-4">
-          <Field label="Site name" htmlFor="name">
+          <Field label={t('Site name')} htmlFor="name">
             <Input id="name" name="name" required minLength={2} placeholder="Lakeview Tower" />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Client" htmlFor="client_name">
-              <Input id="client_name" name="client_name" placeholder="Optional" />
+            <Field label={t('Client')} htmlFor="client_name">
+              <Input id="client_name" name="client_name" placeholder={t('Optional')} />
             </Field>
-            <Field label="Budget (₹)" htmlFor="budget" hint="Whole rupees">
+            <Field label={t('Budget (₹)')} htmlFor="budget" hint={t('Whole rupees')}>
               <Input id="budget" name="budget" inputMode="numeric" placeholder="42000000" />
             </Field>
           </div>
-          <Field label="Address" htmlFor="address">
-            <Input id="address" name="address" ref={addressBox} placeholder="Optional" />
+          <Field label={t('Address')} htmlFor="address">
+            <Input id="address" name="address" ref={addressBox} placeholder={t('Optional')} />
           </Field>
 
           <LocationField
@@ -105,10 +107,10 @@ export function NewProjectDialog() {
             }}
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Start date" htmlFor="start_date">
+            <Field label={t('Start date')} htmlFor="start_date">
               <Input id="start_date" name="start_date" type="date" />
             </Field>
-            <Field label="Target handover" htmlFor="target_end_date">
+            <Field label={t('Target handover')} htmlFor="target_end_date">
               <Input id="target_end_date" name="target_end_date" type="date" />
             </Field>
           </div>
@@ -121,7 +123,7 @@ export function NewProjectDialog() {
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
               {pending ? 'Creating…' : 'Create site'}

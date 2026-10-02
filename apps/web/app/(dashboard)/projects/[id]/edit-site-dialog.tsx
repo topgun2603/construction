@@ -29,6 +29,7 @@ import {
 import { LocationField } from '@/components/location-field';
 import { paiseToRupeesInput, rupeesToPaiseString } from '@/lib/money-input';
 import { statusLabel } from '@/lib/projects';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Editing a site.
@@ -50,6 +51,7 @@ export function EditSiteDialog({
   /** The map beside this passes its own button, so both routes lead to one dialog. */
   trigger?: ReactNode;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,22 +145,21 @@ export function EditSiteDialog({
         {trigger ?? (
           <Button variant="secondary" size="sm">
             <Pencil className="size-4" />
-            Edit site
+            {t('Edit site')}
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="max-w-[720px]">
         <DialogHeader>
-          <DialogTitle>Edit {project.name}</DialogTitle>
+          <DialogTitle>{t('Edit')} {project.name}</DialogTitle>
           <DialogDescription>
-            Everything about the site itself. Milestones, team and materials are edited on their own
-            tabs.
+            {t('Everything about the site itself. Milestones, team and materials are edited on their own tabs.')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex max-h-[62vh] flex-col gap-4 overflow-y-auto pr-1">
           <div className="flex flex-wrap gap-3">
-            <Field label="Site name" className="min-w-[220px] flex-1">
+            <Field label={t('Site name')} className="min-w-[220px] flex-1">
               <Input
                 value={form.name}
                 onChange={(event) => set('name', event.target.value)}
@@ -166,32 +167,32 @@ export function EditSiteDialog({
                 autoFocus
               />
             </Field>
-            <Field label="Client" className="min-w-[180px] flex-1">
+            <Field label={t('Client')} className="min-w-[180px] flex-1">
               <Input
                 value={form.client_name}
                 onChange={(event) => set('client_name', event.target.value)}
-                placeholder="Optional"
+                placeholder={t('Optional')}
                 maxLength={160}
               />
             </Field>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Field label="Start date" className="w-[170px]">
+            <Field label={t('Start date')} className="w-[170px]">
               <Input
                 type="date"
                 value={form.start_date}
                 onChange={(event) => set('start_date', event.target.value)}
               />
             </Field>
-            <Field label="Handover" className="w-[170px]">
+            <Field label={t('Handover')} className="w-[170px]">
               <Input
                 type="date"
                 value={form.target_end_date}
                 onChange={(event) => set('target_end_date', event.target.value)}
               />
             </Field>
-            <Field label="Budget" hint="Rupees" className="min-w-[150px] flex-1">
+            <Field label={t('Budget')} hint={t('Rupees')} className="min-w-[150px] flex-1">
               <Input
                 value={form.budget}
                 onChange={(event) => set('budget', event.target.value)}
@@ -203,7 +204,7 @@ export function EditSiteDialog({
           </div>
 
           <Field
-            label="Status"
+            label={t('Status')}
             hint={
               form.status === 'on_hold'
                 ? 'A stopped site floats to the top of the overview so it is not forgotten'
@@ -212,13 +213,13 @@ export function EditSiteDialog({
             className="w-[220px]"
           >
             <Select value={form.status} onValueChange={(value) => set('status', value)}>
-              <SelectTrigger aria-label="Status">
+              <SelectTrigger aria-label={t('Status')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {PROJECT_STATUSES.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {statusLabel(status)}
+                    {t(statusLabel(status))}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -227,13 +228,13 @@ export function EditSiteDialog({
 
           <div className="flex flex-col gap-2.5 border-t border-line-soft pt-4">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Location
+              {t('Location')}
             </span>
-            <Field label="Address" hint="What you would tell a driver">
+            <Field label={t('Address')} hint={t('What you would tell a driver')}>
               <Input
                 value={form.address}
                 onChange={(event) => set('address', event.target.value)}
-                placeholder="Survey 42, Whitefield Main Road"
+                placeholder={t('Survey 42, Whitefield Main Road')}
                 maxLength={300}
               />
             </Field>
@@ -249,11 +250,11 @@ export function EditSiteDialog({
 
         <DialogFooter>
           <Button variant="secondary" onClick={() => setOpen(false)} disabled={pending}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={save} disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" />}
-            Save changes
+            {t('Save changes')}
           </Button>
         </DialogFooter>
       </DialogContent>

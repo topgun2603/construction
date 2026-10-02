@@ -12,6 +12,7 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { LedgerRange } from './ledger-range';
 import { SelfServiceLink } from './self-service-link';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Worker · BUILDR' };
 
@@ -33,6 +34,7 @@ export default async function WorkerPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const t = await getT();
   const { id } = await params;
   const { from, to } = await searchParams;
 
@@ -63,12 +65,12 @@ export default async function WorkerPage({
             className="flex items-center gap-1.5 text-[13px] text-ink-muted hover:text-ink"
           >
             <ArrowLeft className="size-3.5" />
-            Workers
+            {t('Workers')}
           </Link>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-[22px] font-semibold leading-tight">{worker.name}</h2>
             <Badge tone={worker.status === 'active' ? 'done' : 'neutral'}>
-              {titleCase(worker.status)}
+              {t(titleCase(worker.status))}
             </Badge>
           </div>
           <span className="text-[13.5px] text-ink-muted">
@@ -93,11 +95,11 @@ export default async function WorkerPage({
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Earned"
+          label={t('Earned')}
           value={money(ledger.total_earned)}
-          note="Attendance plus bonus"
+          note={t('Attendance plus bonus')}
         />
-        <StatTile label="Paid" value={money(ledger.total_paid)} note="Wages, advances, deductions" />
+        <StatTile label={t('Paid')} value={money(ledger.total_paid)} note={t('Wages, advances, deductions')} />
         <StatTile
           label={outstanding >= 0n ? 'Still owed' : 'Paid ahead'}
           value={money((outstanding < 0n ? -outstanding : outstanding).toString())}
@@ -111,7 +113,7 @@ export default async function WorkerPage({
           noteTone={outstanding > 0n ? 'pending' : outstanding === 0n ? 'done' : 'blocked'}
         />
         <StatTile
-          label="Day rate"
+          label={t('Day rate')}
           value={money(worker.daily_wage)}
           note={`${money(worker.overtime_rate_per_hour)} per OT hour`}
         />
@@ -120,8 +122,8 @@ export default async function WorkerPage({
       {ledger.entries.length === 0 ? (
         <EmptyState
           icon={<HardHat />}
-          title="Nothing on this worker's account yet"
-          body="Attendance and payments appear here as they are recorded. Widen the date range if you were expecting history."
+          title={t("Nothing on this worker's account yet")}
+          body={t('Attendance and payments appear here as they are recorded. Widen the date range if you were expecting history.')}
         />
       ) : (
         <LedgerTable ledger={ledger} />
@@ -136,12 +138,13 @@ export default async function WorkerPage({
  * Oldest first rather than newest: this is read to follow how a balance got to where
  * it is, and a running total that counts backwards from the answer is unreadable.
  */
-function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
+async function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
+  const t = await getT();
   return (
     <Card className="flex flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Account
+          {t('Account')}
         </span>
         <span className="font-mono text-[13px] text-ink-muted">
           {ledger.entries.length} {ledger.entries.length === 1 ? 'entry' : 'entries'}
@@ -152,11 +155,11 @@ function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
         <table className="w-full text-[13.5px]">
           <thead>
             <tr className="border-b border-line-soft text-[12px] uppercase tracking-[0.06em] text-ink-muted">
-              <th className="px-4 py-2.5 text-left font-semibold">Date</th>
-              <th className="px-3 py-2.5 text-left font-semibold">Entry</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Earned</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Paid</th>
-              <th className="px-4 py-2.5 text-right font-semibold">Balance</th>
+              <th className="px-4 py-2.5 text-left font-semibold">{t('Date')}</th>
+              <th className="px-3 py-2.5 text-left font-semibold">{t('Entry')}</th>
+              <th className="px-3 py-2.5 text-right font-semibold">{t('Earned')}</th>
+              <th className="px-3 py-2.5 text-right font-semibold">{t('Paid')}</th>
+              <th className="px-4 py-2.5 text-right font-semibold">{t('Balance')}</th>
             </tr>
           </thead>
           <tbody>
@@ -175,9 +178,9 @@ function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
                         tone={entry.kind === 'attendance' ? 'neutral' : 'accent'}
                         dot={false}
                       >
-                        {entry.kind === 'attendance' ? 'Work' : 'Cash'}
+                        {entry.kind === 'attendance' ? 'Work' : t('Cash')}
                       </Badge>
-                      <span className="capitalize">{entry.label}</span>
+                      <span className="capitalize">{t(entry.label)}</span>
                       {typeof entry.detail['overtime_hours'] === 'string' &&
                         Number(entry.detail['overtime_hours']) > 0 && (
                           <span className="font-mono text-[12px] text-accent">

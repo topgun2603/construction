@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { PlanView } from '@sitebook/shared';
 import { cn } from '@/lib/utils';
 import { MODULES, moduleLabel } from './modules';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The levers: plan, modules, and whether the account works at all.
@@ -39,6 +40,7 @@ export function TenantControls({
   status: string;
   enabledModules: string[];
 }) {
+  const { t } = useLanguage();
   const [pending, start] = useTransition();
   const [modules, setModules] = useState<string[]>(enabledModules);
 
@@ -68,7 +70,7 @@ export function TenantControls({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Plan
+            {t('Plan')}
           </span>
           {/*
             Said out loud because it is not obvious and it is not reversible by clicking back: an
@@ -76,7 +78,7 @@ export function TenantControls({
             today. The old end date does not carry over.
           */}
           <span className="text-[12px] text-ink-faint">
-            Starts the term again from today
+            {t('Starts the term again from today')}
           </span>
           <div className="flex flex-wrap gap-1 rounded-btn bg-neutral-bg p-1">
             {plans.map((option) => (
@@ -98,31 +100,31 @@ export function TenantControls({
           </div>
           {/* Said plainly, because it is the part that surprises people. */}
           <span className="text-[12px] text-ink-muted">
-            Changing the plan resets modules to that plan&rsquo;s defaults.
+            {t('Changing the plan resets modules to that plan&rsquo;s defaults.')}
           </span>
         </div>
 
         <div className="flex flex-col items-start gap-1.5">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Account
+            {t('Account')}
           </span>
           {status === 'active' ? (
             <ConfirmDialog
-              title="Suspend this account?"
+              title={t('Suspend this account?')}
               body={
                 <>
-                  Everyone at <strong className="font-semibold text-ink">{tenantName}</strong> is
+                  {t('Everyone at')} <strong className="font-semibold text-ink">{tenantName}</strong> is
                   signed out within seconds and cannot file attendance, reports or expenses until
                   you switch it back. Their data is untouched.
                 </>
               }
-              confirmLabel="Suspend account"
+              confirmLabel={t('Suspend account')}
               successMessage={`${tenantName} suspended`}
               onConfirm={() => updateTenantPlan({ tenantId, status: 'suspended' })}
               trigger={
                 <Button variant="destructive" size="sm" disabled={pending}>
                   <ShieldAlert className="size-4" />
-                  Suspend
+                  {t('Suspend')}
                 </Button>
               }
             />
@@ -139,10 +141,10 @@ export function TenantControls({
                 ) : (
                   <Play className="size-4" />
                 )}
-                Reactivate
+                {t('Reactivate')}
               </Button>
               <span className="text-[12px] text-blocked-fg">
-                Nobody at this tenant can sign in right now.
+                {t('Nobody at this tenant can sign in right now.')}
               </span>
             </>
           )}
@@ -152,7 +154,7 @@ export function TenantControls({
       <div className="flex flex-col gap-2 border-t border-line-soft pt-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Modules
+            {t('Modules')}
           </span>
           <div className="flex items-center gap-2">
             {dirty && (
@@ -162,7 +164,7 @@ export function TenantControls({
                 onClick={() => setModules(enabledModules)}
                 disabled={pending}
               >
-                Reset
+                {t('Reset')}
               </Button>
             )}
             <Button
@@ -171,7 +173,7 @@ export function TenantControls({
               onClick={() => apply({ enabled_modules: modules }, 'Modules updated')}
             >
               {pending && <Loader2 className="size-4 animate-spin" />}
-              Save modules
+              {t('Save modules')}
             </Button>
           </div>
         </div>
@@ -199,7 +201,7 @@ export function TenantControls({
         </div>
         {modules.length === 0 && (
           <span className="text-[12px] text-blocked-fg">
-            With no modules on, the tenant signs in to an empty dashboard.
+            {t('With no modules on, the tenant signs in to an empty dashboard.')}
           </span>
         )}
       </div>

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { AskResult } from '@sitebook/shared';
 import type { SearchHit } from '@/app/api/search/route';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const ICONS = {
   site: Building2,
@@ -34,6 +35,7 @@ const KIND_LABEL = {
  * them wait on a model for that would be a worse palette.
  */
 export function SearchCommand() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -157,7 +159,7 @@ export function SearchCommand() {
         className="hidden h-9 min-h-0 items-center gap-2 rounded-control border border-line-strong bg-surface px-3 text-[13.5px] text-ink-faint transition hover:border-ink-faint lg:flex"
       >
         <Search className="size-4" />
-        <span>Search sites, workers, indents</span>
+        <span>{t('Search sites, workers, indents')}</span>
         <kbd className="ml-6 rounded-[5px] border border-line px-1.5 font-mono text-[11px] text-ink-faint">
           ⌘K
         </kbd>
@@ -166,7 +168,7 @@ export function SearchCommand() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Search"
+        aria-label={t('Search')}
         className="flex size-9 min-h-0 items-center justify-center rounded-control border border-line-strong text-ink-muted transition hover:bg-raised lg:hidden"
       >
         <Search className="size-4" />
@@ -180,7 +182,7 @@ export function SearchCommand() {
             inputRef.current?.focus();
           }}
         >
-          <DialogTitle className="sr-only">Search</DialogTitle>
+          <DialogTitle className="sr-only">{t('Search')}</DialogTitle>
 
           <div className="flex items-center gap-3 border-b border-line px-4">
             <Search className="size-4 flex-none text-ink-faint" />
@@ -189,7 +191,7 @@ export function SearchCommand() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Search, or ask: how much on steel last month?"
+              placeholder={t('Search, or ask: how much on steel last month?')}
               className="h-12 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-faint"
             />
             {loading && <Loader2 className="size-4 flex-none animate-spin text-ink-faint" />}
@@ -202,7 +204,7 @@ export function SearchCommand() {
               <div className="mb-2 flex gap-3 rounded-btn border border-accent/25 bg-accent-soft/25 px-3 py-3">
                 <Sparkles className="mt-0.5 size-4 flex-none text-accent" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  {asking && <span className="text-[13.5px] text-ink-muted">Working it out…</span>}
+                  {asking && <span className="text-[13.5px] text-ink-muted">{t('Working it out…')}</span>}
                   {askError && <span className="text-[13.5px] text-blocked-fg">{askError}</span>}
                   {answer && (
                     <>
@@ -223,7 +225,7 @@ export function SearchCommand() {
                           }}
                           className="flex w-fit items-center gap-1 text-[12.5px] font-medium text-accent hover:underline"
                         >
-                          See the rows <ArrowRight className="size-3.5" />
+                          {t('See the rows')} <ArrowRight className="size-3.5" />
                         </button>
                       )}
                     </>
@@ -234,11 +236,11 @@ export function SearchCommand() {
 
             {query.trim().length < 2 ? (
               <p className="px-3 py-6 text-center text-[13.5px] text-ink-muted">
-                Type at least two letters.
+                {t('Type at least two letters.')}
               </p>
             ) : hits.length === 0 && !loading ? (
               <p className="px-3 py-6 text-center text-[13.5px] text-ink-muted">
-                Nothing matches “{query}”.
+                {t('Nothing matches “')}{query}”.
               </p>
             ) : (
               hits.map((hit, index) => {
@@ -258,11 +260,11 @@ export function SearchCommand() {
                       <Icon className="size-4" />
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-[14px] font-medium">{hit.label}</span>
+                      <span className="truncate text-[14px] font-medium">{t(hit.label)}</span>
                       <span className="truncate text-[12.5px] text-ink-muted">{hit.sublabel}</span>
                     </span>
                     <span className="flex-none text-[11px] uppercase tracking-[0.06em] text-ink-faint">
-                      {KIND_LABEL[hit.kind]}
+                      {t(KIND_LABEL[hit.kind])}
                     </span>
                   </button>
                 );
@@ -288,9 +290,9 @@ export function SearchCommand() {
                   )}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[14px] font-medium">Ask this</span>
+                  <span className="truncate text-[14px] font-medium">{t('Ask this')}</span>
                   <span className="truncate text-[12.5px] text-ink-muted">
-                    Answered from your own sites, wages, spend and stock
+                    {t('Answered from your own sites, wages, spend and stock')}
                   </span>
                 </span>
                 <kbd className="flex-none rounded-[5px] border border-line px-1.5 font-mono text-[11px] text-ink-faint">

@@ -7,6 +7,8 @@ import { deletePayment } from '@/lib/actions';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { money, shortDate, titleCase } from '@/lib/format';
 import type { LabourPayment } from '@/lib/api-types';
+import type { Translator } from '@/lib/i18n';
+import { useLanguage } from '@/components/language-provider';
 
 const TYPE_TONE: Record<LabourPayment['type'], Tone> = {
   wage: 'done',
@@ -15,10 +17,11 @@ const TYPE_TONE: Record<LabourPayment['type'], Tone> = {
   deduction: 'blocked',
 };
 
-const columns: ColumnDef<LabourPayment>[] = [
+function buildColumns(t: Translator): ColumnDef<LabourPayment>[] {
+  return [
   {
     accessorKey: 'paid_on',
-    header: 'Date',
+    header: t('Date'),
     cell: ({ row }) => <span className="font-mono text-[13px]">{shortDate(row.original.paid_on)}</span>,
   },
   {
@@ -38,21 +41,21 @@ const columns: ColumnDef<LabourPayment>[] = [
   },
   {
     accessorKey: 'type',
-    header: 'Type',
+    header: t('Type'),
     cell: ({ row }) => (
-      <Badge tone={TYPE_TONE[row.original.type]}>{titleCase(row.original.type)}</Badge>
+      <Badge tone={TYPE_TONE[row.original.type]}>{t(titleCase(row.original.type))}</Badge>
     ),
   },
   {
     accessorKey: 'mode',
-    header: 'Mode',
+    header: t('Mode'),
     cell: ({ row }) => (
       <span className="text-ink-muted">{row.original.mode.toUpperCase()}</span>
     ),
   },
   {
     accessorKey: 'reference',
-    header: 'Reference',
+    header: t('Reference'),
     cell: ({ row }) => (
       <span className="font-mono text-[12.5px] text-ink-muted">
         {row.original.reference ?? '—'}
@@ -61,7 +64,7 @@ const columns: ColumnDef<LabourPayment>[] = [
   },
   {
     accessorKey: 'amount',
-    header: 'Amount',
+    header: t('Amount'),
     meta: { align: 'right' },
     sortingFn: (a, b) => Number(BigInt(a.original.amount) - BigInt(b.original.amount)),
     cell: ({ row }) => (
@@ -82,14 +85,14 @@ const columns: ColumnDef<LabourPayment>[] = [
       return (
         <DeleteRowButton
           what={`the ${money(payment.amount)} ${payment.type}`}
-          title="Delete this entry?"
+          title={t('Delete this entry?')}
           body={
             <>
               <strong className="font-semibold text-ink">{money(payment.amount)}</strong>{' '}
               {payment.type} for {who} is removed. Nothing has been deducted against it yet.
             </>
           }
-          confirmLabel="Delete entry"
+          confirmLabel={t('Delete entry')}
           successMessage="Entry deleted"
           onConfirm={() => deletePayment(payment.id)}
         />
@@ -97,11 +100,13 @@ const columns: ColumnDef<LabourPayment>[] = [
     },
   },
 ];
+}
 
 export function PaymentsTable({ payments }: { payments: LabourPayment[] }) {
+  const { t } = useLanguage();
   return (
     <DataTable
-      columns={columns}
+      columns={buildColumns(t)}
       data={payments}
       searchPlaceholder="Search people, references"
       pageSize={25}

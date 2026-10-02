@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import type { ModuleName, Permission } from '@sitebook/shared';
 import { cn } from '@/lib/utils';
-import type { MessageKey } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
 
 /*
@@ -42,14 +41,8 @@ const STORAGE_KEY = 'sb.nav.collapsed';
 
 interface NavItem {
   href: string;
-  /**
-   * A message key, not a string.
-   *
-   * The rail is the first thing a Tamil-reading supervisor meets, so these are the strings that
-   * most needed translating — and keying them here means the dictionary is the only place the
-   * words live, rather than being spread across a thirty-line array.
-   */
-  label: MessageKey;
+  /** The English label. `t` turns it into the reader's language at render. */
+  label: string;
   icon: LucideIcon;
   module?: ModuleName;
   roles?: string[];
@@ -64,7 +57,7 @@ interface NavItem {
 }
 
 interface NavGroup {
-  label?: MessageKey;
+  label?: string;
   items: NavItem[];
 }
 
@@ -73,7 +66,7 @@ const GROUPS: NavGroup[] = [
     items: [
       {
         href: '/overview',
-        label: 'nav.overview',
+        label: 'Overview',
         icon: LayoutDashboard,
         module: 'dashboard',
         // What the screen shows is cost and approvals; the API gates it the same way.
@@ -81,14 +74,14 @@ const GROUPS: NavGroup[] = [
       },
       {
         href: '/projects',
-        label: 'nav.sites',
+        label: 'Sites',
         icon: Building2,
         module: 'projects',
         permission: 'projects.view',
       },
       {
         href: '/documents',
-        label: 'nav.documents',
+        label: 'Documents',
         icon: FolderOpen,
         module: 'documents',
         permission: 'documents.view',
@@ -96,25 +89,25 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'nav.labour',
+    label: 'Labour',
     items: [
       {
         href: '/labour/workers',
-        label: 'nav.workers',
+        label: 'Workers',
         icon: HardHat,
         module: 'labour',
         permission: 'workers.view',
       },
       {
         href: '/labour/attendance',
-        label: 'nav.attendance',
+        label: 'Attendance',
         icon: CalendarCheck,
         module: 'attendance',
         permission: ['attendance.view', 'attendance.record'],
       },
       {
         href: '/labour/wage-periods',
-        label: 'nav.wagePeriods',
+        label: 'Wage periods',
         icon: Banknote,
         module: 'labour',
         roles: ['owner', 'accounts'],
@@ -125,11 +118,11 @@ const GROUPS: NavGroup[] = [
   {
     // Money, in one place. Payments used to sit under Labour and Stock under nothing, which meant
     // the three screens an accounts person lives in were spread across the whole rail.
-    label: 'nav.finance',
+    label: 'Finance',
     items: [
       {
         href: '/labour/payments',
-        label: 'nav.payments',
+        label: 'Payments',
         icon: Wallet,
         module: 'labour',
         roles: ['owner', 'accounts'],
@@ -137,20 +130,20 @@ const GROUPS: NavGroup[] = [
       },
       {
         href: '/expenses',
-        label: 'nav.expenses',
+        label: 'Expenses',
         icon: Receipt,
         module: 'expenses',
         permission: 'expenses.view',
       },
-      { href: '/stock', label: 'nav.stock', icon: Warehouse, module: 'stock', permission: 'stock.view' },
+      { href: '/stock', label: 'Stock', icon: Warehouse, module: 'stock', permission: 'stock.view' },
     ],
   },
   {
-    label: 'nav.operations',
+    label: 'Operations',
     items: [
       {
         href: '/indents',
-        label: 'nav.approvals',
+        label: 'Approvals',
         icon: ClipboardCheck,
         module: 'indents',
         permission: ['indents.raise', 'indents.approve'],
@@ -159,12 +152,12 @@ const GROUPS: NavGroup[] = [
       // item 8), and the API gates it the same way.
       {
         href: '/reports',
-        label: 'nav.reports',
+        label: 'Reports',
         icon: PieChart,
         module: 'labour',
         permission: ['reports.view', 'wages.view'],
       },
-      { href: '/settings/team', label: 'nav.settings', icon: Settings, roles: ['owner'] },
+      { href: '/settings/team', label: 'Settings', icon: Settings, roles: ['owner'] },
     ],
   },
 ];
@@ -227,7 +220,7 @@ export function SideNav({
 
   return (
     <nav
-      aria-label="Main"
+      aria-label={t('Main')}
       className={cn(
         'relative isolate hidden shrink-0 flex-col overflow-hidden bg-gradient-to-b from-nav via-[#282150] to-[#3A2A72] transition-[width] duration-200 md:flex',
         collapsed ? 'w-[76px]' : 'w-[260px]',
@@ -289,8 +282,8 @@ export function SideNav({
               type="button"
               onClick={toggle}
               aria-expanded
-              aria-label="Collapse navigation"
-              title="Collapse"
+              aria-label={t('Collapse navigation')}
+              title={t('Collapse')}
               className="flex size-8 min-h-0 flex-none items-center justify-center rounded-control text-white/40 transition hover:bg-white/10 hover:text-white"
             >
               <PanelLeftClose className="size-[17px]" />
@@ -394,8 +387,8 @@ export function SideNav({
             type="button"
             onClick={toggle}
             aria-expanded={false}
-            aria-label="Expand navigation"
-            title="Expand"
+            aria-label={t('Expand navigation')}
+            title={t('Expand')}
             className="flex min-h-0 items-center justify-center rounded-control py-2 text-white/45 transition hover:bg-white/[0.07] hover:text-white"
           >
             <PanelLeftOpen className="size-[18px]" />

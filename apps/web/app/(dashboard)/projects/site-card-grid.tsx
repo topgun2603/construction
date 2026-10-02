@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { MeterRow } from '@/components/ui/meter';
 import { moneyShort, shortDate } from '@/lib/format';
 import { byTrouble, schedule, statusLabel, statusTone } from '@/lib/projects';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The sites list as cards, led by photographs of the site.
@@ -32,6 +33,7 @@ export function SiteCardGrid({
   /** Controls sitting beside the search box — the same slot the table's toolbar uses. */
   toolbar?: ReactNode;
 }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
 
   const visible = useMemo(() => {
@@ -59,9 +61,9 @@ export function SiteCardGrid({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search sites, clients, addresses"
+            placeholder={t('Search sites, clients, addresses')}
             className="pl-9"
-            aria-label="Search sites"
+            aria-label={t('Search sites')}
           />
         </div>
         {toolbar}
@@ -69,7 +71,7 @@ export function SiteCardGrid({
 
       {visible.length === 0 ? (
         <p className="rounded-panel border border-dashed border-line-strong bg-raised px-5 py-8 text-center text-[13.5px] text-ink-muted">
-          No sites match that search.
+          {t('No sites match that search.')}
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -83,6 +85,7 @@ export function SiteCardGrid({
 }
 
 function SiteCard({ project }: { project: ProjectListItem }) {
+  const { t } = useLanguage();
   const timeline = schedule(project);
 
   return (
@@ -95,7 +98,7 @@ function SiteCard({ project }: { project: ProjectListItem }) {
 
         {/* Status sits on the image, where the eye already is. */}
         <span className="absolute left-3 top-3">
-          <Badge tone={statusTone(project.status)}>{statusLabel(project.status)}</Badge>
+          <Badge tone={statusTone(project.status)}>{t(statusLabel(project.status))}</Badge>
         </span>
 
         {project.photo_count > 0 && (
@@ -116,12 +119,12 @@ function SiteCard({ project }: { project: ProjectListItem }) {
 
         {timeline ? (
           <MeterRow
-            label="Schedule elapsed"
+            label={t('Schedule elapsed')}
             value={`${timeline.elapsedPercent}%`}
             percent={timeline.elapsedPercent}
           />
         ) : (
-          <span className="text-[12.5px] text-ink-faint">No dates set</span>
+          <span className="text-[12.5px] text-ink-faint">{t('No dates set')}</span>
         )}
 
         <div className="mt-auto flex items-center justify-between border-t border-line-soft pt-3 text-[13px]">
@@ -150,6 +153,7 @@ function SiteCard({ project }: { project: ProjectListItem }) {
  * inside a clickable table row.
  */
 function Cover({ project }: { project: ProjectListItem }) {
+  const { t } = useLanguage();
   const [index, setIndex] = useState(0);
 
   if (project.covers.length === 0) {
@@ -161,7 +165,7 @@ function Cover({ project }: { project: ProjectListItem }) {
       <>
         <SiteCoverFallback seed={project.id} name={project.name} />
         <span className="absolute bottom-3 left-3 rounded-full bg-ink/55 px-2 py-1 text-[11px] font-medium text-white/90">
-          No photo yet
+          {t('No photo yet')}
         </span>
       </>
     );

@@ -20,6 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Create or edit a role.
@@ -51,6 +52,7 @@ export function RoleDialog({
   role?: Role;
   trigger?: ReactNode;
 }) {
+  const { t } = useLanguage();
   const editing = Boolean(role);
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -123,13 +125,13 @@ export function RoleDialog({
         {trigger ?? (
           <Button size="sm">
             <Plus className="size-4" />
-            New role
+            {t('New role')}
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>{editing ? `Edit ${role?.name}` : 'New role'}</DialogTitle>
+          <DialogTitle>{editing ? `Edit ${role?.name}` : t('New role')}</DialogTitle>
           <DialogDescription>
             {editing
               ? 'Changes apply to everyone on this role on their next action.'
@@ -138,18 +140,18 @@ export function RoleDialog({
         </DialogHeader>
 
         <div className="flex max-h-[55vh] flex-col gap-4 overflow-y-auto pr-1">
-          <Field label="Name" hint="What you would call this job on site">
+          <Field label={t('Name')} hint={t('What you would call this job on site')}>
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Store keeper"
+              placeholder={t('Store keeper')}
               maxLength={60}
               autoFocus
             />
           </Field>
 
           {!editing && (
-            <Field label="Based on" hint={SYSTEM_ROLE_NOTES[base as never] ?? ''}>
+            <Field label={t('Based on')} hint={SYSTEM_ROLE_NOTES[base as never] ?? ''}>
               <div className="flex flex-wrap gap-1.5">
                 {BASE_ROLES.map((option) => (
                   <button
@@ -164,7 +166,7 @@ export function RoleDialog({
                         : 'border-line-strong bg-surface text-ink-soft hover:text-ink',
                     )}
                   >
-                    {option.label}
+                    {t(option.label)}
                   </button>
                 ))}
               </div>
@@ -179,11 +181,9 @@ export function RoleDialog({
               className="mt-0.5 size-4 accent-accent"
             />
             <span className="flex flex-col gap-0.5">
-              <span className="text-[13.5px] font-medium">Sees every site</span>
+              <span className="text-[13.5px] font-medium">{t('Sees every site')}</span>
               <span className="text-[12.5px] leading-snug text-ink-muted">
-                Off means they see only sites they are assigned to. Leave it off unless the job
-                genuinely spans the whole company — it is the difference between a supervisor and
-                an auditor.
+                {t('Off means they see only sites they are assigned to. Leave it off unless the job genuinely spans the whole company — it is the difference between a supervisor and an auditor.')}
               </span>
             </span>
           </label>
@@ -207,7 +207,7 @@ export function RoleDialog({
                         className="mt-0.5 size-4 accent-accent"
                       />
                       <span className="flex flex-col gap-0.5">
-                        <span className="text-[13.5px] leading-snug">{item.label}</span>
+                        <span className="text-[13.5px] leading-snug">{t(item.label)}</span>
                         {item.note && (
                           <span className="text-[12px] leading-snug text-ink-muted">
                             {item.note}
@@ -236,7 +236,7 @@ export function RoleDialog({
             {chosen.size} selected
           </span>
           <Button variant="secondary" onClick={() => setOpen(false)} disabled={pending}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={submit} disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" />}

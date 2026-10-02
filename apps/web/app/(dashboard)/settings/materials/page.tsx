@@ -7,10 +7,12 @@ import { FadeIn } from '@/components/motion';
 import { DeleteRowButton } from '@/components/delete-row-button';
 import { deleteMaterial } from '@/lib/actions';
 import { AddMaterialDialog } from './add-material-dialog';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Materials · BUILDR' };
 
 export default async function MaterialsPage() {
+  const t = await getT();
   const materials = await serverFetch<Page<Material>>('/materials?limit=500');
 
   const byCategory = new Map<string, Material[]>();
@@ -23,8 +25,7 @@ export default async function MaterialsPage() {
     <FadeIn className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <p className="max-w-xl text-[13.5px] leading-relaxed text-ink-muted">
-          The catalogue supervisors pick from when raising an indent. Adding a name that already
-          exists reuses it rather than creating a duplicate.
+          {t('The catalogue supervisors pick from when raising an indent. Adding a name that already exists reuses it rather than creating a duplicate.')}
         </p>
         <AddMaterialDialog />
       </div>
@@ -32,8 +33,8 @@ export default async function MaterialsPage() {
       {materials.items.length === 0 ? (
         <EmptyState
           icon={<Package />}
-          title="No materials yet"
-          body="Add cement, steel and aggregate so site staff can raise indents against them."
+          title={t('No materials yet')}
+          body={t('Add cement, steel and aggregate so site staff can raise indents against them.')}
           action={<AddMaterialDialog />}
         />
       ) : (

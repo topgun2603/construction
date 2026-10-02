@@ -14,6 +14,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The catalogue, and the form that edits it.
@@ -29,6 +30,7 @@ export function PlanCatalogue({
   plans: PlanView[];
   canManage: boolean;
 }) {
+  const { t } = useLanguage();
   const [editing, setEditing] = useState<PlanView | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -40,7 +42,7 @@ export function PlanCatalogue({
       {canManage && !adding && !editing && (
         <div className="flex justify-end">
           <Button size="sm" onClick={() => setAdding(true)}>
-            <Plus className="size-4" /> New plan
+            <Plus className="size-4" /> {t('New plan')}
           </Button>
         </div>
       )}
@@ -57,8 +59,8 @@ export function PlanCatalogue({
 
       {plans.length === 0 ? (
         <EmptyState
-          title="No plans yet"
-          body="Add the terms you sell. Until there is one, nobody can be put on anything."
+          title={t('No plans yet')}
+          body={t('Add the terms you sell. Until there is one, nobody can be put on anything.')}
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -75,7 +77,7 @@ export function PlanCatalogue({
                   {plan.name}
                 </span>
                 {plan.badge && <Badge tone="accent">{plan.badge}</Badge>}
-                {!plan.is_active && <Badge tone="neutral">Retired</Badge>}
+                {!plan.is_active && <Badge tone="neutral">{t('Retired')}</Badge>}
               </div>
 
               <span className="font-mono text-[20px] font-bold leading-none">
@@ -83,7 +85,7 @@ export function PlanCatalogue({
               </span>
               <span className="text-[12.5px] text-ink-muted">
                 {plan.months === null
-                  ? 'Never expires'
+                  ? t('Never expires')
                   : `${plan.months} month${plan.months === 1 ? '' : 's'}`}
                 {' · '}
                 <code className="font-mono text-[11.5px]">{plan.code}</code>
@@ -113,18 +115,16 @@ export function PlanCatalogue({
                       setEditing(plan);
                     }}
                   >
-                    <Pencil className="size-3.5" /> Edit
+                    <Pencil className="size-3.5" /> {t('Edit')}
                   </Button>
                   <ConfirmDialog
                     title={`Delete ${plan.name}?`}
                     body={
                       <>
-                        This can only be done while nobody is on it. If accounts are, retire it
-                        instead — it stops being sold and keeps meaning something to the people who
-                        bought it.
+                        {t('This can only be done while nobody is on it. If accounts are, retire it instead — it stops being sold and keeps meaning something to the people who bought it.')}
                       </>
                     }
-                    confirmLabel="Delete"
+                    confirmLabel={t('Delete')}
                     successMessage="Deleted"
                     onConfirm={() => deletePlan(plan.id)}
                     trigger={
@@ -155,6 +155,7 @@ export function PlanCatalogue({
  * every account on that plan. The form says so rather than letting somebody find out.
  */
 function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [lifetime, setLifetime] = useState(plan ? plan.months === null : false);
@@ -210,11 +211,11 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <span className="text-[15px] font-semibold">{plan ? `Edit ${plan.name}` : 'New plan'}</span>
+      <span className="text-[15px] font-semibold">{plan ? `Edit ${plan.name}` : t('New plan')}</span>
 
       <form action={submit} className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" htmlFor="name">
+          <Field label={t('Name')} htmlFor="name">
             <Input
               id="name"
               name="name"
@@ -225,11 +226,11 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
           </Field>
 
           {plan ? (
-            <Field label="Code">
+            <Field label={t('Code')}>
               <Input value={plan.code} readOnly disabled />
             </Field>
           ) : (
-            <Field label="Code" htmlFor="code">
+            <Field label={t('Code')} htmlFor="code">
               <Input
                 id="code"
                 name="code"
@@ -243,12 +244,12 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
 
         {plan && (
           <p className="-mt-2 text-[12px] text-ink-faint">
-            The code cannot change — every account on this plan points at it.
+            {t('The code cannot change — every account on this plan points at it.')}
           </p>
         )}
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Price (₹)" htmlFor="price">
+          <Field label={t('Price (₹)')} htmlFor="price">
             <Input
               id="price"
               name="price"
@@ -259,7 +260,7 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
             />
           </Field>
 
-          <Field label="Months" htmlFor="months">
+          <Field label={t('Months')} htmlFor="months">
             <Input
               id="months"
               name="months"
@@ -270,7 +271,7 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
             />
           </Field>
 
-          <Field label="Order" htmlFor="sort_order">
+          <Field label={t('Order')} htmlFor="sort_order">
             <Input
               id="sort_order"
               name="sort_order"
@@ -286,7 +287,7 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
             checked={lifetime}
             onChange={(event) => setLifetime(event.target.checked)}
           />
-          Never expires
+          {t('Never expires')}
         </label>
 
         <label className="flex items-center gap-2 text-[13.5px]">
@@ -295,25 +296,25 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
             checked={active}
             onChange={(event) => setActive(event.target.checked)}
           />
-          On sale — unticking retires it without affecting anybody already on it
+          {t('On sale — unticking retires it without affecting anybody already on it')}
         </label>
 
-        <Field label="Description" htmlFor="description" optional>
+        <Field label={t('Description')} htmlFor="description" optional>
           <Input
             id="description"
             name="description"
             defaultValue={plan?.description ?? ''}
-            placeholder="The usual choice."
+            placeholder={t('The usual choice.')}
           />
         </Field>
 
-        <Field label="Badge" htmlFor="badge" optional>
+        <Field label={t('Badge')} htmlFor="badge" optional>
           <Input
             id="badge"
             name="badge"
             maxLength={24}
             defaultValue={plan?.badge ?? ''}
-            placeholder="Best value"
+            placeholder={t('Best value')}
           />
         </Field>
         <p className="-mt-2 text-[12px] text-ink-faint">
@@ -322,7 +323,7 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
           pushing. Two or three words at most: it sits beside the name on a phone.
         </p>
 
-        <Field label="Highlights" htmlFor="highlights" optional>
+        <Field label={t('Highlights')} htmlFor="highlights" optional>
           <textarea
             id="highlights"
             name="highlights"
@@ -333,8 +334,7 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
           />
         </Field>
         <p className="-mt-2 text-[12px] text-ink-faint">
-          One per line. Every plan has every feature, so these are for terms and promises rather
-          than feature lists.
+          {t('One per line. Every plan has every feature, so these are for terms and promises rather than feature lists.')}
         </p>
 
         {error && (
@@ -345,10 +345,10 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
 
         <div className="flex items-center gap-2">
           <Button type="submit" size="sm" disabled={pending}>
-            {pending ? 'Saving…' : plan ? 'Save changes' : 'Add plan'}
+            {pending ? t('Saving…') : plan ? t('Save changes') : 'Add plan'}
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={onDone}>
-            Cancel
+            {t('Cancel')}
           </Button>
         </div>
       </form>

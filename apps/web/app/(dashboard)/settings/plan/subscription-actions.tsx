@@ -8,6 +8,7 @@ import type { Billing } from '@/lib/api-types';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { longDate } from '@/lib/format';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Cancelling, and retrying a failed payment.
@@ -25,6 +26,7 @@ export function SubscriptionActions({
   /** Renders the fix-your-card action rather than the cancel action. */
   retry?: boolean;
 }) {
+  const { t } = useLanguage();
   const [pending, start] = useTransition();
   const [, setBusy] = useState(false);
 
@@ -54,7 +56,7 @@ export function SubscriptionActions({
     return (
       <Button onClick={resubscribe} disabled={pending} size="sm">
         {pending ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
-        Update payment
+        {t('Update payment')}
       </Button>
     );
   }
@@ -73,10 +75,10 @@ export function SubscriptionActions({
 
   return (
     <ConfirmDialog
-      title="Cancel your subscription?"
+      title={t('Cancel your subscription?')}
       body={
         <>
-          You keep everything until{' '}
+          {t('You keep everything until')}{' '}
           <strong className="font-semibold text-ink">
             {billing.current_period_end
               ? longDate(billing.current_period_end.slice(0, 10))
@@ -86,12 +88,12 @@ export function SubscriptionActions({
           switch off — your data stays, including everything those modules recorded.
         </>
       }
-      confirmLabel="Cancel subscription"
+      confirmLabel={t('Cancel subscription')}
       successMessage="Cancelled — you keep access until the period ends"
       onConfirm={() => cancelSubscription(true)}
       trigger={
         <Button variant="ghost" size="sm">
-          Cancel subscription
+          {t('Cancel subscription')}
         </Button>
       }
     />

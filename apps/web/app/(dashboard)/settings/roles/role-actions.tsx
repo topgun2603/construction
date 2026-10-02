@@ -6,9 +6,11 @@ import type { Role } from '@/lib/api-types';
 import { Button } from '@/components/ui/button';
 import { DeleteRowButton } from '@/components/delete-row-button';
 import { RoleDialog } from './role-dialog';
+import { useLanguage } from '@/components/language-provider';
 
 /** Edit and delete for one custom role. */
 export function RoleActions({ role, systemRoles }: { role: Role; systemRoles: Role[] }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-none items-center gap-1">
       <RoleDialog
@@ -22,7 +24,7 @@ export function RoleActions({ role, systemRoles }: { role: Role; systemRoles: Ro
       />
       <DeleteRowButton
         what={role.name}
-        title="Delete this role?"
+        title={t('Delete this role?')}
         body={
           role.member_count > 0 ? (
             <>
@@ -38,7 +40,7 @@ export function RoleActions({ role, systemRoles }: { role: Role; systemRoles: Ro
             </>
           )
         }
-        confirmLabel="Delete role"
+        confirmLabel={t('Delete role')}
         successMessage={`${role.name} deleted`}
         onConfirm={deleteRole.bind(null, role.id)}
       />

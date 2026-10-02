@@ -7,6 +7,7 @@ import { Badge, type Tone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { longDate, money } from '@/lib/format';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Plan · BUILDR' };
 
@@ -29,6 +30,7 @@ const STANDING_TONE: Record<string, Tone> = {
  * sits above the plan somebody came to look at.
  */
 export default async function PlanPage() {
+  const t = await getT();
   const [tenant, me, catalogue] = await Promise.all([
     serverFetch<Tenant>('/tenants/current'),
     requireSelf(),
@@ -76,7 +78,7 @@ export default async function PlanPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-col gap-1">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Your plan
+              {t('Your plan')}
             </span>
             <span className="flex items-center gap-2 text-[24px] font-semibold leading-tight">
               {lifetime && <InfinityIcon className="size-6 text-accent" />}
@@ -84,19 +86,19 @@ export default async function PlanPage() {
             </span>
           </div>
           <Badge tone={STANDING_TONE[standing] ?? 'neutral'}>
-            {standing === 'active' ? 'Active' : standing === 'grace' ? 'In grace' : 'Run out'}
+            {standing === 'active' ? t('Active') : standing === 'grace' ? t('In grace') : 'Run out'}
           </Badge>
         </div>
 
         <div className="flex flex-wrap gap-x-8 gap-y-3 border-t border-line-soft pt-4">
           <div className="flex flex-col">
-            <span className="text-[12.5px] text-ink-muted">Runs until</span>
+            <span className="text-[12.5px] text-ink-muted">{t('Runs until')}</span>
             <span className="text-[15px] font-medium">
               {lifetime || !expiresOn ? 'It does not end' : longDate(expiresOn.slice(0, 10))}
             </span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[12.5px] text-ink-muted">Everything included</span>
+            <span className="text-[12.5px] text-ink-muted">{t('Everything included')}</span>
             <span className="text-[15px] font-medium">{MODULES.length} modules</span>
           </div>
         </div>
@@ -105,7 +107,7 @@ export default async function PlanPage() {
       {catalogue.items.length > 0 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            What you can buy
+            {t('What you can buy')}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {catalogue.items.map((plan) => (
@@ -122,7 +124,7 @@ export default async function PlanPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold">{plan.name}</span>
                   {plan.code === tenant.plan ? (
-                    <Badge tone="done">Yours</Badge>
+                    <Badge tone="done">{t('Yours')}</Badge>
                   ) : (
                     plan.badge && <Badge tone="accent">{plan.badge}</Badge>
                   )}

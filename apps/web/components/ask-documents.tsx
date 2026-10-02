@@ -6,6 +6,7 @@ import type { AskDocumentsResult } from '@sitebook/shared';
 import { askDocuments } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Asks a question of the drawings and contracts on this page.
@@ -26,6 +27,7 @@ export function AskDocuments({
   projectId?: string;
   placeholder?: string;
 }) {
+  const { t } = useLanguage();
   const [question, setQuestion] = useState('');
   const [asking, setAsking] = useState(false);
   const [result, setResult] = useState<AskDocumentsResult | null>(null);
@@ -53,7 +55,7 @@ export function AskDocuments({
     <section className="rounded-panel border border-line bg-raised p-4">
       <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <label htmlFor="ask-documents" className="sr-only">
-          Ask the documents a question
+          {t('Ask the documents a question')}
         </label>
         <span className="relative flex-1">
           <FileSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
@@ -68,13 +70,12 @@ export function AskDocuments({
         </span>
         <Button type="submit" disabled={asking || question.trim().length < 5}>
           {asking ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-          {asking ? 'Reading' : 'Ask'}
+          {asking ? t('Reading') : t('Ask')}
         </Button>
       </form>
 
       <p className="mt-2 text-[12px] text-ink-muted">
-        Answered from the text of your own drawings and contracts, with the page it came from.
-        Scanned sheets have no text in them and cannot be searched.
+        {t('Answered from the text of your own drawings and contracts, with the page it came from. Scanned sheets have no text in them and cannot be searched.')}
       </p>
 
       {error && (

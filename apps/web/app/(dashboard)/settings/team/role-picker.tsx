@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Move one person onto a different role.
@@ -35,6 +36,7 @@ export function RolePicker({
   currentRole: string;
   roles: Role[];
 }) {
+  const { t } = useLanguage();
   const [pending, start] = useTransition();
 
   // Built-in first, then custom, matching the order the roles page uses.
@@ -62,7 +64,7 @@ export function RolePicker({
       {pending && <Loader2 className="size-3.5 animate-spin text-ink-faint" />}
       <Select value={current?.id ?? ''} onValueChange={change} disabled={pending}>
         <SelectTrigger className="h-8 w-[165px] text-[13px]" aria-label={`Role for ${memberName}`}>
-          <SelectValue placeholder="Pick a role" />
+          <SelectValue placeholder={t('Pick a role')} />
         </SelectTrigger>
         <SelectContent>
           {ordered.map((role) => (

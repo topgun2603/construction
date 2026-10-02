@@ -25,6 +25,7 @@ import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { money, shortDate, todayIso } from '@/lib/format';
 import type { WagePeriodDetail } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Finalising and paying both move something that is hard to move back, so each confirms first
@@ -42,6 +43,7 @@ export function PeriodActions({
   period: WagePeriodDetail;
   outstanding: string;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [confirmFinalise, setConfirmFinalise] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -87,30 +89,30 @@ export function PeriodActions({
     <div className="flex flex-wrap gap-2">
       {period.status === 'open' && (
         <Button onClick={() => setConfirmFinalise(true)} disabled={period.lines.length === 0}>
-          <BadgeCheck /> Finalise
+          <BadgeCheck /> {t('Finalise')}
         </Button>
       )}
       {period.status === 'finalised' && (
         <Button variant="approve" onClick={() => setPayOpen(true)} disabled={nothingToPay}>
-          <Banknote /> Pay {money(outstanding)}
+          <Banknote /> {t('Pay')} {money(outstanding)}
         </Button>
       )}
 
       {/* The way out of a draft nobody wanted. Open only — once finalised, reopen first. */}
       {period.status === 'open' && (
         <ConfirmDialog
-          title="Discard this draft?"
+          title={t('Discard this draft?')}
           body={
             <>
-              The sheet for {shortDate(period.period_start)} – {shortDate(period.period_end)} is
+              {t('The sheet for')} {shortDate(period.period_start)} – {shortDate(period.period_end)} is
               removed. Attendance and advances are untouched, and you can generate it again for
               the same dates whenever you like.
             </>
           }
-          confirmLabel="Discard draft"
+          confirmLabel={t('Discard draft')}
           successMessage="Draft discarded"
           onConfirm={() => discardWagePeriod(period.id)}
-          trigger={<Button variant="destructive">Discard</Button>}
+          trigger={<Button variant="destructive">{t('Discard')}</Button>}
         />
       )}
 
@@ -121,21 +123,21 @@ export function PeriodActions({
       */}
       {period.status === 'finalised' && BigInt(period.total_paid) === 0n && (
         <ConfirmDialog
-          title="Reopen this period?"
+          title={t('Reopen this period?')}
           body={
             <>
-              Attendance between {shortDate(period.period_start)} and{' '}
+              {t('Attendance between')} {shortDate(period.period_start)} and{' '}
               {shortDate(period.period_end)} unlocks so you can correct it, and any advances this
               sheet deducted go back to being outstanding. Nothing has been paid yet, so no cash
               is affected.
             </>
           }
-          confirmLabel="Reopen period"
+          confirmLabel={t('Reopen period')}
           successMessage="Period reopened — attendance is editable again"
           onConfirm={() => reopenWagePeriod(period.id).then((r) => ({ ok: r.ok, error: r.error }))}
           trigger={
             <Button variant="secondary">
-              <RotateCcw className="size-4" /> Reopen
+              <RotateCcw className="size-4" /> {t('Reopen')}
             </Button>
           }
         />
@@ -144,9 +146,9 @@ export function PeriodActions({
       <Dialog open={confirmFinalise} onOpenChange={setConfirmFinalise}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Finalise this period?</DialogTitle>
+            <DialogTitle>{t('Finalise this period?')}</DialogTitle>
             <DialogDescription>
-              This freezes {period.lines.length} wage lines and locks attendance between{' '}
+              {t('This freezes')} {period.lines.length} wage lines and locks attendance between{' '}
               {shortDate(period.period_start)} and {shortDate(period.period_end)}. Corrections
               after this have to go in the next period as a bonus or deduction.
             </DialogDescription>
@@ -158,10 +160,10 @@ export function PeriodActions({
           )}
           <DialogFooter>
             <Button variant="secondary" onClick={() => setConfirmFinalise(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button onClick={finalise} disabled={pending}>
-              {pending ? 'Finalising…' : 'Finalise'}
+              {pending ? 'Finalising…' : t('Finalise')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -170,32 +172,32 @@ export function PeriodActions({
       <Dialog open={payOpen} onOpenChange={setPayOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Record payment</DialogTitle>
+            <DialogTitle>{t('Record payment')}</DialogTitle>
             <DialogDescription>
-              Settles everything outstanding on this period — {money(outstanding)} across{' '}
+              {t('Settles everything outstanding on this period —')} {money(outstanding)} across{' '}
               {period.lines.filter((line) => BigInt(line.outstanding) > 0n).length} workers.
             </DialogDescription>
           </DialogHeader>
 
           <form action={pay} className="flex flex-col gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Paid on" htmlFor="paid_on">
+              <Field label={t('Paid on')} htmlFor="paid_on">
                 <Input id="paid_on" name="paid_on" type="date" defaultValue={todayIso()} required />
               </Field>
-              <Field label="Mode">
+              <Field label={t('Mode')}>
                 <Select value={mode} onValueChange={setMode}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="cash">{t('Cash')}</SelectItem>
                     <SelectItem value="upi">UPI</SelectItem>
-                    <SelectItem value="bank">Bank transfer</SelectItem>
+                    <SelectItem value="bank">{t('Bank transfer')}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
             </div>
-            <Field label="Reference" htmlFor="reference" hint="UTR or voucher number, optional">
+            <Field label={t('Reference')} htmlFor="reference" hint={t('UTR or voucher number, optional')}>
               <Input id="reference" name="reference" />
             </Field>
 
@@ -207,7 +209,7 @@ export function PeriodActions({
 
             <DialogFooter>
               <Button type="button" variant="secondary" onClick={() => setPayOpen(false)}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button type="submit" variant="approve" disabled={pending}>
                 {pending ? 'Recording…' : `Pay ${money(outstanding)}`}

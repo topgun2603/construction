@@ -20,6 +20,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { shortDate } from '@/lib/format';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Photos and videos of the site.
@@ -44,6 +45,7 @@ export function SiteGallery({
   media: ProjectMedia[];
   canEdit: boolean;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   const [, start] = useTransition();
@@ -157,7 +159,7 @@ export function SiteGallery({
         <div className="flex flex-col gap-0.5">
           <div className="flex items-baseline gap-2.5">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Site photos and videos
+              {t('Site photos and videos')}
             </span>
             {items.length > 0 && (
               <span className="font-mono text-[13px] text-ink-muted">{items.length}</span>
@@ -165,7 +167,7 @@ export function SiteGallery({
           </div>
           {canEdit && items.length > 1 && (
             <span className="text-[12px] text-ink-faint">
-              Drag to reorder — the first photo leads this site&rsquo;s card.
+              {t('Drag to reorder — the first photo leads this site&rsquo;s card.')}
             </span>
           )}
         </div>
@@ -192,7 +194,7 @@ export function SiteGallery({
               ) : (
                 <>
                   <ImagePlus className="size-4" />
-                  Add files
+                  {t('Add files')}
                 </>
               )}
             </span>
@@ -204,8 +206,8 @@ export function SiteGallery({
         <div className="p-4">
           <EmptyState
             icon={<ImagePlus />}
-            title="No photos of this site yet"
-            body="Add photographs of the approach, the elevation, anything a person who has never been here would need. Videos work too."
+            title={t('No photos of this site yet')}
+            body={t('Add photographs of the approach, the elevation, anything a person who has never been here would need. Videos work too.')}
           />
         </div>
       ) : (
@@ -271,6 +273,7 @@ function MediaTile({
   onDropTile: () => void;
   onMove: (to: number) => void;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -340,7 +343,7 @@ function MediaTile({
       <div className="relative aspect-[4/3] bg-neutral-bg">
         {failed ? (
           <span className="flex h-full items-center justify-center text-[13px] text-ink-faint">
-            Could not load
+            {t('Could not load')}
           </span>
         ) : !url ? (
           <span className="flex h-full items-center justify-center">
@@ -385,7 +388,7 @@ function MediaTile({
         {isMain && (
           <span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-ink/70 px-2 py-1 text-[11px] font-medium text-white">
             <Star className="size-3 fill-current" />
-            Main image
+            {t('Main image')}
           </span>
         )}
 
@@ -400,15 +403,15 @@ function MediaTile({
                 size="icon"
                 variant="secondary"
                 className="size-8 shadow-float"
-                aria-label="Make this the main image"
-                title="Make this the main image"
+                aria-label={t('Make this the main image')}
+                title={t('Make this the main image')}
                 onClick={() => onMove(0)}
               >
                 <Star className="size-4" />
               </Button>
             )}
             <ConfirmDialog
-              title="Remove this file?"
+              title={t('Remove this file?')}
               body={
                 <>
                   {media.caption ? (
@@ -419,11 +422,11 @@ function MediaTile({
                   ) : (
                     'This file comes off the site.'
                   )}{' '}
-                  It stops appearing here immediately; the stored file itself is kept.
+                  {t('It stops appearing here immediately; the stored file itself is kept.')}
                   {isMain && ' The site card falls back to the next photo.'}
                 </>
               }
-              confirmLabel="Remove file"
+              confirmLabel={t('Remove file')}
               successMessage="Removed"
               onConfirm={() => removeProjectMedia({ projectId, mediaId: media.id })}
               trigger={
@@ -431,8 +434,8 @@ function MediaTile({
                   size="icon"
                   variant="secondary"
                   className="size-8 shadow-float"
-                  aria-label="Remove this file"
-                  title="Remove this file"
+                  aria-label={t('Remove this file')}
+                  title={t('Remove this file')}
                 >
                   <Trash2 className="size-4" />
                 </Button>
@@ -449,7 +452,7 @@ function MediaTile({
           <button
             type="button"
             aria-label={`Move this file — currently ${index + 1} of ${count}`}
-            title="Drag to reorder, or use the arrow keys"
+            title={t('Drag to reorder, or use the arrow keys')}
             onKeyDown={(event) => {
               if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
                 event.preventDefault();
@@ -473,7 +476,7 @@ function MediaTile({
             defaultValue={media.caption ?? ''}
             autoFocus
             maxLength={200}
-            placeholder="What is this?"
+            placeholder={t('What is this?')}
             onBlur={(event) => caption(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') event.currentTarget.blur();

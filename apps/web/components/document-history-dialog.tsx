@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { instantDate, timeOfDay } from '@/lib/format';
 import type { SiteDocument } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Every revision of one document, with the day and the time each one landed.
@@ -35,6 +36,7 @@ export function DocumentHistoryDialog({
   title: string;
   trigger: ReactNode;
 }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<SiteDocument[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,10 +58,9 @@ export function DocumentHistoryDialog({
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>Revisions of {title}</DialogTitle>
+          <DialogTitle>{t('Revisions of')} {title}</DialogTitle>
           <DialogDescription>
-            Newest first. Every revision keeps its own file — opening an old one shows exactly what
-            was issued that day.
+            {t('Newest first. Every revision keeps its own file — opening an old one shows exactly what was issued that day.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -71,7 +72,7 @@ export function DocumentHistoryDialog({
 
         {!rows && !error && (
           <div className="flex items-center justify-center gap-2 py-8 text-[13.5px] text-ink-muted">
-            <Loader2 className="size-4 animate-spin" /> Reading the history…
+            <Loader2 className="size-4 animate-spin" /> {t('Reading the history…')}
           </div>
         )}
 
@@ -94,7 +95,7 @@ export function DocumentHistoryDialog({
 
                 <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 pb-5">
                   <span className="text-[14px] font-semibold">rev {row.version}</span>
-                  {index === 0 && <Badge tone="done">Current</Badge>}
+                  {index === 0 && <Badge tone="done">{t('Current')}</Badge>}
 
                   {/* The date and the clock. Two revisions on the same day is the normal shape of a
                       drawing being corrected, and a date alone cannot tell them apart. */}
@@ -111,7 +112,7 @@ export function DocumentHistoryDialog({
                       rel="noreferrer noopener"
                       className="ml-auto flex items-center gap-1.5 text-[12.5px] font-medium text-accent hover:underline"
                     >
-                      <Download className="size-3.5" /> Open
+                      <Download className="size-3.5" /> {t('Open')}
                     </a>
                   )}
                 </div>
@@ -122,7 +123,7 @@ export function DocumentHistoryDialog({
 
         {rows?.length === 0 && (
           <p className="flex items-center gap-2 py-6 text-[13.5px] text-ink-muted">
-            <FileClock className="size-4" /> Only one revision so far.
+            <FileClock className="size-4" /> {t('Only one revision so far.')}
           </p>
         )}
       </DialogContent>

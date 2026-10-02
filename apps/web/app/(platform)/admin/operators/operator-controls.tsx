@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useLanguage } from '@/components/language-provider';
 
 interface Operator {
   phone: string;
@@ -29,6 +30,7 @@ export function OperatorControls({
   granted: Operator[];
   canManage: boolean;
 }) {
+  const { t } = useLanguage();
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -65,12 +67,12 @@ export function OperatorControls({
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Granted from here
+          {t('Granted from here')}
         </h2>
         {canManage && !adding && (
           <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
             <Plus className="size-4" />
-            Add operator
+            {t('Add operator')}
           </Button>
         )}
       </div>
@@ -79,7 +81,7 @@ export function OperatorControls({
         {granted.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              title="Nobody else has access"
+              title={t('Nobody else has access')}
               body={
                 canManage
                   ? 'Add a support person here rather than sharing the number in the deployment config around.'
@@ -112,7 +114,7 @@ export function OperatorControls({
                     onClick={() => revoke(operator)}
                     disabled={pending}
                     aria-label={`Withdraw access for ${operator.phone}`}
-                    title="Withdraw access"
+                    title={t('Withdraw access')}
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -127,18 +129,18 @@ export function OperatorControls({
             action={add}
             className="flex flex-wrap items-end gap-3 border-t border-line-soft bg-raised px-4 py-3"
           >
-            <Field label="Mobile number" htmlFor="phone" className="w-[190px]">
+            <Field label={t('Mobile number')} htmlFor="phone" className="w-[190px]">
               <Input id="phone" name="phone" inputMode="numeric" placeholder="98765 43210" />
             </Field>
-            <Field label="Name" htmlFor="name" optional className="min-w-[160px] flex-1">
-              <Input id="name" name="name" placeholder="Who this is" />
+            <Field label={t('Name')} htmlFor="name" optional className="min-w-[160px] flex-1">
+              <Input id="name" name="name" placeholder={t('Who this is')} />
             </Field>
             <div className="flex items-center gap-2 pb-0.5">
               <Button type="submit" size="sm" disabled={pending}>
-                Grant access
+                {t('Grant access')}
               </Button>
               <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
+                {t('Cancel')}
               </Button>
             </div>
             {error && (
@@ -151,7 +153,7 @@ export function OperatorControls({
       </div>
 
       <p className="text-[12.5px] text-ink-faint">
-        A granted operator can do everything in this console except add or remove another operator.
+        {t('A granted operator can do everything in this console except add or remove another operator.')}
       </p>
     </section>
   );

@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/select';
 import { money, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const STATUS: Record<PaymentStage['status'], { label: string; tone: Tone }> = {
   paid: { label: 'Paid', tone: 'done' },
@@ -74,6 +75,7 @@ export function PaymentScheduleTab({
   milestones: Milestone[];
   canManage: boolean;
 }) {
+  const { t } = useLanguage();
   const scheduled = BigInt(schedule.totals.scheduled);
   const budget = schedule.totals.budget ? BigInt(schedule.totals.budget) : null;
   // A schedule that does not add up to the contract is one with an instalment missing from it.
@@ -82,14 +84,14 @@ export function PaymentScheduleTab({
   return (
     <div className="flex flex-col gap-4">
       <Card className="grid gap-5 p-4 sm:grid-cols-3">
-        <Total label="Scheduled" value={schedule.totals.scheduled} />
-        <Total label="Received" value={schedule.totals.received} tone="done" />
-        <Total label="Outstanding" value={schedule.totals.outstanding} tone="pending" />
+        <Total label={t('Scheduled')} value={schedule.totals.scheduled} />
+        <Total label={t('Received')} value={schedule.totals.received} tone="done" />
+        <Total label={t('Outstanding')} value={schedule.totals.outstanding} tone="pending" />
       </Card>
 
       {canManage && unscheduled > 0n && (
         <p className="rounded-btn bg-pending-bg px-3.5 py-2.5 text-[13px] text-pending-fg">
-          The schedule adds up to {money(schedule.totals.scheduled)} against a contract of{' '}
+          {t('The schedule adds up to')} {money(schedule.totals.scheduled)} against a contract of{' '}
           {money(schedule.totals.budget)} — {money(unscheduled.toString())} is not on it yet.
         </p>
       )}
@@ -111,7 +113,7 @@ export function PaymentScheduleTab({
       {schedule.items.length === 0 ? (
         <EmptyState
           icon={<BadgeIndianRupee />}
-          title="No payment schedule yet"
+          title={t('No payment schedule yet')}
           body={
             canManage
               ? 'Break the contract into the instalments you will actually ask for — on signing, on the slab, on handover.'
@@ -129,7 +131,7 @@ export function PaymentScheduleTab({
       {receipts.length > 0 && (
         <div className="flex flex-col gap-2">
           <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Received
+            {t('Received')}
           </h3>
           <Card className="divide-y divide-line-soft">
             {receipts.map((receipt) => (
@@ -160,6 +162,7 @@ function Total({ label, value, tone }: { label: string; value: string; tone?: 'd
 }
 
 function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolean }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pending, start] = useTransition();
   const status = STATUS[stage.status];
@@ -169,8 +172,8 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
     <div className="flex flex-wrap items-center gap-4 p-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[15px] font-medium">{stage.label}</span>
-          <Badge tone={status.tone}>{status.label}</Badge>
+          <span className="text-[15px] font-medium">{t(stage.label)}</span>
+          <Badge tone={status.tone}>{t(status.label)}</Badge>
           {stage.milestone && (
             <span
               className="text-[12px] text-ink-faint"
@@ -204,7 +207,7 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
               size="sm"
               variant="secondary"
               disabled={pending}
-              title="Mark this as asked for"
+              title={t('Mark this as asked for')}
               onClick={() =>
                 start(async () => {
                   const result = await updatePaymentStage({
@@ -214,29 +217,29 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
                   });
                   if (!result.ok) toast.error(result.error ?? 'Could not do that');
                   else {
-                    toast.success(`${stage.label} marked as asked for`);
+                    toast.success(`${t(stage.label)} marked as asked for`);
                     router.refresh();
                   }
                 })
               }
             >
               {pending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-              Raise
+              {t('Raise')}
             </Button>
           )}
           <ConfirmDialog
-            title="Remove this instalment?"
+            title={t('Remove this instalment?')}
             body={
               <>
-                <strong className="font-semibold text-ink">{stage.label}</strong> comes off the
+                <strong className="font-semibold text-ink">{t(stage.label)}</strong> comes off the
                 schedule, and the total the client owes drops by {money(stage.amount)}.
               </>
             }
-            confirmLabel="Remove"
+            confirmLabel={t('Remove')}
             successMessage="Removed"
             onConfirm={() => deletePaymentStage(stage.id, stage.project_id)}
             trigger={
-              <Button size="icon" variant="ghost" aria-label={`Remove ${stage.label}`}>
+              <Button size="icon" variant="ghost" aria-label={`Remove ${t(stage.label)}`}>
                 <Trash2 className="size-4" />
               </Button>
             }
@@ -248,6 +251,7 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
 }
 
 function ReceiptRow({ receipt, canManage }: { receipt: ClientPayment; canManage: boolean }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-wrap items-center gap-4 p-4">
       <Check className="size-4 flex-none text-done" />
@@ -265,18 +269,18 @@ function ReceiptRow({ receipt, canManage }: { receipt: ClientPayment; canManage:
       </span>
       {canManage && (
         <ConfirmDialog
-          title="Remove this receipt?"
+          title={t('Remove this receipt?')}
           body={
             <>
               {money(receipt.amount)} comes off what the client is recorded as having paid. Do this
               only if it was entered by mistake.
             </>
           }
-          confirmLabel="Remove receipt"
+          confirmLabel={t('Remove receipt')}
           successMessage="Removed"
           onConfirm={() => deleteClientPayment(receipt.id, receipt.project_id)}
           trigger={
-            <Button size="icon" variant="ghost" aria-label="Remove receipt">
+            <Button size="icon" variant="ghost" aria-label={t('Remove receipt')}>
               <Trash2 className="size-4" />
             </Button>
           }
@@ -295,6 +299,7 @@ function toPaise(rupees: string): string | null {
 }
 
 function StageDialog({ projectId, milestones }: { projectId: string; milestones: Milestone[] }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
@@ -332,27 +337,27 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="secondary">
-          <Plus className="size-4" /> Add instalment
+          <Plus className="size-4" /> {t('Add instalment')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add an instalment</DialogTitle>
+          <DialogTitle>{t('Add an instalment')}</DialogTitle>
           <DialogDescription>
-            The client sees this, so name it the way you would say it to them.
+            {t('The client sees this, so name it the way you would say it to them.')}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <Field label="What it is for" htmlFor="stage-label">
+          <Field label={t('What it is for')} htmlFor="stage-label">
             <Input
               id="stage-label"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
               maxLength={160}
-              placeholder="On completion of the slab"
+              placeholder={t('On completion of the slab')}
             />
           </Field>
-          <Field label="Amount" htmlFor="stage-amount">
+          <Field label={t('Amount')} htmlFor="stage-amount">
             <Input
               id="stage-amount"
               value={amount}
@@ -361,13 +366,13 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
               placeholder="2500000"
             />
           </Field>
-          <Field label="Triggered by" hint="Optional. Links it to a stage on the timeline.">
+          <Field label={t('Triggered by')} hint={t('Optional. Links it to a stage on the timeline.')}>
             <Select value={milestoneId} onValueChange={setMilestoneId}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Nothing in particular</SelectItem>
+                <SelectItem value="none">{t('Nothing in particular')}</SelectItem>
                 {milestones.map((milestone) => (
                   <SelectItem key={milestone.id} value={milestone.id}>
                     {milestone.name}
@@ -376,7 +381,7 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Due" optional htmlFor="stage-due">
+          <Field label={t('Due')} optional htmlFor="stage-due">
             <Input
               id="stage-due"
               type="date"
@@ -392,10 +397,10 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
         </div>
         <DialogFooter>
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="button" onClick={submit} disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />} Add
+            {pending && <Loader2 className="size-4 animate-spin" />} {t('Add')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -404,6 +409,7 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
 }
 
 function ReceiptDialog({ projectId, stages }: { projectId: string; stages: PaymentStage[] }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState('');
@@ -443,18 +449,18 @@ function ReceiptDialog({ projectId, stages }: { projectId: string; stages: Payme
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <BadgeIndianRupee className="size-4" /> Record payment
+          <BadgeIndianRupee className="size-4" /> {t('Record payment')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Record money received</DialogTitle>
+          <DialogTitle>{t('Record money received')}</DialogTitle>
           <DialogDescription>
-            Money from the client. Nothing to do with what the job costs to build.
+            {t('Money from the client. Nothing to do with what the job costs to build.')}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <Field label="Amount" htmlFor="receipt-amount">
+          <Field label={t('Amount')} htmlFor="receipt-amount">
             <Input
               id="receipt-amount"
               value={amount}
@@ -464,7 +470,7 @@ function ReceiptDialog({ projectId, stages }: { projectId: string; stages: Payme
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Received on" htmlFor="receipt-date">
+            <Field label={t('Received on')} htmlFor="receipt-date">
               <Input
                 id="receipt-date"
                 type="date"
@@ -472,44 +478,44 @@ function ReceiptDialog({ projectId, stages }: { projectId: string; stages: Payme
                 onChange={(event) => setReceivedOn(event.target.value)}
               />
             </Field>
-            <Field label="How">
+            <Field label={t('How')}>
               <Select value={mode} onValueChange={(value) => setMode(value as typeof mode)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bank">Bank transfer</SelectItem>
+                  <SelectItem value="bank">{t('Bank transfer')}</SelectItem>
                   <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="cash">{t('Cash')}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
           </div>
           <Field
-            label="Against"
-            hint="Leave it unassigned if nobody has decided which instalment it was for."
+            label={t('Against')}
+            hint={t('Leave it unassigned if nobody has decided which instalment it was for.')}
           >
             <Select value={stageId} onValueChange={setStageId}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No particular instalment</SelectItem>
+                <SelectItem value="none">{t('No particular instalment')}</SelectItem>
                 {owing.map((stage) => (
                   <SelectItem key={stage.id} value={stage.id}>
-                    {stage.label} — {money(stage.outstanding)} left
+                    {t(stage.label)} — {money(stage.outstanding)} left
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Reference" optional htmlFor="receipt-ref">
+          <Field label={t('Reference')} optional htmlFor="receipt-ref">
             <Input
               id="receipt-ref"
               value={reference}
               onChange={(event) => setReference(event.target.value)}
               maxLength={120}
-              placeholder="UTR or cheque number"
+              placeholder={t('UTR or cheque number')}
             />
           </Field>
           {error && (
@@ -520,10 +526,10 @@ function ReceiptDialog({ projectId, stages }: { projectId: string; stages: Payme
         </div>
         <DialogFooter>
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="button" onClick={submit} disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />} Record
+            {pending && <Loader2 className="size-4 animate-spin" />} {t('Record')}
           </Button>
         </DialogFooter>
       </DialogContent>

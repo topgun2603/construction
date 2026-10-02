@@ -5,6 +5,7 @@ import { todayIso } from '@/lib/format';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { RollCall } from './roll-call';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Attendance · BUILDR' };
 
@@ -19,6 +20,7 @@ export default async function AttendancePage({
 }: {
   searchParams: Promise<{ project?: string; date?: string }>;
 }) {
+  const t = await getT();
   const params = await searchParams;
   const projects = await serverFetch<Page<ProjectSummary>>('/projects?limit=200');
 
@@ -26,8 +28,8 @@ export default async function AttendancePage({
     return (
       <EmptyState
         icon={<CalendarCheck />}
-        title="No sites yet"
-        body="Attendance is recorded per site. Create a project first."
+        title={t('No sites yet')}
+        body={t('Attendance is recorded per site. Create a project first.')}
       />
     );
   }

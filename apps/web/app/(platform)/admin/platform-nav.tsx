@@ -7,6 +7,7 @@ import { BarChart3, Building2, LogOut, ShieldCheck, Tag } from 'lucide-react';
 import { platformSignOut } from '@/lib/platform-actions';
 import { BlockingOverlay } from '@/components/ui/blocking-overlay';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The console's tabs and its sign-out.
@@ -22,6 +23,7 @@ const TABS = [
 ];
 
 export function PlatformNav() {
+  const { t } = useLanguage();
   const pathname = usePathname();
   const [signingOut, startSignOut] = useTransition();
 
@@ -30,8 +32,8 @@ export function PlatformNav() {
       {/* Cheaper than the dashboard's sign-out — there is no token to revoke — but the
           round trip and the redirect still take a moment on a bad connection, and the
           curtain is what says so rather than a nav bar that looks ignored. */}
-      <BlockingOverlay open={signingOut} label="Signing out…" />
-      <nav className="flex items-center gap-1" aria-label="Console">
+      <BlockingOverlay open={signingOut} label={t('Signing out…')} />
+      <nav className="flex items-center gap-1" aria-label={t('Console')}>
         {TABS.map((tab) => {
           const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
           const Icon = tab.icon;
@@ -48,7 +50,7 @@ export function PlatformNav() {
               )}
             >
               <Icon className="size-4" />
-              {tab.label}
+              {t(tab.label)}
             </Link>
           );
         })}
@@ -65,7 +67,7 @@ export function PlatformNav() {
         className="flex min-h-0 items-center gap-2 rounded-control px-3 py-2 text-[13px] font-medium text-ink-faint transition hover:bg-nav-active/60 hover:text-[#CFCCE2] disabled:opacity-60"
       >
         <LogOut className="size-4" />
-        {signingOut ? 'Signing out…' : 'Sign out'}
+        {signingOut ? t('Signing out…') : t('Sign out')}
       </button>
     </div>
   );

@@ -193,7 +193,7 @@ export function FileReportDialog({
         setError(result.error ?? 'Could not file the report');
         return;
       }
-      toast.success(t('dpr.filed'));
+      toast.success(t('Report filed'));
       setPhotos([]);
       setSpoken(null);
       setFields({ report_date: TODAY(), weather: '', work_done: '', issues: '', headcount: '' });
@@ -206,19 +206,19 @@ export function FileReportDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="secondary">
-          <FilePlus2 className="size-4" /> {t('dpr.file')}
+          <FilePlus2 className="size-4" /> {t('File a report')}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {t('dpr.title')} — {projectName}
+            {t('Daily report')} — {projectName}
           </DialogTitle>
-          <DialogDescription>{t('dpr.subtitle')}</DialogDescription>
+          <DialogDescription>{t('What got done, who was on site, and what is in the way.')}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-line bg-raised px-3 py-2.5">
-          <p className="text-[12.5px] text-ink-muted">{t('dpr.speakHint')}</p>
+          <p className="text-[12.5px] text-ink-muted">{t('Rather say it? Two lines in Tamil, Hindi or English fills the form in.')}</p>
           <VoiceNoteButton
             projectId={projectId}
             reportDate={fields.report_date}
@@ -232,7 +232,7 @@ export function FileReportDialog({
           <figure className="rounded-panel border border-line bg-surface p-3">
             <figcaption className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
               <Quote className="size-3" />
-              {t('dpr.whatWasSaid')}
+              {t('What was said')}
               {spoken.language ? ` · heard as ${spokenLanguageName(spoken.language)}` : ''}
             </figcaption>
             {/* Verbatim and in the speaker's own script. It is the only thing on this screen that
@@ -264,7 +264,7 @@ export function FileReportDialog({
 
         <form key={formKey} action={onSubmit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('common.date')} htmlFor="report_date">
+            <Field label={t('Date')} htmlFor="report_date">
               <Input
                 id="report_date"
                 name="report_date"
@@ -274,11 +274,11 @@ export function FileReportDialog({
                 max={TODAY()}
               />
             </Field>
-            <Field label={t('dpr.weather')} htmlFor="weather" hint={t('common.optional')}>
+            <Field label={t('Weather')} htmlFor="weather" hint={t('Optional')}>
               <Input
                 id="weather"
                 name="weather"
-                placeholder="Clear"
+                placeholder={t('Clear')}
                 maxLength={120}
                 defaultValue={fields.weather}
               />
@@ -288,7 +288,7 @@ export function FileReportDialog({
           {/* The two prose fields translate as you type. They are the ones a supervisor reads —
               the date and the headcount need no translating, and wrapping them would just put a
               vendor call behind typing a number. */}
-          <Field label={t('dpr.workDone')} htmlFor="work_done">
+          <Field label={t('What got done today')} htmlFor="work_done">
             <BilingualTextarea
               id="work_done"
               name="work_done"
@@ -296,26 +296,26 @@ export function FileReportDialog({
               required
               maxLength={4000}
               defaultValue={fields.work_done}
-              placeholder="Second floor slab shuttering completed, curing started on the columns…"
+              placeholder={t('Second floor slab shuttering completed, curing started on the columns…')}
             />
           </Field>
 
-          <Field label={t('dpr.issues')} htmlFor="issues" hint={t('dpr.issuesHint')}>
+          <Field label={t('Anything in the way')} htmlFor="issues" hint={t('Left blank if nothing is')}>
             <BilingualTextarea
               id="issues"
               name="issues"
               rows={3}
               maxLength={4000}
               defaultValue={fields.issues}
-              placeholder="Sand delivery did not arrive; masonry on hold from tomorrow"
+              placeholder={t('Sand delivery did not arrive; masonry on hold from tomorrow')}
             />
           </Field>
 
-          <Field label={t('dpr.headcount')} htmlFor="headcount" hint={t('common.optional')}>
+          <Field label={t('People on site')} htmlFor="headcount" hint={t('Optional')}>
             <Input id="headcount" name="headcount" inputMode="numeric" placeholder="24" />
           </Field>
 
-          <Field label={t('dpr.photos')} hint={t('dpr.photosHint')}>
+          <Field label={t('Photos')} hint={t('What the report is describing')}>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -323,7 +323,7 @@ export function FileReportDialog({
                 className="flex size-24 flex-col items-center justify-center gap-1.5 rounded-panel border border-dashed border-line-strong bg-raised text-[12px] text-ink-muted transition hover:border-accent hover:text-accent"
               >
                 <ImagePlus className="size-5" />
-                {t('dpr.addPhotos')}
+                {t('Add photos')}
               </button>
               <input
                 ref={fileInput}
@@ -365,7 +365,7 @@ export function FileReportDialog({
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              {t('common.cancel')}
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
               {pending ? (

@@ -8,6 +8,7 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { ReportsNav } from '../reports-nav';
 import { PeopleTable } from './people-table';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'People · BUILDR' };
 
@@ -25,6 +26,7 @@ export default async function PeopleReportPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const t = await getT();
   const params = await searchParams;
   const to = params.to ?? todayIso();
   const from = params.from ?? addDaysIso(to, -29);
@@ -42,24 +44,24 @@ export default async function PeopleReportPage({
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Expenses approved"
+          label={t('Expenses approved')}
           value={moneyShort(ledger.totals.expenses_approved)}
-          note="Signed off in this range"
+          note={t('Signed off in this range')}
           noteTone="done"
         />
         <StatTile
-          label="Expenses pending"
+          label={t('Expenses pending')}
           value={moneyShort(ledger.totals.expenses_pending)}
           note={pending > 0n ? 'Still waiting on a decision' : 'Nothing waiting'}
           noteTone={pending > 0n ? 'pending' : 'neutral'}
         />
         <StatTile
-          label="Labour booked"
+          label={t('Labour booked')}
           value={moneyShort(ledger.totals.labour_booked)}
-          note="Through their roll calls"
+          note={t('Through their roll calls')}
         />
         <StatTile
-          label="Indents raised"
+          label={t('Indents raised')}
           value={String(ledger.totals.indents_raised)}
           note={`${ledger.totals.reports_filed} reports filed`}
         />
@@ -68,8 +70,8 @@ export default async function PeopleReportPage({
       {ledger.people.length === 0 ? (
         <EmptyState
           icon={<UserCog />}
-          title="Nobody recorded anything in this period"
-          body="Once supervisors start filing reports, taking roll calls and recording expenses, their activity shows up here."
+          title={t('Nobody recorded anything in this period')}
+          body={t('Once supervisors start filing reports, taking roll calls and recording expenses, their activity shows up here.')}
         />
       ) : (
         <PeopleTable ledger={ledger} currentUserId={me.user.id} />

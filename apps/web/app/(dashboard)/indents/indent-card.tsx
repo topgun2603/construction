@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { shortDate, titleCase } from '@/lib/format';
 import type { Indent } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 const STATUS_TONE: Record<Indent['status'], Tone> = {
   requested: 'pending',
@@ -23,6 +24,7 @@ const STATUS_TONE: Record<Indent['status'], Tone> = {
 };
 
 export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove: boolean }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -50,8 +52,8 @@ export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove:
             </span>
           </div>
           <div className="flex flex-none gap-2">
-            {indent.urgency === 'high' && <Badge tone="blocked">Urgent</Badge>}
-            <Badge tone={STATUS_TONE[indent.status]}>{titleCase(indent.status)}</Badge>
+            {indent.urgency === 'high' && <Badge tone="blocked">{t('Urgent')}</Badge>}
+            <Badge tone={STATUS_TONE[indent.status]}>{t(titleCase(indent.status))}</Badge>
           </div>
         </div>
 
@@ -85,7 +87,7 @@ export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove:
                 disabled={pending}
                 onClick={() => move('approved', 'Indent approved')}
               >
-                <Check /> Approve
+                <Check /> {t('Approve')}
               </Button>
               <Button
                 variant="secondary"
@@ -94,14 +96,14 @@ export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove:
                 disabled={pending}
                 onClick={() => move('rejected', 'Indent rejected')}
               >
-                <X /> Reject
+                <X /> {t('Reject')}
               </Button>
             </>
           )}
 
           {indent.status === 'requested' && !canApprove && (
             <p className="text-[13px] text-ink-muted">
-              Waiting on a project manager or the owner.
+              {t('Waiting on a project manager or the owner.')}
             </p>
           )}
 
@@ -113,7 +115,7 @@ export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove:
                 disabled={pending}
                 onClick={() => move('ordered', 'Marked as ordered')}
               >
-                <Truck /> Mark ordered
+                <Truck /> {t('Mark ordered')}
               </Button>
               <ReceiveDialog indent={indent} />
             </>
@@ -127,7 +129,7 @@ export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove:
 
           {(indent.status === 'received' || indent.status === 'rejected') && indent.approved_by && (
             <p className="text-[13px] text-ink-muted">
-              {titleCase(indent.status)} by {indent.approved_by.name}
+              {t(titleCase(indent.status))} by {indent.approved_by.name}
             </p>
           )}
 
@@ -136,14 +138,14 @@ export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove:
           {indent.status === 'requested' && (
             <DeleteRowButton
               what="this indent"
-              title="Withdraw this indent?"
+              title={t('Withdraw this indent?')}
               body={
                 <>
-                  The request for {indent.project_name} is removed before anyone acts on it.
+                  {t('The request for')} {indent.project_name} is removed before anyone acts on it.
                   Nothing is ordered and nobody is notified.
                 </>
               }
-              confirmLabel="Withdraw indent"
+              confirmLabel={t('Withdraw indent')}
               successMessage="Indent withdrawn"
               onConfirm={() => deleteIndent(indent.id)}
             />

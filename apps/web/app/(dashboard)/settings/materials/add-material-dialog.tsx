@@ -17,8 +17,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
+import { useLanguage } from '@/components/language-provider';
 
 export function AddMaterialDialog() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,27 +48,27 @@ export function AddMaterialDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <Plus /> Add material
+          <Plus /> {t('Add material')}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Add a material</DialogTitle>
+          <DialogTitle>{t('Add a material')}</DialogTitle>
           <DialogDescription>
-            The unit is what indents are counted in — bag, MT, nos, kg.
+            {t('The unit is what indents are counted in — bag, MT, nos, kg.')}
           </DialogDescription>
         </DialogHeader>
 
         <form action={onSubmit} className="flex flex-col gap-4">
-          <Field label="Name" htmlFor="name">
-            <Input id="name" name="name" required placeholder="OPC 53 Grade Cement" />
+          <Field label={t('Name')} htmlFor="name">
+            <Input id="name" name="name" required placeholder={t('OPC 53 Grade Cement')} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Unit" htmlFor="unit">
+            <Field label={t('Unit')} htmlFor="unit">
               <Input id="unit" name="unit" required placeholder="bag" />
             </Field>
-            <Field label="Category" htmlFor="category">
-              <Input id="category" name="category" placeholder="Cement" />
+            <Field label={t('Category')} htmlFor="category">
+              <Input id="category" name="category" placeholder={t('Cement')} />
             </Field>
           </div>
 
@@ -78,10 +80,10 @@ export function AddMaterialDialog() {
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? 'Adding…' : 'Add'}
+              {pending ? 'Adding…' : t('Add')}
             </Button>
           </DialogFooter>
         </form>

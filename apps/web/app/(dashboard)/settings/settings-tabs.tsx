@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const TABS = [
   { href: '/settings/team', label: 'Team' },
@@ -14,6 +15,7 @@ const TABS = [
 ];
 
 export function SettingsTabs() {
+  const { t } = useLanguage();
   const pathname = usePathname();
   return (
     <nav className="flex gap-1 border-b border-line">
@@ -31,7 +33,7 @@ export function SettingsTabs() {
                 : 'border-transparent font-medium text-ink-muted hover:text-ink',
             )}
           >
-            {tab.label}
+            {t(tab.label)}
           </Link>
         );
       })}

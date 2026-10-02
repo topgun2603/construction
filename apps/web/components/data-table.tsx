@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -54,6 +55,7 @@ export function DataTable<TData, TValue>({
   onRowClick,
   toolbar,
 }: DataTableProps<TData, TValue>) {
+  const { t } = useLanguage();
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState('');
 
@@ -206,7 +208,7 @@ export function DataTable<TData, TValue>({
       {pageSize && table.getPageCount() > 1 && (
         <div className="flex items-center justify-between gap-3 text-[13px] text-ink-muted">
           <span>
-            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()} ·{' '}
+            {t('Page')} {table.getState().pagination.pageIndex + 1} of {table.getPageCount()} ·{' '}
             {rows.length} of {data.length} rows
           </span>
           <div className="flex gap-2">
@@ -216,7 +218,7 @@ export function DataTable<TData, TValue>({
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              Previous
+              {t('Previous')}
             </Button>
             <Button
               variant="secondary"
@@ -224,7 +226,7 @@ export function DataTable<TData, TValue>({
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-              Next
+              {t('Next')}
             </Button>
           </div>
         </div>

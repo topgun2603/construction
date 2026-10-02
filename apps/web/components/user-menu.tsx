@@ -35,7 +35,7 @@ export function UserMenu({
 
   return (
     <>
-      <BlockingOverlay open={pending} label="Signing out…" />
+      <BlockingOverlay open={pending} label={t('Signing out…')} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -62,30 +62,30 @@ export function UserMenu({
           </div>
 
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>{titleCase(role)}</DropdownMenuLabel>
+          <DropdownMenuLabel>{t(titleCase(role))}</DropdownMenuLabel>
 
           <DropdownMenuItem asChild>
             <Link href="/account">
-              <UserRound /> Your account
+              <UserRound /> {t('Your account')}
             </Link>
           </DropdownMenuItem>
           {isOwner && (
             <DropdownMenuItem asChild>
               <Link href="/settings/team">
-                <Settings /> Settings
+                <Settings /> {t('Settings')}
               </Link>
             </DropdownMenuItem>
           )}
           <DropdownMenuItem asChild>
             <Link href="/settings/plan">
-              <ReceiptText /> Plan &amp; modules
+              <ReceiptText /> {t('Plan &amp; modules')}
             </Link>
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
           {/* Language, where somebody looks for it: with the rest of "things about me", not buried
               in settings a supervisor has no permission to open. */}
-          <DropdownMenuLabel>{t('common.language')}</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('Language')}</DropdownMenuLabel>
           {TRANSLATED_LANGUAGES.map((code) => {
             const entry = APP_LANGUAGES.find((item) => item.code === code);
             return (
@@ -119,7 +119,7 @@ export function UserMenu({
             }}
             className="text-blocked-fg data-[highlighted]:bg-blocked-bg"
           >
-            <LogOut /> {pending ? 'Signing out…' : t('nav.signOut')}
+            <LogOut /> {pending ? t('Signing out…') : t('Sign out')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

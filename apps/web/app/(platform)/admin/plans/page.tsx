@@ -2,6 +2,7 @@ import type { PlanView } from '@sitebook/shared';
 import { platformFetch } from '@/lib/platform-session';
 import { FadeIn } from '@/components/motion';
 import { PlanCatalogue } from './plan-catalogue';
+import { getT } from '@/lib/i18n-server';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Plans · BUILDR platform' };
@@ -18,6 +19,7 @@ export const metadata = { title: 'Plans · BUILDR platform' };
  * than for feature lists that would be identical four times over.
  */
 export default async function PlansPage() {
+  const t = await getT();
   const [{ items }, me] = await Promise.all([
     platformFetch<{ items: PlanView[] }>('/plans'),
     platformFetch<{ phone: string; root: boolean }>('/me'),
@@ -26,9 +28,9 @@ export default async function PlansPage() {
   return (
     <FadeIn className="mx-auto flex max-w-[1400px] flex-col gap-5 px-6 pb-12 pt-5">
       <div className="flex flex-col gap-1">
-        <h1 className="text-[22px] font-semibold leading-tight">Plans</h1>
+        <h1 className="text-[22px] font-semibold leading-tight">{t('Plans')}</h1>
         <p className="text-[13.5px] text-ink-muted">
-          What builders can buy. Changes show on their plan page and in the app straight away.
+          {t('What builders can buy. Changes show on their plan page and in the app straight away.')}
         </p>
       </div>
 

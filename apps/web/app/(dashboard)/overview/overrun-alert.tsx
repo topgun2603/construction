@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, TriangleAlert } from 'lucide-react';
 import type { DashboardOverview } from '@/lib/api-types';
 import { Card } from '@/components/ui/card';
+import { getT } from '@/lib/i18n-server';
 
 /**
  * Materials consumed past what anybody estimated.
@@ -13,7 +14,8 @@ import { Card } from '@/components/ui/card';
  * Consumption, not delivery. Material in the store has been paid for and not yet used, and
  * counting it here would flag a site that simply took delivery early.
  */
-export function OverrunAlert({ overruns }: { overruns: DashboardOverview['overruns'] }) {
+export async function OverrunAlert({ overruns }: { overruns: DashboardOverview['overruns'] }) {
+  const t = await getT();
   if (overruns.length === 0) return null;
 
   return (
@@ -21,13 +23,13 @@ export function OverrunAlert({ overruns }: { overruns: DashboardOverview['overru
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
           <TriangleAlert className="size-3.5 text-pending-fg" />
-          Past estimate
+          {t('Past estimate')}
         </span>
         <Link
           href="/reports/overrun"
           className="flex items-center gap-1 text-[12.5px] font-medium text-accent hover:underline"
         >
-          Full report <ArrowRight className="size-3.5" />
+          {t('Full report')} <ArrowRight className="size-3.5" />
         </Link>
       </div>
 

@@ -163,7 +163,7 @@ export function VoiceNoteButton({
   if (state === 'working') {
     return (
       <Button type="button" variant="secondary" size="sm" disabled>
-        <Loader2 className="size-4 animate-spin" /> {t('dpr.listening')}
+        <Loader2 className="size-4 animate-spin" /> {t('Listening to it…')}
       </Button>
     );
   }
@@ -173,7 +173,7 @@ export function VoiceNoteButton({
       <Button type="button" variant="secondary" size="sm" onClick={stop}>
         <Square className="size-3.5 fill-current text-blocked-fg" />
         <span className="tabular-nums">
-          {t('dpr.stop')} · {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+          {t('Stop')} · {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
         </span>
       </Button>
     );
@@ -181,7 +181,7 @@ export function VoiceNoteButton({
 
   return (
     <Button type="button" variant="secondary" size="sm" disabled={disabled} onClick={() => void start()}>
-      <Mic className="size-4" /> {t('dpr.speak')}
+      <Mic className="size-4" /> {t('Speak the report')}
     </Button>
   );
 }

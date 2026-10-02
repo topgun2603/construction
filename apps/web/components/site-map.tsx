@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink, Image as ImageIcon, Map as MapIcon, MapPin, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const GOOGLE_KEY = process.env['NEXT_PUBLIC_GOOGLE_MAPS_API_KEY'] ?? '';
 const MAP_HEIGHT = 240;
@@ -41,6 +42,7 @@ export function SiteMap({
   /** Google zoom level — 16 shows a plot and the roads around it. Higher is closer in. */
   zoom?: number;
 }) {
+  const { t } = useLanguage();
   const [view, setView] = useState<'map' | 'satellite' | 'street'>('map');
   const [streetAvailable, setStreetAvailable] = useState<boolean | null>(null);
 
@@ -78,7 +80,7 @@ export function SiteMap({
         <span className="flex size-10 items-center justify-center rounded-full bg-neutral-bg text-ink-muted">
           <MapPin className="size-5" />
         </span>
-        <span className="text-[14px] font-semibold">No location set</span>
+        <span className="text-[14px] font-semibold">{t('No location set')}</span>
         <span className="max-w-[38ch] text-[13px] leading-relaxed text-ink-muted">
           {address
             ? 'There is an address but no coordinates. Add them when editing the site to show it on a map.'
@@ -104,9 +106,9 @@ export function SiteMap({
     view === 'street' ? streetView : staticMap(view === 'satellite' ? 'hybrid' : 'roadmap');
 
   const TABS = [
-    { id: 'map' as const, label: 'Map', icon: MapIcon, show: true },
-    { id: 'satellite' as const, label: 'Satellite', icon: ImageIcon, show: true },
-    { id: 'street' as const, label: 'Street', icon: Navigation, show: streetAvailable === true },
+    { id: 'map' as const, label: t('Map'), icon: MapIcon, show: true },
+    { id: 'satellite' as const, label: t('Satellite'), icon: ImageIcon, show: true },
+    { id: 'street' as const, label: t('Street'), icon: Navigation, show: streetAvailable === true },
   ].filter((tab) => tab.show);
 
   return (
@@ -116,8 +118,7 @@ export function SiteMap({
           className="flex items-center justify-center bg-neutral-bg px-4 text-center text-[13px] text-ink-muted"
           style={{ height: MAP_HEIGHT }}
         >
-          Map images need NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. The coordinates and the directions link
-          below still work.
+          {t('Map images need NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. The coordinates and the directions link below still work.')}
         </div>
       ) : (
         <div className="relative bg-neutral-bg" style={{ height: MAP_HEIGHT }}>
@@ -125,7 +126,7 @@ export function SiteMap({
           <img
             key={view}
             src={source}
-            alt={name ? `${view === 'street' ? 'Street view' : 'Map'} of ${name}` : 'Site location'}
+            alt={name ? `${view === 'street' ? 'Street view' : t('Map')} of ${name}` : 'Site location'}
             width={MAP_WIDTH}
             height={MAP_HEIGHT}
             loading="lazy"
@@ -148,7 +149,7 @@ export function SiteMap({
                   )}
                 >
                   <tab.icon className="size-3.5" />
-                  {tab.label}
+                  {t(tab.label)}
                 </button>
               ))}
             </div>
@@ -169,7 +170,7 @@ export function SiteMap({
           rel="noreferrer noopener"
           className="flex flex-none items-center gap-1.5 text-[13px] font-medium text-accent hover:underline"
         >
-          Directions <ExternalLink className="size-3.5" />
+          {t('Directions')} <ExternalLink className="size-3.5" />
         </a>
       </div>
     </div>

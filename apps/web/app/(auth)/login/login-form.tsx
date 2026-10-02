@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3000/v1';
 /**
@@ -54,6 +55,7 @@ interface ExchangeResponse extends Partial<TokenPair> {
 }
 
 export function LoginForm() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
@@ -267,18 +269,17 @@ export function LoginForm() {
               <form onSubmit={handlePhoneSubmit} className="flex flex-col gap-6">
                 <header className="flex flex-col gap-1.5">
                   <h1 className="text-[30px] font-bold leading-[1.1] tracking-[-0.025em]">
-                    Welcome back
+                    {t('Welcome back')}
                   </h1>
                   <p className="text-[19px] font-medium leading-snug text-ink-soft">
-                    Sign in to your workspace
+                    {t('Sign in to your workspace')}
                   </p>
                   <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
-                    Enter the mobile number your builder registered and we’ll send you a secure
-                    code. There is no password to remember.
+                    {t('Enter the mobile number your builder registered and we’ll send you a secure code. There is no password to remember.')}
                   </p>
                 </header>
 
-                <Field label="Mobile number" htmlFor="phone">
+                <Field label={t('Mobile number')} htmlFor="phone">
                   <div className="flex items-center gap-0 overflow-hidden rounded-btn border border-line-strong bg-surface transition focus-within:border-accent">
                     <span className="flex h-12 select-none items-center border-r border-line px-3.5 font-mono text-[15px] text-ink-muted">
                       +91
@@ -303,7 +304,7 @@ export function LoginForm() {
 
                   <p className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-muted">
                     <Lock className="mt-0.5 size-3.5 flex-none text-ink-faint" />
-                    We’ll send a one-time code to your mobile. No password needed.
+                    {t('We’ll send a one-time code to your mobile. No password needed.')}
                   </p>
                 </div>
 
@@ -324,13 +325,12 @@ export function LoginForm() {
                   className="flex h-12 w-full items-center justify-center gap-3 rounded-btn border border-line-strong bg-surface text-[14.5px] font-semibold text-ink transition hover:bg-raised disabled:opacity-60"
                 >
                   <GoogleMark />
-                  Continue with Google
+                  {t('Continue with Google')}
                 </button>
 
                 {DEV_AUTH_BYPASS && (
                   <p className="rounded-btn border border-pending-line bg-pending-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-pending-fg">
-                    <span className="font-semibold">Developer / demo access.</span> No SMS is sent.
-                    Try <span className="font-mono font-semibold">9000000001</span> (owner) or{' '}
+                    <span className="font-semibold">{t('Developer / demo access.')}</span> {t('No SMS is sent. Try')} <span className="font-mono font-semibold">9000000001</span> (owner) or{' '}
                     <span className="font-mono font-semibold">9000000003</span> (supervisor).
                   </p>
                 )}
@@ -344,10 +344,10 @@ export function LoginForm() {
                     <ShieldCheck className="size-5" />
                   </span>
                   <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-[-0.02em]">
-                    Enter the code
+                    {t('Enter the code')}
                   </h1>
                   <p className="text-[14.5px] leading-relaxed text-ink-muted">
-                    Sent to <span className="font-mono font-semibold text-ink">+91 {phone}</span>
+                    {t('Sent to')} <span className="font-mono font-semibold text-ink">+91 {phone}</span>
                   </p>
                 </header>
 
@@ -381,7 +381,7 @@ export function LoginForm() {
 
                 {busy && (
                   <p className="flex items-center gap-2 text-[13.5px] text-ink-muted">
-                    <Loader2 className="size-4 animate-spin" /> Verifying…
+                    <Loader2 className="size-4 animate-spin" /> {t('Verifying…')}
                   </p>
                 )}
 
@@ -394,7 +394,7 @@ export function LoginForm() {
                   }}
                   className="flex min-h-0 items-center gap-1.5 self-start text-[13.5px] font-medium text-ink-muted transition hover:text-ink"
                 >
-                  <ArrowLeft className="size-3.5" /> Use a different number
+                  <ArrowLeft className="size-3.5" /> {t('Use a different number')}
                 </button>
               </div>
             )}
@@ -403,25 +403,24 @@ export function LoginForm() {
               <form onSubmit={handleOnboardSubmit} className="flex flex-col gap-6">
                 <header className="flex flex-col gap-2">
                   <span className="font-mono text-[11.5px] uppercase tracking-[0.16em] text-accent">
-                    New account
+                    {t('New account')}
                   </span>
                   <h1 className="text-[30px] font-bold leading-tight tracking-[-0.02em]">
-                    Set up your company
+                    {t('Set up your company')}
                   </h1>
                   <p className="text-[14.5px] leading-relaxed text-ink-muted">
-                    This number isn’t on a team yet. Create the account and you’ll be the owner —
-                    sites, team and plan come next.
+                    {t('This number isn’t on a team yet. Create the account and you’ll be the owner — sites, team and plan come next.')}
                   </p>
                 </header>
 
-                <Field label="Company name" htmlFor="company">
+                <Field label={t('Company name')} htmlFor="company">
                   <Input id="company" name="company" required minLength={2} placeholder="ARK Constructions" className="h-12 text-[16px]" />
                 </Field>
-                <Field label="Your name" htmlFor="owner">
+                <Field label={t('Your name')} htmlFor="owner">
                   <Input id="owner" name="owner" required placeholder="Gowtham Kumar" className="h-12 text-[16px]" />
                 </Field>
 
-                <Submit busy={busy}>Create account</Submit>
+                <Submit busy={busy}>{t('Create account')}</Submit>
               </form>
             )}
           </motion.div>
@@ -445,10 +444,10 @@ export function LoginForm() {
       </div>
 
       <footer className="mx-auto mt-8 flex w-full max-w-[440px] flex-wrap items-center justify-between gap-2 text-[12px] text-ink-faint">
-        <span>© {new Date().getFullYear()} BUILDR. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} {t('BUILDR. All rights reserved.')}</span>
         <span className="flex items-center gap-1.5">
           <span aria-hidden className="size-2 rounded-[3px] bg-accent" />
-          Powered by Trusta Technologies
+          {t('Powered by Trusta Technologies')}
         </span>
       </footer>
     </section>
@@ -480,11 +479,12 @@ function GoogleMark() {
 }
 
 function Submit({ busy, children }: { busy: boolean; children: React.ReactNode }) {
+  const { t } = useLanguage();
   return (
     <Button type="submit" size="lg" disabled={busy} className="w-full gap-2">
       {busy ? (
         <>
-          <Loader2 className="animate-spin" /> Please wait…
+          <Loader2 className="animate-spin" /> {t('Please wait…')}
         </>
       ) : (
         <>

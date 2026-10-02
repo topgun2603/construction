@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 const GROUPS = [
   { value: 'project', label: 'By site' },
@@ -28,10 +29,11 @@ export function ReportFilters({
   from: string;
   to: string;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
 
   return (
-    <div className="flex gap-1 rounded-btn bg-neutral-bg p-1" role="group" aria-label="Group by">
+    <div className="flex gap-1 rounded-btn bg-neutral-bg p-1" role="group" aria-label={t('Group by')}>
       {GROUPS.map((group) => (
         <button
           key={group.value}
@@ -47,7 +49,7 @@ export function ReportFilters({
               : 'text-ink-soft hover:text-ink',
           )}
         >
-          {group.label}
+          {t(group.label)}
         </button>
       ))}
     </div>

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * How far back the growth and engagement charts look.
@@ -18,10 +19,11 @@ const RANGES = [
 ];
 
 export function RangePicker({ weeks }: { weeks: number }) {
+  const { t } = useLanguage();
   const router = useRouter();
 
   return (
-    <div className="flex gap-1 rounded-btn bg-neutral-bg p-1" role="group" aria-label="Date range">
+    <div className="flex gap-1 rounded-btn bg-neutral-bg p-1" role="group" aria-label={t('Date range')}>
       {RANGES.map((range) => (
         <button
           key={range.weeks}
@@ -35,7 +37,7 @@ export function RangePicker({ weeks }: { weeks: number }) {
               : 'text-ink-soft hover:text-ink',
           )}
         >
-          {range.label}
+          {t(range.label)}
         </button>
       ))}
     </div>

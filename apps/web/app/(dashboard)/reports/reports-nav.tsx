@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { CalendarRange, PieChart, UserCog, Warehouse, type LucideIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * The reports sub-nav and the date range, shared by every report.
@@ -48,6 +49,7 @@ export function ReportsNav({
    */
   maxDays?: number;
 }) {
+  const { t } = useLanguage();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -102,7 +104,7 @@ export function ReportsNav({
               )}
             >
               <Icon className="size-4" />
-              {tab.label}
+              {t(tab.label)}
             </Link>
           );
         })}
@@ -116,7 +118,7 @@ export function ReportsNav({
           {...(fromMin ? { min: fromMin } : {})}
           onChange={(event) => setRange({ from: event.target.value })}
           className="w-[165px]"
-          aria-label="From date"
+          aria-label={t('From date')}
         />
         <span className="text-ink-muted">→</span>
         <Input
@@ -126,7 +128,7 @@ export function ReportsNav({
           {...(toMax ? { max: toMax } : {})}
           onChange={(event) => setRange({ to: event.target.value })}
           className="w-[165px]"
-          aria-label="To date"
+          aria-label={t('To date')}
         />
         {maxDays && (
           <span className="text-[12px] text-ink-muted">

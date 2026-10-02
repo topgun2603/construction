@@ -9,18 +9,19 @@ import { DeleteRowButton } from '@/components/delete-row-button';
 import { deleteContractor } from '@/lib/actions';
 import { titleCase } from '@/lib/format';
 import { AddContractorDialog } from './add-contractor-dialog';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Contractors · BUILDR' };
 
 export default async function ContractorsPage() {
+  const t = await getT();
   const contractors = await serverFetch<Page<Contractor>>('/contractors?limit=200');
 
   return (
     <FadeIn className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <p className="max-w-xl text-[13.5px] leading-relaxed text-ink-muted">
-          Each contractor gets their own wage period. Workers with no contractor are paid as
-          direct labour, which is its own group.
+          {t('Each contractor gets their own wage period. Workers with no contractor are paid as direct labour, which is its own group.')}
         </p>
         <AddContractorDialog />
       </div>
@@ -28,8 +29,8 @@ export default async function ContractorsPage() {
       {contractors.items.length === 0 ? (
         <EmptyState
           icon={<Users />}
-          title="No contractors yet"
-          body="Add the gangs you subcontract to, so their wage sheets stay separate."
+          title={t('No contractors yet')}
+          body={t('Add the gangs you subcontract to, so their wage sheets stay separate.')}
           action={<AddContractorDialog />}
         />
       ) : (
@@ -48,11 +49,11 @@ export default async function ContractorsPage() {
                   {contractor.worker_count} workers
                 </span>
                 <Badge tone="neutral" dot={false}>
-                  Paid {titleCase(contractor.payment_terms)}
+                  {t('Paid')} {t(titleCase(contractor.payment_terms))}
                 </Badge>
                 <DeleteRowButton
                   what={contractor.name}
-                  title="Delete this contractor?"
+                  title={t('Delete this contractor?')}
                   body={
                     <>
                       <strong className="font-semibold text-ink">{contractor.name}</strong> comes

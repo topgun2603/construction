@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Creating an account nobody signed up for.
@@ -46,6 +47,7 @@ export function NewTenantDialog({
   /** The catalogue. An account cannot be put on a term that is not sold. */
   plans: PlanView[];
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [plan, setPlan] = useState(plans[0]?.code ?? 'three_months');
@@ -79,28 +81,27 @@ export function NewTenantDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <Plus className="size-4" /> New account
+          <Plus className="size-4" /> {t('New account')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New account</DialogTitle>
+          <DialogTitle>{t('New account')}</DialogTitle>
           <DialogDescription>
-            For a customer who is not signing up themselves. They sign in with the owner&apos;s
-            number — nothing is sent, so tell them it is ready.
+            {t('For a customer who is not signing up themselves. They sign in with the owner&apos;s number — nothing is sent, so tell them it is ready.')}
           </DialogDescription>
         </DialogHeader>
 
         <form action={submit} className="flex flex-col gap-4">
-          <Field label="Company" htmlFor="name">
+          <Field label={t('Company')} htmlFor="name">
             <Input id="name" name="name" required minLength={2} placeholder="Green Acres LLP" />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Owner" htmlFor="owner_name">
+            <Field label={t('Owner')} htmlFor="owner_name">
               <Input id="owner_name" name="owner_name" required placeholder="Gowtham Kumar" />
             </Field>
-            <Field label="Owner's mobile" htmlFor="owner_phone">
+            <Field label={t("Owner's mobile")} htmlFor="owner_phone">
               <Input
                 id="owner_phone"
                 name="owner_phone"
@@ -111,7 +112,7 @@ export function NewTenantDialog({
             </Field>
           </div>
 
-          <Field label="Plan">
+          <Field label={t('Plan')}>
             <Select value={plan} onValueChange={setPlan}>
               <SelectTrigger>
                 <SelectValue />
@@ -137,10 +138,10 @@ export function NewTenantDialog({
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? 'Creating…' : 'Create account'}
+              {pending ? 'Creating…' : t('Create account')}
             </Button>
           </DialogFooter>
         </form>

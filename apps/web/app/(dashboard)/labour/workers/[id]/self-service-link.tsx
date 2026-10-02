@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { workerSelfServiceLink } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { WhatsappButton } from '@/components/whatsapp-button';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Sends a worker a link to their own record (spec §3 item 15).
@@ -27,6 +28,7 @@ export function SelfServiceLink({
   workerName: string;
   phone: string | null;
 }) {
+  const { t } = useLanguage();
   const [path, setPath] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -44,7 +46,7 @@ export function SelfServiceLink({
   if (!phone) {
     return (
       <p className="text-[12.5px] text-ink-faint">
-        Add a mobile number for {workerName} to send them their attendance link.
+        {t('Add a mobile number for')} {workerName} to send them their attendance link.
       </p>
     );
   }
@@ -63,10 +65,10 @@ export function SelfServiceLink({
       <WhatsappButton
         phone={phone}
         path={path}
-        label="Send on WhatsApp"
+        label={t('Send on WhatsApp')}
         message={`Hello ${workerName}, here is your attendance and payment record. It works for 30 days: {url}`}
       />
-      <span className="text-[12.5px] text-ink-faint">Link works for 30 days</span>
+      <span className="text-[12.5px] text-ink-faint">{t('Link works for 30 days')}</span>
     </div>
   );
 }

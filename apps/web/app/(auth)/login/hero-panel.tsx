@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import { HardHat, IndianRupee, WifiOff } from 'lucide-react';
 import siteAtDusk from '@/public/bg.jpg';
+import { useLanguage } from '@/components/language-provider';
 
 /*
  * The dark half of the login screen.
@@ -47,6 +48,7 @@ const PROOF = [
 ];
 
 export function HeroPanel() {
+  const { t } = useLanguage();
   const reduceMotion = useReducedMotion();
 
   return (
@@ -99,7 +101,7 @@ export function HeroPanel() {
           <span className="text-[19px] font-bold tracking-[-0.01em] text-white">BUILDR</span>
         </div>
 
-        <nav aria-label="What BUILDR covers" className="flex items-center gap-2">
+        <nav aria-label={t('What BUILDR covers')} className="flex items-center gap-2">
           {STAGES.map((stage, index) => (
             <span key={stage} className="flex items-center gap-2">
               {index > 0 && <span className="font-mono text-[12px] text-white/25">/</span>}
@@ -125,20 +127,19 @@ export function HeroPanel() {
         className="flex max-w-[560px] flex-col gap-7 py-10"
       >
         <span className="font-mono text-[12.5px] uppercase tracking-[0.22em] text-accent-onDark">
-          Site management for builders
+          {t('Site management for builders')}
         </span>
 
         <h1 className="text-[clamp(40px,4.4vw,60px)] font-bold leading-[1.04] tracking-[-0.03em] text-white">
-          Every site.
+          {t('Every site.')}
           <br />
-          Every day.
+          {t('Every day.')}
           <br />
-          <span className="text-accent-onDark">Every rupee.</span>
+          <span className="text-accent-onDark">{t('Every rupee.')}</span>
         </h1>
 
         <p className="max-w-[460px] text-[16px] leading-relaxed text-white/80">
-          Daily reports, named attendance and wage sheets — from the site to your screen before you
-          finish your morning tea.
+          {t('Daily reports, named attendance and wage sheets — from the site to your screen before you finish your morning tea.')}
         </p>
 
         <ul className="flex flex-col gap-5 pt-2">
@@ -167,7 +168,7 @@ export function HeroPanel() {
       <footer className="flex flex-col gap-3">
         <span aria-hidden className="h-px w-16 bg-accent/70" />
         <span className="font-mono text-[11.5px] uppercase tracking-[0.18em] text-white/50">
-          Built for sites in India · ₹ in paise, never rounded
+          {t('Built for sites in India · ₹ in paise, never rounded')}
         </span>
       </footer>
     </section>

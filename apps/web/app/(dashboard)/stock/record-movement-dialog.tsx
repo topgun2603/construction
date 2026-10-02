@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select';
 import { todayIso } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Record material arriving or leaving by hand.
@@ -46,6 +47,7 @@ export function RecordMovementDialog({
   projects: ProjectSummary[];
   materials: Material[];
 }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<'in' | 'out'>('in');
   const [site, setSite] = useState(projectId);
@@ -95,15 +97,14 @@ export function RecordMovementDialog({
       <DialogTrigger asChild>
         <Button size="sm">
           <PackagePlus className="size-4" />
-          Record movement
+          {t('Record movement')}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Record a stock movement</DialogTitle>
+          <DialogTitle>{t('Record a stock movement')}</DialogTitle>
           <DialogDescription>
-            Receiving an approved indent books material in for you. Use this for a direct purchase,
-            or to issue material to the site.
+            {t('Receiving an approved indent books material in for you. Use this for a direct purchase, or to issue material to the site.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -111,12 +112,12 @@ export function RecordMovementDialog({
           <div
             className="flex gap-1 rounded-btn bg-neutral-bg p-1"
             role="group"
-            aria-label="Direction"
+            aria-label={t('Direction')}
           >
             {(
               [
-                { value: 'in', label: 'Came in' },
-                { value: 'out', label: 'Went out to site' },
+                { value: 'in', label: t('Came in') },
+                { value: 'out', label: t('Went out to site') },
               ] as const
             ).map((option) => (
               <button
@@ -131,16 +132,16 @@ export function RecordMovementDialog({
                     : 'text-ink-soft hover:text-ink',
                 )}
               >
-                {option.label}
+                {t(option.label)}
               </button>
             ))}
           </div>
 
           {projects.length > 1 && (
-            <Field label="Site">
+            <Field label={t('Site')}>
               <Select value={site} onValueChange={setSite}>
-                <SelectTrigger aria-label="Site">
-                  <SelectValue placeholder="Pick a site" />
+                <SelectTrigger aria-label={t('Site')}>
+                  <SelectValue placeholder={t('Pick a site')} />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((project) => (
@@ -153,10 +154,10 @@ export function RecordMovementDialog({
             </Field>
           )}
 
-          <Field label="Material">
+          <Field label={t('Material')}>
             <Select value={materialId} onValueChange={setMaterialId}>
-              <SelectTrigger aria-label="Material">
-                <SelectValue placeholder="Pick a material" />
+              <SelectTrigger aria-label={t('Material')}>
+                <SelectValue placeholder={t('Pick a material')} />
               </SelectTrigger>
               <SelectContent>
                 {materials.map((material) => (
@@ -171,21 +172,21 @@ export function RecordMovementDialog({
           <div className="flex flex-wrap gap-3">
             <Field
               label={unit ? `Quantity (${unit})` : 'Quantity'}
-              hint="Up to three decimals"
+              hint={t('Up to three decimals')}
               className="min-w-[150px] flex-1"
             >
               <Input name="quantity" inputMode="decimal" placeholder="40" />
             </Field>
-            <Field label="Date" className="w-[170px]">
+            <Field label={t('Date')} className="w-[170px]">
               <Input name="moved_on" type="date" defaultValue={todayIso()} />
             </Field>
           </div>
 
-          <Field label={type === 'in' ? 'Challan or bill number' : 'Reference'} hint="Optional">
+          <Field label={type === 'in' ? 'Challan or bill number' : t('Reference')} hint={t('Optional')}>
             <Input name="ref" maxLength={80} placeholder={type === 'in' ? 'CH-10482' : ''} />
           </Field>
 
-          <Field label="Note" hint="Optional">
+          <Field label={t('Note')} hint={t('Optional')}>
             <Textarea name="note" rows={2} maxLength={500} />
           </Field>
 
@@ -205,7 +206,7 @@ export function RecordMovementDialog({
               onClick={() => setOpen(false)}
               disabled={pending}
             >
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" />}

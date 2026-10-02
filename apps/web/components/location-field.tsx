@@ -6,6 +6,7 @@ import { Loader2, Map, MapPin, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
+import { useLanguage } from '@/components/language-provider';
 
 /*
  * The map picker is loaded only when somebody opens it. The Maps SDK is the heaviest thing on this
@@ -49,6 +50,7 @@ export function LocationField({
    */
   onAddress?: (address: string) => void;
 }) {
+  const { t } = useLanguage();
   const [picking, setPicking] = useState(false);
 
   const parsed = (() => {
@@ -60,7 +62,7 @@ export function LocationField({
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Latitude" className="w-[150px]">
+        <Field label={t('Latitude')} className="w-[150px]">
           <Input
             value={lat}
             onChange={(event) => onChange({ lat: event.target.value, lng })}
@@ -69,7 +71,7 @@ export function LocationField({
             className="font-mono"
           />
         </Field>
-        <Field label="Longitude" className="w-[150px]">
+        <Field label={t('Longitude')} className="w-[150px]">
           <Input
             value={lng}
             onChange={(event) => onChange({ lat, lng: event.target.value })}
@@ -103,7 +105,7 @@ export function LocationField({
       {!picking && (
         <p className="flex items-center gap-1.5 text-[12.5px] text-ink-muted">
           <MapPin className="size-3.5" />
-          Optional. Pick it on the map — search the locality, then drag the pin onto the plot.
+          {t('Optional. Pick it on the map — search the locality, then drag the pin onto the plot.')}
         </p>
       )}
     </div>

@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Which site's store you are looking at.
@@ -24,12 +25,13 @@ export function StockFilters({
   projects: ProjectSummary[];
   projectId: string;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
 
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-        Site
+        {t('Site')}
       </span>
       <Select
         value={projectId || 'all'}
@@ -37,8 +39,8 @@ export function StockFilters({
           router.push(value === 'all' ? '/stock' : `/stock?project_id=${value}`)
         }
       >
-        <SelectTrigger className="w-[260px]" aria-label="Site">
-          <SelectValue placeholder="Pick a site" />
+        <SelectTrigger className="w-[260px]" aria-label={t('Site')}>
+          <SelectValue placeholder={t('Pick a site')} />
         </SelectTrigger>
         <SelectContent>
           {projects.map((project) => (
@@ -46,7 +48,7 @@ export function StockFilters({
               {project.name}
             </SelectItem>
           ))}
-          <SelectItem value="all">All sites (combined)</SelectItem>
+          <SelectItem value="all">{t('All sites (combined)')}</SelectItem>
         </SelectContent>
       </Select>
     </div>

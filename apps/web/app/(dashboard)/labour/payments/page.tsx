@@ -5,10 +5,12 @@ import { StatTile } from '@/components/stat-tile';
 import { money } from '@/lib/format';
 import { RecordPaymentDialog } from './record-payment-dialog';
 import { PaymentsTable } from './payments-table';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Labour payments · BUILDR' };
 
 export default async function PaymentsPage() {
+  const t = await getT();
   const [payments, workers, contractors] = await Promise.all([
     serverFetch<Page<LabourPayment>>('/labour-payments?limit=200'),
     serverFetch<Page<Worker>>('/workers?limit=500&status=active'),
@@ -23,18 +25,18 @@ export default async function PaymentsPage() {
   return (
     <FadeIn className="flex flex-col gap-5">
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Wages paid" value={money(sum('wage').toString())} note="Through wage periods" />
+        <StatTile label={t('Wages paid')} value={money(sum('wage').toString())} note={t('Through wage periods')} />
         <StatTile
-          label="Advances out"
+          label={t('Advances out')}
           value={money(sum('advance').toString())}
-          note="Deducted from the next period"
+          note={t('Deducted from the next period')}
           noteTone="pending"
         />
-        <StatTile label="Bonus" value={money(sum('bonus').toString())} note="Added to what is owed" />
+        <StatTile label={t('Bonus')} value={money(sum('bonus').toString())} note={t('Added to what is owed')} />
         <StatTile
-          label="Deductions"
+          label={t('Deductions')}
           value={money(sum('deduction').toString())}
-          note="Reduces what is owed"
+          note={t('Reduces what is owed')}
         />
       </div>
 

@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * What this site is expected to consume — the figure the overrun report measures against.
@@ -38,6 +39,7 @@ export function MaterialEstimates({
   materials: Material[];
   canEdit: boolean;
 }) {
+  const { t } = useLanguage();
   const [adding, setAdding] = useState(false);
   const [materialId, setMaterialId] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -108,16 +110,16 @@ export function MaterialEstimates({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            Expected consumption
+            {t('Expected consumption')}
           </span>
           <span className="text-[12.5px] text-ink-muted">
-            What the overrun report measures this site against
+            {t('What the overrun report measures this site against')}
           </span>
         </div>
         {canEdit && !adding && available.length > 0 && (
           <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>
             <Plus className="size-4" />
-            Add material
+            {t('Add material')}
           </Button>
         )}
       </div>
@@ -126,13 +128,13 @@ export function MaterialEstimates({
         <div className="p-4">
           <EmptyState
             icon={<Warehouse />}
-            title="No estimates set for this site"
-            body="Enter how much of each material the job should take — from the bill of quantities, or from experience. Until then there is nothing for consumption to be measured against."
+            title={t('No estimates set for this site')}
+            body={t('Enter how much of each material the job should take — from the bill of quantities, or from experience. Until then there is nothing for consumption to be measured against.')}
             action={
               canEdit && available.length > 0 ? (
                 <Button size="sm" onClick={() => setAdding(true)}>
                   <Plus className="size-4" />
-                  Add the first material
+                  {t('Add the first material')}
                 </Button>
               ) : undefined
             }
@@ -175,7 +177,7 @@ export function MaterialEstimates({
                       onClick={() => drop(estimate)}
                       disabled={pending}
                       aria-label={`Remove ${estimate.material_name}`}
-                      title="Remove this estimate"
+                      title={t('Remove this estimate')}
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -198,10 +200,10 @@ export function MaterialEstimates({
           className="flex flex-col gap-3 border-t border-line-soft bg-raised px-4 py-3"
         >
           <div className="flex flex-wrap items-end gap-3">
-            <Field label="Material" className="min-w-[200px] flex-1">
+            <Field label={t('Material')} className="min-w-[200px] flex-1">
               <Select value={materialId} onValueChange={setMaterialId}>
-                <SelectTrigger aria-label="Material">
-                  <SelectValue placeholder="Pick a material" />
+                <SelectTrigger aria-label={t('Material')}>
+                  <SelectValue placeholder={t('Pick a material')} />
                 </SelectTrigger>
                 <SelectContent>
                   {available.map((material) => (
@@ -215,13 +217,13 @@ export function MaterialEstimates({
             <Field label={unit ? `Expected (${unit})` : 'Expected'} className="w-[150px]">
               <Input name="estimated_quantity" inputMode="decimal" placeholder="150" />
             </Field>
-            <Field label="Note" optional className="min-w-[160px] flex-1">
-              <Input name="note" maxLength={200} placeholder="Ground floor slab" />
+            <Field label={t('Note')} optional className="min-w-[160px] flex-1">
+              <Input name="note" maxLength={200} placeholder={t('Ground floor slab')} />
             </Field>
             <div className="flex items-center gap-2 pb-0.5">
               <Button type="submit" size="sm" disabled={pending}>
                 {pending && <Loader2 className="size-4 animate-spin" />}
-                Save
+                {t('Save')}
               </Button>
               <Button
                 type="button"
@@ -230,7 +232,7 @@ export function MaterialEstimates({
                 onClick={() => setAdding(false)}
                 disabled={pending}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
             </div>
           </div>

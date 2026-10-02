@@ -20,10 +20,12 @@ import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { addDaysIso, todayIso, weekStart } from '@/lib/format';
 import type { Contractor } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 const DIRECT = 'direct';
 
 export function GeneratePeriodDialog({ contractors }: { contractors: Contractor[] }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [contractorId, setContractorId] = useState<string>(DIRECT);
@@ -57,26 +59,25 @@ export function GeneratePeriodDialog({ contractors }: { contractors: Contractor[
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <CalendarRange /> Generate period
+          <CalendarRange /> {t('Generate period')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Generate a wage period</DialogTitle>
+          <DialogTitle>{t('Generate a wage period')}</DialogTitle>
           <DialogDescription>
-            Builds one line per worker from the attendance already recorded, and deducts any
-            advance that has not yet been settled. Re-running an open period recomputes it.
+            {t('Builds one line per worker from the attendance already recorded, and deducts any advance that has not yet been settled. Re-running an open period recomputes it.')}
           </DialogDescription>
         </DialogHeader>
 
         <form action={onSubmit} className="flex flex-col gap-4">
-          <Field label="Contractor" hint="Direct labour is its own group">
+          <Field label={t('Contractor')} hint={t('Direct labour is its own group')}>
             <Select value={contractorId} onValueChange={setContractorId}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={DIRECT}>Direct labour</SelectItem>
+                <SelectItem value={DIRECT}>{t('Direct labour')}</SelectItem>
                 {contractors.map((contractor) => (
                   <SelectItem key={contractor.id} value={contractor.id}>
                     {contractor.name}
@@ -87,10 +88,10 @@ export function GeneratePeriodDialog({ contractors }: { contractors: Contractor[
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="From" htmlFor="period_start">
+            <Field label={t('From')} htmlFor="period_start">
               <Input id="period_start" name="period_start" type="date" defaultValue={lastMonday} required />
             </Field>
-            <Field label="To" htmlFor="period_end">
+            <Field label={t('To')} htmlFor="period_end">
               <Input id="period_end" name="period_end" type="date" defaultValue={lastSunday} required />
             </Field>
           </div>
@@ -103,7 +104,7 @@ export function GeneratePeriodDialog({ contractors }: { contractors: Contractor[
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
               {pending ? 'Building…' : 'Generate'}

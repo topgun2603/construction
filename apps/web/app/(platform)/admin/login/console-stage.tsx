@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Building2, ScrollText, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { useLanguage } from '@/components/language-provider';
 
 /*
  * The dark stage behind the console sign-in.
@@ -36,6 +37,7 @@ const POWERS = [
 ];
 
 export function ConsoleStage({ children }: { children: ReactNode }) {
+  const { t } = useLanguage();
   const reduceMotion = useReducedMotion();
 
   return (
@@ -81,19 +83,18 @@ export function ConsoleStage({ children }: { children: ReactNode }) {
               <span className="flex flex-col leading-none">
                 <span className="text-[22px] font-bold tracking-[0.04em] text-white">BUILDR</span>
                 <span className="mt-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-accent-onDark">
-                  Platform console
+                  {t('Platform console')}
                 </span>
               </span>
             </span>
 
             <h1 className="max-w-[15ch] text-[clamp(2.4rem,4.4vw,3.6rem)] font-semibold leading-[1.03] tracking-[-0.03em] text-white">
-              The room behind
+              {t('The room behind')}
               <span className="block text-accent-onDark">every account.</span>
             </h1>
 
             <p className="max-w-[46ch] text-[15px] leading-relaxed text-[#B9B7D0]">
-              Not the builder&rsquo;s app. This console reads across every tenant on the platform and
-              can change what any of them is allowed to do.
+              {t('Not the builder&rsquo;s app. This console reads across every tenant on the platform and can change what any of them is allowed to do.')}
             </p>
           </motion.div>
 

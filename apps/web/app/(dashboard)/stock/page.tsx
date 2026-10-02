@@ -11,6 +11,7 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { StockFilters } from './stock-filters';
 import { RecordMovementDialog } from './record-movement-dialog';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Stock · BUILDR' };
 
@@ -26,6 +27,7 @@ export default async function StockPage({
 }: {
   searchParams: Promise<{ project_id?: string }>;
 }) {
+  const t = await getT();
   const params = await searchParams;
 
   const [projects, materials, me] = await Promise.all([
@@ -59,14 +61,14 @@ export default async function StockPage({
 
       <div className="grid gap-3.5 sm:grid-cols-3">
         <StatTile
-          label="Materials tracked"
+          label={t('Materials tracked')}
           value={String(stock.totals.material_count)}
           note={emptyShelves.length > 0 ? `${emptyShelves.length} at zero` : 'All have stock'}
           noteTone={emptyShelves.length > 0 ? 'pending' : 'done'}
           icon={<Boxes className="size-4" />}
         />
         <StatTile
-          label="Needs checking"
+          label={t('Needs checking')}
           value={String(negatives.length)}
           note={
             negatives.length === 0
@@ -77,9 +79,9 @@ export default async function StockPage({
           icon={<AlertTriangle className="size-4" />}
         />
         <StatTile
-          label="Against estimate"
-          value="Overrun report"
-          note="Consumption vs what the job should take"
+          label={t('Against estimate')}
+          value={t('Overrun report')}
+          note={t('Consumption vs what the job should take')}
           icon={<ArrowRight className="size-4" />}
         />
       </div>
@@ -93,9 +95,7 @@ export default async function StockPage({
               than nothing on site
             </span>
             <span className="text-[13px] leading-relaxed text-ink-muted">
-              That means material was issued that the ledger never saw arrive — usually an inward
-              challan nobody entered. Worth fixing now: the overrun report reads as nonsense until
-              it is.
+              {t('That means material was issued that the ledger never saw arrive — usually an inward challan nobody entered. Worth fixing now: the overrun report reads as nonsense until it is.')}
             </span>
           </div>
         </Card>
@@ -104,8 +104,8 @@ export default async function StockPage({
       {stock.items.length === 0 ? (
         <EmptyState
           icon={<Boxes />}
-          title="Nothing on the stock ledger yet"
-          body="Receiving an approved indent books material in automatically. You can also record a delivery or an issue by hand."
+          title={t('Nothing on the stock ledger yet')}
+          body={t('Receiving an approved indent books material in automatically. You can also record a delivery or an issue by hand.')}
           action={
             canRecord && projectId ? (
               <RecordMovementDialog
@@ -120,11 +120,11 @@ export default async function StockPage({
         <Card className="flex flex-col">
           <div className="flex items-center justify-between border-b border-line-soft px-4 py-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              On site
+              {t('On site')}
             </span>
             <Button asChild variant="ghost" size="sm">
               <Link href={`/stock/movements${projectId ? `?project_id=${projectId}` : ''}`}>
-                Full ledger <ArrowRight className="size-4" />
+                {t('Full ledger')} <ArrowRight className="size-4" />
               </Link>
             </Button>
           </div>
@@ -133,10 +133,10 @@ export default async function StockPage({
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="border-b border-line-soft text-[12px] uppercase tracking-[0.06em] text-ink-muted">
-                  <th className="px-4 py-2.5 text-left font-semibold">Material</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Received</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">Used</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">On site</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">{t('Material')}</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">{t('Received')}</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">{t('Used')}</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">{t('On site')}</th>
                 </tr>
               </thead>
               <tbody>

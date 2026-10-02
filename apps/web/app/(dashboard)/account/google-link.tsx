@@ -9,6 +9,7 @@ import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { linkGoogle, unlinkGoogle } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { useLanguage } from '@/components/language-provider';
 
 const DEV_AUTH_BYPASS =
   process.env.NODE_ENV !== 'production' && process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
@@ -22,6 +23,7 @@ const DEV_AUTH_BYPASS =
  * their sign-ins.
  */
 export function GoogleLink({ email }: { email: string | null }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -60,7 +62,7 @@ export function GoogleLink({ email }: { email: string | null }) {
     return (
       <Button size="sm" variant="secondary" disabled={busy} onClick={() => void link()}>
         {busy ? <Loader2 className="size-4 animate-spin" /> : <GoogleMark />}
-        Link a Google account
+        {t('Link a Google account')}
       </Button>
     );
   }
@@ -72,19 +74,19 @@ export function GoogleLink({ email }: { email: string | null }) {
         <span className="font-medium">{email}</span>
       </span>
       <ConfirmDialog
-        title="Unlink this Google account?"
+        title={t('Unlink this Google account?')}
         body={
           <>
-            Signing in with {email} will stop working. Your mobile number still signs you in, so
+            {t('Signing in with')} {email} will stop working. Your mobile number still signs you in, so
             you will not be locked out.
           </>
         }
-        confirmLabel="Unlink"
+        confirmLabel={t('Unlink')}
         successMessage="Unlinked"
         onConfirm={() => unlinkGoogle()}
         trigger={
           <Button size="sm" variant="ghost" className="text-ink-muted">
-            <Unlink className="size-3.5" /> Unlink
+            <Unlink className="size-3.5" /> {t('Unlink')}
           </Button>
         }
       />

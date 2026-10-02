@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ProjectSummary } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 const ROLES = [
   { value: 'site_supervisor', label: 'Site supervisor', hint: 'Files reports and attendance on one or more sites' },
@@ -47,6 +48,7 @@ export function InviteDialog({
   company: string;
   senderName: string;
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState('site_supervisor');
@@ -105,15 +107,14 @@ export function InviteDialog({
       <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : reset())}>
         <DialogTrigger asChild>
           <Button size="sm">
-            <UserPlus /> Invite
+            <UserPlus /> {t('Invite')}
           </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Now tell {invited.name}</DialogTitle>
+            <DialogTitle>{t('Now tell')} {invited.name}</DialogTitle>
             <DialogDescription>
-              BUILDR does not message people on your behalf — this opens your own WhatsApp with the
-              message written, and you press send.
+              {t('BUILDR does not message people on your behalf — this opens your own WhatsApp with the message written, and you press send.')}
             </DialogDescription>
           </DialogHeader>
 
@@ -130,7 +131,7 @@ export function InviteDialog({
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={reset}>
-              Later
+              {t('Later')}
             </Button>
             <WhatsappButton
               phone={invited.phone}
@@ -157,26 +158,26 @@ export function InviteDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <UserPlus /> Invite
+          <UserPlus /> {t('Invite')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Invite a team member</DialogTitle>
+          <DialogTitle>{t('Invite a team member')}</DialogTitle>
           <DialogDescription>{ROLES.find((r) => r.value === role)?.hint}</DialogDescription>
         </DialogHeader>
 
         <form action={onSubmit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Name" htmlFor="name">
+            <Field label={t('Name')} htmlFor="name">
               <Input id="name" name="name" required placeholder="Suresh Babu" />
             </Field>
-            <Field label="Mobile number" htmlFor="phone" hint="10 digits">
+            <Field label={t('Mobile number')} htmlFor="phone" hint="10 digits">
               <Input id="phone" name="phone" required inputMode="numeric" placeholder="9876543210" />
             </Field>
           </div>
 
-          <Field label="Role">
+          <Field label={t('Role')}>
             <Select value={role} onValueChange={setRole}>
               <SelectTrigger>
                 <SelectValue />
@@ -184,7 +185,7 @@ export function InviteDialog({
               <SelectContent>
                 {ROLES.map((entry) => (
                   <SelectItem key={entry.value} value={entry.value}>
-                    {entry.label}
+                    {t(entry.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -192,10 +193,10 @@ export function InviteDialog({
           </Field>
 
           {needsProjects && (
-            <Field label="Sites" hint="They will only see the sites you tick">
+            <Field label={t('Sites')} hint={t('They will only see the sites you tick')}>
               <div className="flex max-h-44 flex-col gap-1 overflow-y-auto rounded-btn border border-line-strong p-2">
                 {projects.length === 0 && (
-                  <span className="p-2 text-[13px] text-ink-muted">No sites yet.</span>
+                  <span className="p-2 text-[13px] text-ink-muted">{t('No sites yet.')}</span>
                 )}
                 {projects.map((project) => (
                   <label
@@ -229,7 +230,7 @@ export function InviteDialog({
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
               {pending ? 'Inviting…' : 'Send invite'}

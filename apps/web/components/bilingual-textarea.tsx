@@ -121,13 +121,13 @@ export function BilingualTextarea({
       {working && (
         <p className="flex items-center gap-1.5 text-[12px] text-ink-muted">
           <Loader2 className="size-3 animate-spin" />
-          {t('common.translating')} · {targetName?.native ?? target}
+          {t('Translating')} · {targetName?.native ?? target}
         </p>
       )}
 
       {failed && (
         <p className="text-[12px] text-ink-muted">
-          Could not translate that just now — what you typed is unchanged.
+          {t('Could not translate that just now — what you typed is unchanged.')}
         </p>
       )}
 
@@ -147,7 +147,7 @@ export function BilingualTextarea({
             className="self-start rounded-btn px-2 py-1 text-[12px] font-medium text-accent transition hover:bg-accent-soft"
           >
             <Check className="mr-1 inline size-3" />
-            {t('common.useThis')}
+            {t('Use this')}
           </button>
         </div>
       )}

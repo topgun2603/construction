@@ -4,6 +4,7 @@ import type { DashboardSite } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
 import { MeterRow } from '@/components/ui/meter';
 import { schedule } from '@/lib/projects';
+import { getT } from '@/lib/i18n-server';
 
 /**
  * The site card (design artboards 1c and 3a).
@@ -13,7 +14,8 @@ import { schedule } from '@/lib/projects';
  * place the design lets a bar carry status, because a site over budget is the thing
  * the owner opened this screen to find.
  */
-export function SiteCard({ site }: { site: DashboardSite }) {
+export async function SiteCard({ site }: { site: DashboardSite }) {
+  const t = await getT();
   const timeline = schedule(site);
   const budget = site.budget_amount ? BigInt(site.budget_amount) : null;
   const spend = BigInt(site.spend_month || '0');
@@ -33,24 +35,24 @@ export function SiteCard({ site }: { site: DashboardSite }) {
           </span>
         </div>
         {site.status === 'on_hold' ? (
-          <Badge tone="blocked">Work stopped</Badge>
+          <Badge tone="blocked">{t('Work stopped')}</Badge>
         ) : timeline && timeline.tone !== 'done' ? (
-          <Badge tone={timeline.tone}>{timeline.label}</Badge>
+          <Badge tone={timeline.tone}>{t(timeline.label)}</Badge>
         ) : (
-          <Badge tone="done">On track</Badge>
+          <Badge tone="done">{t('On track')}</Badge>
         )}
       </div>
 
       {timeline && (
         <MeterRow
-          label="Schedule elapsed"
+          label={t('Schedule elapsed')}
           value={`${timeline.elapsedPercent}%`}
           percent={timeline.elapsedPercent}
         />
       )}
 
       <MeterRow
-        label="Spend vs budget"
+        label={t('Spend vs budget')}
         value={
           budget === null
             ? moneyShort(site.spend_month)
@@ -69,11 +71,11 @@ export function SiteCard({ site }: { site: DashboardSite }) {
           </Badge>
         ) : site.dpr_status === 'draft' ? (
           <Badge tone="pending" dot={false}>
-            DPR draft
+            {t('DPR draft')}
           </Badge>
         ) : (
           <Badge tone="pending" dot={false}>
-            DPR pending
+            {t('DPR pending')}
           </Badge>
         )}
         <div className="flex items-center gap-3 text-[13px] text-ink-muted">

@@ -7,6 +7,7 @@ import { APP_TIMEZONE } from '@sitebook/shared';
 import { SearchCommand } from '@/components/search-command';
 import { NotificationBell, type NotificationRow } from '@/components/notification-bell';
 import { UserMenu } from '@/components/user-menu';
+import { useLanguage } from '@/components/language-provider';
 
 /*
  * The header bar: who is here, what they are looking at, when it is, and the three controls that
@@ -47,15 +48,18 @@ export function TopBar({
   userRole: string;
   notifications: NotificationRow[];
 }) {
+  const { t } = useLanguage();
   const pathname = usePathname();
-  const title = TITLES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? 'BUILDR';
+  // Translated at render, not in the table: the table is a route lookup and should stay one.
+  const english = TITLES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? 'BUILDR';
+  const title = t(english);
   const firstName = userName.trim().split(/\s+/)[0] ?? '';
 
   return (
     <header className="sticky top-0 z-30 flex flex-none items-center gap-4 border-b border-line bg-surface px-6 py-3.5">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-[12.5px] leading-tight text-ink-muted">
-          Welcome back{firstName ? `, ${firstName}` : ''}!
+          {t('Welcome back')}{firstName ? `, ${firstName}` : ''}!
         </span>
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <h1 className="truncate text-[21px] font-bold leading-tight tracking-[-0.02em]">

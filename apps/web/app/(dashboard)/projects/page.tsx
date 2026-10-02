@@ -6,10 +6,12 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { NewProjectDialog } from './new-project-dialog';
 import { SitesView } from './sites-view';
+import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Projects · BUILDR' };
 
 export default async function ProjectsPage() {
+  const t = await getT();
   const [projects, me] = await Promise.all([
     serverFetch<Page<ProjectListItem>>('/projects?limit=200'),
     requireSelf(),
@@ -21,8 +23,8 @@ export default async function ProjectsPage() {
     return (
       <EmptyState
         icon={<Building2 />}
-        title="No projects yet"
-        body="Create the first site to start filing daily reports, attendance and indents."
+        title={t('No projects yet')}
+        body={t('Create the first site to start filing daily reports, attendance and indents.')}
         action={canCreate ? <NewProjectDialog /> : undefined}
       />
     );

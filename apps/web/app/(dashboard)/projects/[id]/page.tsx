@@ -48,6 +48,7 @@ import { PaymentScheduleTab } from './payment-schedule';
 import { SiteApprovals } from './site-approvals';
 import { AskDocuments } from '@/components/ask-documents';
 import { DocumentsList } from '@/components/documents-list';
+import { getT } from '@/lib/i18n-server';
 
 const TABS = [
   'timeline',
@@ -74,6 +75,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
+  const t = await getT();
   const { id } = await params;
   const { tab } = await searchParams;
   const active: TabKey = (TABS as readonly string[]).includes(tab ?? '')
@@ -237,13 +239,13 @@ export default async function ProjectPage({
             href="/projects"
             className="inline-flex items-center gap-1 text-[12.5px] text-ink-faint hover:underline"
           >
-            <ArrowLeft className="size-3" /> Projects
+            <ArrowLeft className="size-3" /> {t('Projects')}
           </Link>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-[21px] font-semibold leading-tight">{project.name}</h2>
-            <Badge tone={statusTone(project.status)}>{statusLabel(project.status)}</Badge>
+            <Badge tone={statusTone(project.status)}>{t(statusLabel(project.status))}</Badge>
             {timeline && timeline.tone !== 'done' && (
-              <Badge tone={timeline.tone}>{timeline.label}</Badge>
+              <Badge tone={timeline.tone}>{t(timeline.label)}</Badge>
             )}
           </div>
           <span className="text-[13px] text-ink-muted">
@@ -255,11 +257,11 @@ export default async function ProjectPage({
           {canEditSite && <EditSiteDialog project={project} />}
           <dl className="flex gap-7 pb-1">
           <HeaderStat
-            label="Schedule elapsed"
+            label={t('Schedule elapsed')}
             value={timeline ? `${timeline.elapsedPercent}%` : '—'}
           />
-          <HeaderStat label="Budget" value={budget === null ? '—' : moneyShort(budget.toString())} />
-            <HeaderStat label="Handover" value={shortDate(project.target_end_date)} />
+          <HeaderStat label={t('Budget')} value={budget === null ? '—' : moneyShort(budget.toString())} />
+            <HeaderStat label={t('Handover')} value={shortDate(project.target_end_date)} />
           </dl>
         </div>
       </div>
@@ -308,7 +310,7 @@ export default async function ProjectPage({
             </div>
             <Card className="flex flex-col gap-3 p-4">
               <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-                Planned window
+                {t('Planned window')}
               </span>
               {project.start_date && project.target_end_date ? (
                 <>
@@ -320,7 +322,7 @@ export default async function ProjectPage({
                 </>
               ) : (
                 <p className="text-[13.5px] text-ink-muted">
-                  No start or target date set for this site.
+                  {t('No start or target date set for this site.')}
                 </p>
               )}
             </Card>
@@ -402,8 +404,8 @@ export default async function ProjectPage({
           {reports.items.length === 0 ? (
             <EmptyState
               icon={<FileText />}
-              title="No reports filed yet"
-              body="Supervisors file the daily progress report from the mobile app. It takes about a minute."
+              title={t('No reports filed yet')}
+              body={t('Supervisors file the daily progress report from the mobile app. It takes about a minute.')}
             />
           ) : (
             reports.items.map((report) => (
@@ -424,7 +426,7 @@ export default async function ProjectPage({
                       {report.headcount} on site
                     </span>
                     <Badge tone={report.status === 'submitted' ? 'done' : 'pending'}>
-                      {report.status === 'submitted' ? 'Submitted' : 'Draft'}
+                      {report.status === 'submitted' ? t('Submitted') : t('Draft')}
                     </Badge>
                   </div>
                 </div>
@@ -468,7 +470,7 @@ export default async function ProjectPage({
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-              Assigned to this site
+              {t('Assigned to this site')}
             </span>
             {canManagePeople && (
               <AddMemberDialog
@@ -481,8 +483,7 @@ export default async function ProjectPage({
           </div>
           {members.length === 0 ? (
             <p className="text-[13.5px] text-ink-muted">
-              Nobody is assigned yet. Owners and accounts see every site without being added; anybody
-              else needs putting on it here.
+              {t('Nobody is assigned yet. Owners and accounts see every site without being added; anybody else needs putting on it here.')}
             </p>
           ) : (
             <ul className="flex flex-col">
@@ -517,7 +518,7 @@ export default async function ProjectPage({
                     {canManagePeople && member.user.id !== me.user.id && (
                       <DeleteRowButton
                         what={member.user.name}
-                        title="Take them off this site?"
+                        title={t('Take them off this site?')}
                         body={
                           <>
                             <strong className="font-semibold text-ink">{member.user.name}</strong>{' '}
@@ -525,7 +526,7 @@ export default async function ProjectPage({
                             kept — this is only the assignment.
                           </>
                         }
-                        confirmLabel="Remove from site"
+                        confirmLabel={t('Remove from site')}
                         successMessage={`${member.user.name} removed from this site`}
                         onConfirm={removeProjectMember.bind(null, id, member.user.id)}
                       />

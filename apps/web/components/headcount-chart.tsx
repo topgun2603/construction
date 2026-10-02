@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/language-provider';
 
 /**
  * Headcount over the last week (design artboard 3a).
@@ -22,6 +23,7 @@ export function HeadcountChart({
   trend?: { this_week: number; last_week: number; change_pct: number | null };
   className?: string;
 }) {
+  const { t } = useLanguage();
   const max = Math.max(...series.map((point) => point.count), 1);
   const total = series.reduce((sum, point) => sum + point.count, 0);
   const worked = series.filter((point) => point.count > 0);
@@ -32,7 +34,7 @@ export function HeadcountChart({
     <Card className={cn('flex flex-col gap-3 p-4', className)}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          Headcount · last 7 days
+          {t('Headcount · last 7 days')}
         </span>
         <div className="flex items-baseline gap-3">
           {trend && <WeekOnWeek trend={trend} />}

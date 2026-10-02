@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { rupeesToPaiseString } from '@/lib/money-input';
 import { todayIso } from '@/lib/format';
 import type { Contractor, Worker } from '@/lib/api-types';
+import { useLanguage } from '@/components/language-provider';
 
 const HINTS: Record<string, string> = {
   advance: 'Deducted from this worker’s next wage period.',
@@ -39,6 +40,7 @@ export function RecordPaymentDialog({
   workers: Worker[];
   contractors: Contractor[];
 }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<'advance' | 'bonus' | 'deduction'>('advance');
@@ -78,36 +80,36 @@ export function RecordPaymentDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <HandCoins /> Record payment
+          <HandCoins /> {t('Record payment')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Record a payment</DialogTitle>
+          <DialogTitle>{t('Record a payment')}</DialogTitle>
           <DialogDescription>{HINTS[type]}</DialogDescription>
         </DialogHeader>
 
         <form action={onSubmit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Type">
+            <Field label={t('Type')}>
               <Select value={type} onValueChange={(value) => setType(value as typeof type)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="advance">Advance</SelectItem>
-                  <SelectItem value="bonus">Bonus</SelectItem>
-                  <SelectItem value="deduction">Deduction</SelectItem>
+                  <SelectItem value="advance">{t('Advance')}</SelectItem>
+                  <SelectItem value="bonus">{t('Bonus')}</SelectItem>
+                  <SelectItem value="deduction">{t('Deduction')}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Amount (₹)" htmlFor="amount">
+            <Field label={t('Amount (₹)')} htmlFor="amount">
               <Input id="amount" name="amount" required inputMode="decimal" placeholder="300" />
             </Field>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="For">
+            <Field label={t('For')}>
               <Select
                 value={payeeKind}
                 onValueChange={(value) => {
@@ -119,15 +121,15 @@ export function RecordPaymentDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="worker">A worker</SelectItem>
-                  <SelectItem value="contractor">A contractor</SelectItem>
+                  <SelectItem value="worker">{t('A worker')}</SelectItem>
+                  <SelectItem value="contractor">{t('A contractor')}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
-            <Field label={payeeKind === 'worker' ? 'Worker' : 'Contractor'}>
+            <Field label={payeeKind === 'worker' ? t('Worker') : t('Contractor')}>
               <Select value={payeeId} onValueChange={setPayeeId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose" />
+                  <SelectValue placeholder={t('Choose')} />
                 </SelectTrigger>
                 <SelectContent>
                   {(payeeKind === 'worker' ? workers : contractors).map((entry) => (
@@ -141,25 +143,25 @@ export function RecordPaymentDialog({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Paid on" htmlFor="paid_on">
+            <Field label={t('Paid on')} htmlFor="paid_on">
               <Input id="paid_on" name="paid_on" type="date" defaultValue={todayIso()} required />
             </Field>
-            <Field label="Mode">
+            <Field label={t('Mode')}>
               <Select value={mode} onValueChange={setMode}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="cash">{t('Cash')}</SelectItem>
                   <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="bank">Bank transfer</SelectItem>
+                  <SelectItem value="bank">{t('Bank transfer')}</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
           </div>
 
-          <Field label="Note" htmlFor="note">
-            <Input id="note" name="note" placeholder="Optional" />
+          <Field label={t('Note')} htmlFor="note">
+            <Input id="note" name="note" placeholder={t('Optional')} />
           </Field>
 
           {error && (
@@ -170,10 +172,10 @@ export function RecordPaymentDialog({
 
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? 'Recording…' : 'Record'}
+              {pending ? 'Recording…' : t('Record')}
             </Button>
           </DialogFooter>
         </form>
