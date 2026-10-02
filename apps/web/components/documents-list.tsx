@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   FileText,
+  FileClock,
   History,
   Loader2,
   Trash2,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createDocument, deleteDocument, presignUpload, updateDocument } from '@/lib/actions';
+import { DocumentHistoryDialog } from '@/components/document-history-dialog';
 import type { DocumentCategory, SiteDocument } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { instantDate, titleCase } from '@/lib/format';
+import { instantDate, timeOfDay, titleCase } from '@/lib/format';
 
 const CATEGORIES: DocumentCategory[] = [
   'drawing',
@@ -167,12 +169,21 @@ function DocumentsTable({
             <FileText className="size-4 flex-none text-ink-faint" />
             <span className="truncate font-medium">{row.original.title}</span>
             {row.original.version > 1 && (
-              <span
-                className="flex-none rounded-full bg-neutral-bg px-2 py-0.5 font-mono text-[11.5px] text-ink-soft"
-                title="Revisions are kept; this is the current one"
-              >
-                rev {row.original.version}
-              </span>
+              // The badge is the way in. Somebody who notices "rev 4" and wants to know what the
+              // other three were should not have to find a menu for it.
+              <DocumentHistoryDialog
+                familyId={row.original.family_id}
+                title={row.original.title}
+                trigger={
+                  <button
+                    type="button"
+                    title={`See all ${row.original.version} revisions`}
+                    className="flex-none rounded-full bg-neutral-bg px-2 py-0.5 font-mono text-[11.5px] text-ink-soft transition hover:bg-accent-soft hover:text-accent"
+                  >
+                    rev {row.original.version}
+                  </button>
+                }
+              />
             )}
           </div>
         ),
@@ -226,9 +237,12 @@ function DocumentsTable({
         accessorKey: 'created_at',
         header: 'Filed',
         cell: ({ row }) => (
-          <span className="text-[12.5px] text-ink-muted">
-            {instantDate(row.original.created_at)}
-            <br />
+          <span className="flex flex-col text-[12.5px] text-ink-muted">
+            {/* The clock as well as the day. Two revisions of a drawing on the same afternoon is
+                the normal shape of a correction, and a date alone cannot tell them apart. */}
+            <span className="font-mono">
+              {instantDate(row.original.created_at)} · {timeOfDay(row.original.created_at)}
+            </span>
             {row.original.uploaded_by.name}
           </span>
         ),
@@ -364,6 +378,21 @@ function RowActions({
                 <Eye className="size-4" />
               )}
             </Button>
+
+            <DocumentHistoryDialog
+              familyId={document.family_id}
+              title={document.title}
+              trigger={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  title={`Revisions of ${document.title}`}
+                  aria-label={`Revisions of ${document.title}`}
+                >
+                  <FileClock className="size-4" />
+                </Button>
+              }
+            />
 
             <UploadDialog
               projectId={document.project_id}

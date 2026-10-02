@@ -828,6 +828,19 @@ export async function scanBill(s3Key: string): Promise<ActionResult<ScanBillResu
   );
 }
 
+/**
+ * Every revision of one document, newest first.
+ *
+ * Read on demand rather than with the list: a family can have a dozen revisions and almost nobody
+ * opens the history, so loading it for every row would be paying for the rare case on every page.
+ */
+export async function documentHistory(familyId: string): Promise<ActionResult<SiteDocument[]>> {
+  return runAction(async () => {
+    const page = await serverFetch<{ items: SiteDocument[] }>(`/documents/${familyId}/history`);
+    return page.items;
+  });
+}
+
 export async function presignUpload(input: {
   kind: string;
   content_type: string;
