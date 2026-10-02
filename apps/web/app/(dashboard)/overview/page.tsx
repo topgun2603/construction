@@ -12,6 +12,7 @@ import { DecisionPanel } from '@/components/decision-panel';
 import { HeadcountChart } from '@/components/headcount-chart';
 import { StartBanner } from './start-banner';
 import { AttentionStrip } from './attention-strip';
+import { OverrunAlert } from './overrun-alert';
 import { SpendBar } from './spend-bar';
 import { TodayFeed } from './today-feed';
 
@@ -101,7 +102,7 @@ export default async function OverviewPage() {
 
       {sorted.length > 0 && (
         <FadeIn delay={0.03}>
-          <AttentionStrip sites={sites} totals={totals} />
+          <AttentionStrip sites={sites} totals={totals} wagePeriods={data.wage_periods} />
         </FadeIn>
       )}
 
@@ -152,7 +153,11 @@ export default async function OverviewPage() {
 
       <FadeIn delay={0.1}>
         <div className="grid gap-4 xl:grid-cols-3">
-          <HeadcountChart series={data.headcount_series} className="h-full xl:col-span-2" />
+          <HeadcountChart
+            series={data.headcount_series}
+            trend={data.headcount_trend}
+            className="h-full xl:col-span-2"
+          />
           <SpendBar
             spendMonth={totals.spend_month}
             labourMonth={totals.labour_cost_month}
@@ -162,6 +167,12 @@ export default async function OverviewPage() {
         </div>
       </FadeIn>
 
+      {/* An alert, not a fixture: it renders only when something is actually past its estimate. */}
+      {data.overruns.length > 0 && (
+        <FadeIn delay={0.15}>
+          <OverrunAlert overruns={data.overruns} />
+        </FadeIn>
+      )}
     </div>
   );
 }

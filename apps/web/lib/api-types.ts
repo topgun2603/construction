@@ -48,6 +48,26 @@ export interface DashboardOverview {
   date: string;
   /** Last 7 days including today, zeros included. */
   headcount_series: Array<{ date: string; count: number }>;
+  /**
+   * Man-days this week against the seven days before it. `change_pct` is null when last week had
+   * nobody on site — there is no percentage change from zero.
+   */
+  headcount_trend: { this_week: number; last_week: number; change_pct: number | null };
+  /** The open wage periods, and whether any of them should have been closed by now. */
+  wage_periods: {
+    open_count: number;
+    next_close: string | null;
+    days_to_close: number | null;
+    overdue_count: number;
+  };
+  /** Materials consumed past their estimate, worst first. Empty when nothing is over. */
+  overruns: Array<{
+    material_name: string;
+    unit: string;
+    estimated: string;
+    consumed: string;
+    percent_used: number;
+  }>;
   totals: {
     site_count: number;
     dprs_in: number;

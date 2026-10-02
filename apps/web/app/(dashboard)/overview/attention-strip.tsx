@@ -1,5 +1,12 @@
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, FileWarning, PauseCircle, Siren } from 'lucide-react';
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  FileWarning,
+  PauseCircle,
+  Siren,
+} from 'lucide-react';
 import type { DashboardOverview } from '@/lib/api-types';
 
 /**
@@ -15,9 +22,11 @@ import type { DashboardOverview } from '@/lib/api-types';
 export function AttentionStrip({
   sites,
   totals,
+  wagePeriods,
 }: {
   sites: DashboardOverview['sites'];
   totals: DashboardOverview['totals'];
+  wagePeriods: DashboardOverview['wage_periods'];
 }) {
   const missingDpr = sites.filter((site) => site.dpr_status !== 'submitted');
   const onHold = sites.filter((site) => site.status === 'on_hold');
@@ -58,6 +67,32 @@ export function AttentionStrip({
       label: `${reportingIssues.length} reporting issues`,
       href: '/projects',
       detail: reportingIssues.map((site) => site.name).join(', '),
+    },
+    {
+      // The one on this list that costs somebody money today: wages are not paid until the period
+      // is finalised, and a period whose end date has passed is a week of work nobody can be paid
+      // for.
+      key: 'wages_overdue',
+      show: wagePeriods.overdue_count > 0,
+      icon: CalendarClock,
+      tone: 'bg-blocked-bg text-blocked-fg',
+      label: `${wagePeriods.overdue_count} wage ${wagePeriods.overdue_count === 1 ? 'period' : 'periods'} to finalise`,
+      href: '/labour/wage-periods',
+    },
+    {
+      // Only inside a week. A period closing in three weeks is not news.
+      key: 'wages_soon',
+      show:
+        wagePeriods.overdue_count === 0 &&
+        wagePeriods.days_to_close !== null &&
+        wagePeriods.days_to_close <= 7,
+      icon: CalendarClock,
+      tone: 'bg-accent-soft text-accent',
+      label:
+        wagePeriods.days_to_close === 0
+          ? 'Wage period closes today'
+          : `Wage period closes in ${wagePeriods.days_to_close} ${wagePeriods.days_to_close === 1 ? 'day' : 'days'}`,
+      href: '/labour/wage-periods',
     },
     {
       key: 'expenses',

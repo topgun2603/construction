@@ -9,12 +9,14 @@ import {
 import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { StockService } from '../stock/stock.service';
 
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
+    private readonly stock: StockService,
   ) {}
 
   /**
@@ -29,7 +31,17 @@ export class DashboardService {
     const today = todayInIst();
     const todayUtc = isoDateToUtcDate(today);
     const weekStart = isoDateToUtcDate(addDays(today, -6));
+    const fortnightStart = isoDateToUtcDate(addDays(today, -13));
+    /*
+     * The scan has to cover whichever window reaches further back.
+     *
+     * It used to start at the first of the month, which quietly broke the "last 7 days" chart for
+     * the first week of every month: on the 2nd of October the chart asked for six days of
+     * September and the query had never fetched them, so they rendered as zeros. Nobody worked on
+     * the 28th, said the dashboard, on the strength of not having looked.
+     */
     const monthStart = isoDateToUtcDate(`${today.slice(0, 7)}-01`);
+    const scanStart = fortnightStart < monthStart ? fortnightStart : monthStart;
 
     const projects = await db.project.findMany({
       where: {
@@ -58,6 +70,9 @@ export class DashboardService {
           date: addDays(today, index - 6),
           count: 0,
         })),
+        headcount_trend: { this_week: 0, last_week: 0, change_pct: null },
+        wage_periods: { open_count: 0, next_close: null, days_to_close: null, overdue_count: 0 },
+        overruns: [],
         totals: {
           site_count: 0,
           dprs_in: 0,
@@ -91,7 +106,7 @@ export class DashboardService {
       // One scan of the month covers today's headcount, the week's cost and the
       // month's cost — three tiles, one query.
       db.attendance.findMany({
-        where: { projectId: { in: projectIds }, attendanceDate: { gte: monthStart } },
+        where: { projectId: { in: projectIds }, attendanceDate: { gte: scanStart } },
         select: {
           projectId: true,
           attendanceDate: true,
@@ -142,8 +157,12 @@ export class DashboardService {
         overtimeRateSnapshot: row.overtimeRateSnapshot,
       });
 
-      costMonth.set(row.projectId, (costMonth.get(row.projectId) ?? 0n) + earning.totalPaise);
-      totalMonth += earning.totalPaise;
+      // The scan now reaches back before the month for the headcount trend, so the month's cost
+      // has to say which rows it means rather than counting everything that came back.
+      if (row.attendanceDate >= monthStart) {
+        costMonth.set(row.projectId, (costMonth.get(row.projectId) ?? 0n) + earning.totalPaise);
+        totalMonth += earning.totalPaise;
+      }
 
       if (row.attendanceDate >= weekStart) {
         costWeek.set(row.projectId, (costWeek.get(row.projectId) ?? 0n) + earning.totalPaise);
@@ -156,7 +175,10 @@ export class DashboardService {
           headcountToday.set(row.projectId, (headcountToday.get(row.projectId) ?? 0) + 1);
           totalHeadcount += 1;
         }
-        if (row.attendanceDate >= weekStart) {
+        // A fortnight rather than a week, because "is this more or fewer people than last week"
+        // cannot be answered from seven days. The month's attendance is already in memory, so the
+        // second week costs nothing.
+        if (row.attendanceDate >= fortnightStart) {
           const day = utcDateToIsoDate(row.attendanceDate);
           headcountByDay.set(day, (headcountByDay.get(day) ?? 0) + 1);
         }
@@ -209,14 +231,82 @@ export class DashboardService {
 
     // Every day in the window, including the zeros — a gap in the chart should read
     // as "nobody worked", not as a missing bar.
+    /*
+     * Wage periods and material overruns.
+     *
+     * Both are "somebody has to do something about this" rather than "here is a number", which is
+     * why they sit on this screen at all. Fetched after the main scan rather than inside it: they
+     * are independent of everything above and of each other, so a slow one does not delay the
+     * tiles.
+     */
+    const [wagePeriods, overrun] = await Promise.all([
+      db.wagePeriod.findMany({
+        where: { status: 'open' },
+        select: { periodEnd: true },
+        orderBy: { periodEnd: 'asc' },
+      }),
+      // The existing report, not a second implementation of it. Consumption against estimate is
+      // subtle — material in the store is paid for and not yet used — and two versions of that
+      // arithmetic would eventually disagree.
+      this.stock.overrun(actor, { estimated_only: true }).catch(() => null),
+    ]);
+
+    const todayUtcDate = isoDateToUtcDate(today);
+    const nextClose = wagePeriods.find((period) => period.periodEnd >= todayUtcDate) ?? null;
+    const overdueCount = wagePeriods.filter((period) => period.periodEnd < todayUtcDate).length;
+
     const headcountSeries = Array.from({ length: 7 }, (_, index) => {
       const day = addDays(today, index - 6);
       return { date: day, count: headcountByDay.get(day) ?? 0 };
     });
 
+    /*
+     * Man-days this week against man-days the week before.
+     *
+     * Totals rather than averages: a week with four big days and three empty ones has the same
+     * average as a steady week and is a different site. Null when the previous week had nobody on
+     * site — there is no percentage change from zero, and rendering one as "+100%" or "∞" is how a
+     * dashboard starts lying.
+     */
+    /** Man-days over seven days ending `offset` days ago: offset 0 is today back to day -6. */
+    const manDays = (offset: number) =>
+      Array.from({ length: 7 }, (_, index) => addDays(today, offset - index))
+        .map((day) => headcountByDay.get(day) ?? 0)
+        .reduce((total, count) => total + count, 0);
+
+    const thisWeek = manDays(0);
+    const lastWeek = manDays(-7);
+
     return {
       date: today,
       headcount_series: headcountSeries,
+      headcount_trend: {
+        this_week: thisWeek,
+        last_week: lastWeek,
+        change_pct:
+          lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : null,
+      },
+      wage_periods: {
+        open_count: wagePeriods.length,
+        next_close: nextClose ? utcDateToIsoDate(nextClose.periodEnd) : null,
+        days_to_close: nextClose
+          ? Math.round((nextClose.periodEnd.getTime() - todayUtcDate.getTime()) / 86_400_000)
+          : null,
+        // A period whose end date has passed and which nobody has finalised. Wages are not paid
+        // until it is, so this is the one on the list that costs somebody money today.
+        overdue_count: overdueCount,
+      },
+      // Only what is actually over. The full report is a screen of its own; this is the alert.
+      overruns: (overrun?.items ?? [])
+        .filter((row) => row.over && row.percent_used !== null)
+        .slice(0, 4)
+        .map((row) => ({
+          material_name: row.material_name,
+          unit: row.unit,
+          estimated: row.estimated,
+          consumed: row.consumed,
+          percent_used: row.percent_used as number,
+        })),
       totals: {
         site_count: projects.length,
         dprs_in: todayReports.filter((report) => report.status === 'submitted').length,
