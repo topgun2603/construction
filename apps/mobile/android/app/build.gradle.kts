@@ -39,6 +39,16 @@ if (keyPropertiesFile.exists()) {
     keyPropertiesFile.inputStream().use { keyProperties.load(it) }
 }
 
+/*
+ * `local.properties` — gitignored, and where the SDK path already lives, so it is the one file a
+ * fresh checkout is expected to have its own copy of.
+ */
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
+}
+
 android {
     namespace = "com.buildr.buildr_mobile"
     /*
@@ -72,6 +82,21 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        /*
+         * The Google Maps key, read from `local.properties` rather than committed.
+         *
+         * An Android Maps key travels inside the APK and cannot be hidden, so it is not a secret in
+         * the sense a server key is — but it is a *spending* credential, and one left in the
+         * repository is one anybody can bill. Restrict it in the Cloud console to this package name
+         * and the signing certificate's SHA-1; that, not secrecy, is what stops somebody else using
+         * it.
+         *
+         * Empty by default. A build without a key still compiles and runs; the map simply says it
+         * is not configured, the way the tile layer used to.
+         */
+        manifestPlaceholders["mapsApiKey"] =
+            (localProperties.getProperty("MAPS_API_KEY") ?: "")
     }
 
     signingConfigs {

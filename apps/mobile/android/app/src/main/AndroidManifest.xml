@@ -29,6 +29,19 @@
         android:label="BUILDR"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
+        <!--
+            Google Maps. The value comes from MAPS_API_KEY in local.properties, which is gitignored:
+            an Android Maps key ships inside the APK and cannot be hidden, but it is a spending
+            credential, so it is restricted in the Cloud console to this package name and the
+            signing certificate's SHA-1 rather than left in the repository.
+
+            An empty value is fine - the map says it is not configured rather than failing.
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -1,14 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
 
 import '../core/api_client.dart';
 import '../core/api_providers.dart';
 import '../core/device_location.dart';
-import '../core/map_tiles.dart';
 import '../core/theme.dart';
 import '../core/i18n.dart';
 
@@ -39,7 +37,9 @@ class LocationPickerSheet extends ConsumerStatefulWidget {
 }
 
 class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
-  final _controller = MapController();
+  /// Completed once the platform view is ready. Camera moves before that are dropped on the floor,
+  /// and a search result that silently does not move the map looks like a broken search.
+  final _mapReady = Completer<GoogleMapController>();
   late final _search = TextEditingController(text: widget.query ?? '');
 
   /// Coimbatore, because this product is sold there and an empty map has to start somewhere.
@@ -54,7 +54,9 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
   ///
   /// Without this a failed tile is an empty grey rectangle, which reads as "the map did not open"
   /// Ã¢â‚¬â€ and sends somebody looking for a bug in the app rather than at their signal.
-  bool _tilesFailed = false;
+  /// Satellite is not a gimmick on a site: an empty plot looks like every other empty plot on a
+  /// street map, and the imagery is how somebody recognises which one it is.
+  bool _satellite = false;
   String? _error;
   List<Map<String, dynamic>> _results = const [];
 
@@ -118,7 +120,13 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
         _results = const [];
       }
     });
-    if (fix.point != null) _controller.move(_point, 17);
+    if (fix.point != null) unawaited(_moveTo(_point, 17));
+  }
+
+  /// Moves the camera once the platform view exists.
+  Future<void> _moveTo(LatLng point, double zoom) async {
+    final controller = await _mapReady.future;
+    await controller.animateCamera(CameraUpdate.newLatLngZoom(point, zoom));
   }
 
   void _goTo(Map<String, dynamic> result) {
@@ -130,7 +138,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
       _placed = true;
       _results = const [];
     });
-    _controller.move(_point, 16);
+    unawaited(_moveTo(_point, 16));
   }
 
   @override
@@ -174,60 +182,47 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
             Expanded(
               child: Stack(
                 children: [
-                  FlutterMap(
-                    mapController: _controller,
-                    options: MapOptions(
-                      initialCenter: _point,
-                      initialZoom: _placed ? 16 : 11,
-                      // Tapping the map is the whole interaction. Long-press does nothing extra on
-                      // purpose Ã¢â‚¬â€ one gesture, no discovery required.
-                      onTap: (_, point) => setState(() {
-                        _point = point;
-                        _placed = true;
-                        _results = const [];
-                      }),
+                  GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: _point,
+                      zoom: _placed ? 16 : 11,
                     ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: MapTiles.urlTemplate,
-                        userAgentPackageName: 'com.buildr.buildr_mobile',
-                        maxNativeZoom: 19,
-                        errorTileCallback: (_, _, _) {
-                          if (_tilesFailed || !mounted) return;
-                          // After the frame: this fires during the tile's own build.
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (mounted) setState(() => _tilesFailed = true);
-                          });
-                        },
-                      ),
-                      if (_placed)
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              point: _point,
-                              width: 44,
-                              height: 44,
-                              alignment: Alignment.topCenter,
-                              child: const Icon(
-                                Icons.location_on,
-                                size: 42,
-                                color: Palette.accent,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
+                    mapType: _satellite ? MapType.hybrid : MapType.normal,
+                    onMapCreated: (controller) {
+                      if (!_mapReady.isCompleted) _mapReady.complete(controller);
+                    },
+                    // Tapping the map is the whole interaction. Long-press does nothing extra on
+                    // purpose - one gesture, no discovery required.
+                    onTap: (point) => setState(() {
+                      _point = point;
+                      _placed = true;
+                      _results = const [];
+                    }),
+                    markers: _placed
+                        ? {Marker(markerId: const MarkerId('site'), position: _point)}
+                        : const {},
+                    myLocationButtonEnabled: false,
+                    zoomControlsEnabled: false,
                   ),
-                  if (_tilesFailed)
-                    const Positioned(
-                      left: 16,
-                      right: 16,
-                      top: 16,
-                      child: _Hint(
-                        'The map images are not loading. The pin still works Ã¢â‚¬â€ '
-                        'search or tap where the site is.',
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: Material(
+                      color: const Color(0xE6FFFFFF),
+                      borderRadius: BorderRadius.circular(999),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => setState(() => _satellite = !_satellite),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          child: Text(
+                            _satellite ? t('Map') : t('Satellite'),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
                       ),
                     ),
+                  ),
                   if (_results.isNotEmpty)
                     Positioned(
                       left: 12,

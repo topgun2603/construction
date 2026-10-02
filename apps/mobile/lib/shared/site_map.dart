@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/map_tiles.dart';
+import '../core/i18n.dart';
 import '../core/theme.dart';
 
 /// Where the site is.
 ///
-/// MapTiler raster tiles, the same source the web app uses, so the two show the same map and
-/// neither needs an API key or a billing account. The tile server is somebody else's charity: the
-/// user agent below identifies this app, as their usage policy requires.
+/// Google Maps, matching the web app. The tile layer this replaced ran on somebody else's charity
+/// and was blocked for it once already; a key with a billing account behind it is the difference
+/// between a map and a striped "access blocked" image across every site at once.
+///
+/// The key lives in `android/local.properties` as `MAPS_API_KEY`, is injected into the manifest by
+/// Gradle, and is gitignored. It travels inside the APK and cannot be hidden, so it is restricted
+/// in the Cloud console to this package name and the signing certificate's SHA-1 — that, not
+/// secrecy, is what stops somebody else spending it.
 ///
 /// Tapping opens whatever map app the phone has. A pin on a 350px card is enough to recognise a
 /// place; getting a lorry to it is a job for the app that does turn-by-turn.
-class SiteMap extends StatelessWidget {
+class SiteMap extends StatefulWidget {
   const SiteMap({
     super.key,
     required this.lat,
@@ -31,11 +35,23 @@ class SiteMap extends StatelessWidget {
   final double height;
 
   @override
+  State<SiteMap> createState() => _SiteMapState();
+}
+
+class _SiteMapState extends State<SiteMap> {
+  /// Satellite is not a gimmick on a construction site: the plot next to a half-built structure
+  /// looks like every other plot on a street map, and the imagery is how somebody recognises it.
+  MapType _type = MapType.normal;
+
+  @override
   Widget build(BuildContext context) {
+    final lat = widget.lat;
+    final lng = widget.lng;
+
     if (lat == null || lng == null) {
       return Card(
         child: SizedBox(
-          height: height,
+          height: widget.height,
           child: Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -44,13 +60,14 @@ class SiteMap extends StatelessWidget {
                 children: [
                   const Icon(Icons.location_off_outlined, size: 30, color: Palette.inkFaint),
                   const SizedBox(height: 12),
-                  const Text(
-                    'No location set',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  Text(
+                    t('No location set'),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    address ?? 'Drop a pin on this site from the web app and it appears here.',
+                    widget.address ??
+                        t('Drop a pin on this site from the web app and it appears here.'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 13, color: Palette.inkMuted, height: 1.4),
                   ),
@@ -62,60 +79,57 @@ class SiteMap extends StatelessWidget {
       );
     }
 
-    final point = LatLng(lat!, lng!);
+    final point = LatLng(lat, lng);
 
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           SizedBox(
-            height: height,
+            height: widget.height,
             child: Stack(
               children: [
-                FlutterMap(
-                  options: MapOptions(
-                    initialCenter: point,
-                    initialZoom: 15,
-                    // The card is for recognising a place, not for exploring. Panning it inside a
-                    // scrolling page fights the scroll, so the gestures are off and the whole thing
-                    // opens properly on tap.
-                    interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: MapTiles.urlTemplate,
-                      userAgentPackageName: 'com.buildr.buildr_mobile',
-                      maxNativeZoom: 19,
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: point,
-                          width: 40,
-                          height: 40,
-                          alignment: Alignment.topCenter,
-                          child: const Icon(Icons.location_on, size: 38, color: Palette.accent),
-                        ),
-                      ],
-                    ),
-                  ],
+                GoogleMap(
+                  initialCameraPosition: CameraPosition(target: point, zoom: 16),
+                  mapType: _type,
+                  markers: {
+                    Marker(markerId: const MarkerId('site'), position: point),
+                  },
+                  // The card is for recognising a place, not for exploring. Panning it inside a
+                  // scrolling page fights the scroll, so the gestures are off and the whole thing
+                  // opens properly on tap.
+                  zoomControlsEnabled: false,
+                  zoomGesturesEnabled: false,
+                  scrollGesturesEnabled: false,
+                  rotateGesturesEnabled: false,
+                  tiltGesturesEnabled: false,
+                  myLocationButtonEnabled: false,
+                  liteModeEnabled: true,
                 ),
                 Positioned.fill(
                   child: Material(
                     color: Colors.transparent,
-                    child: InkWell(onTap: () => _open(context, point)),
+                    child: InkWell(onTap: () => _open(point)),
                   ),
                 ),
-                // OSM's licence asks for attribution wherever their tiles are shown.
                 Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    color: const Color(0xCCFFFFFF),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    child: const Text(
-                      'Ãƒâ€šÃ‚Â© OpenStreetMap',
-                      style: TextStyle(fontSize: 9.5, color: Palette.inkMuted),
+                  right: 8,
+                  top: 8,
+                  child: Material(
+                    color: const Color(0xE6FFFFFF),
+                    borderRadius: BorderRadius.circular(999),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: () => setState(
+                        () => _type = _type == MapType.normal ? MapType.hybrid : MapType.normal,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        child: Text(
+                          _type == MapType.normal ? t('Satellite') : t('Map'),
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -123,14 +137,15 @@ class SiteMap extends StatelessWidget {
             ),
           ),
           InkWell(
-            onTap: () => _open(context, point),
+            onTap: () => _open(point),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
-                      address ?? '${lat!.toStringAsFixed(5)}, ${lng!.toStringAsFixed(5)}',
+                      widget.address ??
+                          '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
                       maxLines: 2,
                       style: const TextStyle(fontSize: 13.5, color: Palette.inkSoft, height: 1.35),
                     ),
@@ -138,9 +153,9 @@ class SiteMap extends StatelessWidget {
                   const SizedBox(width: 10),
                   const Icon(Icons.directions_outlined, size: 18, color: Palette.accent),
                   const SizedBox(width: 5),
-                  const Text(
-                    'Directions',
-                    style: TextStyle(
+                  Text(
+                    t('Directions'),
+                    style: const TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                       color: Palette.accent,
@@ -155,17 +170,17 @@ class SiteMap extends StatelessWidget {
     );
   }
 
-  Future<void> _open(BuildContext context, LatLng point) async {
-    final label = Uri.encodeComponent(name ?? 'Site');
+  Future<void> _open(LatLng point) async {
+    final label = Uri.encodeComponent(widget.name ?? 'Site');
     // `geo:` hands it to whatever map app is installed and carries the pin label. Where nothing
-    // handles it ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â an emulator with no map app ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the browser URL is the fallback.
+    // handles it — an emulator with no map app — the browser URL is the fallback.
     final geo = Uri.parse(
       'geo:${point.latitude},${point.longitude}?q='
       '${point.latitude},${point.longitude}($label)',
     );
     final web = Uri.parse(
-      'https://www.openstreetmap.org/?mlat=${point.latitude}&mlon=${point.longitude}#map=17/'
-      '${point.latitude}/${point.longitude}',
+      'https://www.google.com/maps/search/?api=1&query='
+      '${point.latitude},${point.longitude}',
     );
 
     if (await canLaunchUrl(geo)) {
