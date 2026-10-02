@@ -136,6 +136,15 @@ const envSchema = z
     GEOCODER_CONTACT: z.string().optional(),
 
     /*
+     * Google Maps, server side: address search.
+     *
+     * A different key from the browser's. This one carries no referrer restriction — a server has
+     * no referrer — so it must never reach a bundle; restrict it by IP instead. With no key set the
+     * search falls back to MapTiler and then to Nominatim, and everything keeps working.
+     */
+    GOOGLE_MAPS_API_KEY: z.string().optional(),
+
+    /*
      * Reading photographed bills into expense drafts.
      *
      * Optional: with no key the scan endpoint answers "not configured" and the rest of the product

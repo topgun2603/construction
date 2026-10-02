@@ -1,28 +1,29 @@
 'use client';
 
-import { ExternalLink, MapPin } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, Image as ImageIcon, Map as MapIcon, MapPin, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { tilesFor } from '@/lib/tiles';
 
-const MAPTILER_KEY = process.env['NEXT_PUBLIC_MAPTILER_KEY'] ?? '';
+const GOOGLE_KEY = process.env['NEXT_PUBLIC_GOOGLE_MAPS_API_KEY'] ?? '';
 const MAP_HEIGHT = 240;
+const MAP_WIDTH = 760;
 
 /**
  * Where the site is.
  *
- * **MapTiler, not OpenStreetMap's own servers.** This used to embed `openstreetmap.org/export/embed`
- * — a page meant for casual embedding, run by volunteers, whose usage policy is enforced by
- * blocking. It blocked us: every tile came back as a striped "Access blocked" image, on every
- * customer's site page at once. Their tiles are not free infrastructure for a commercial product,
- * and no amount of correct headers changes that.
+ * **Static images, not a mapping SDK.** A site map is a picture nobody pans; it exists so somebody
+ * recognises the place before they read the name. The Maps JavaScript API is ~200 KB and an
+ * instance per card for that, on the page a supervisor opens most often over 3G. Two `<img>` tags
+ * do the job: Google renders them, the browser caches them.
  *
- * **Images rather than a mapping library.** A site map is a picture nobody pans; it exists so
- * somebody recognises the place before they read the name. Leaflet is ~150 KB for that, on the page
- * a supervisor opens most often over 3G. `tilesFor` works out which tiles cover the point and where
- * to put them, and the browser does the rest with `<img>`.
+ * **Three views, because a construction site is three different things to look at.** The map tells
+ * you which roads reach it. The satellite view tells you what is actually on the plot, which for a
+ * site that is currently a field is the only one that means anything. Street View tells you what
+ * the gate looks like, which is what a driver needs.
  *
- * The Directions link still hands off to Google, because that is the app anybody actually drives
- * with — which is also why paying Google for the picture above it would be poor value.
+ * Street View is offered rather than assumed: a plot on an unmade road usually has no imagery, and
+ * the API answers that with a grey "no imagery" tile. The switch only appears after the metadata
+ * endpoint says there is something there.
  */
 export function SiteMap({
   lat,
@@ -30,19 +31,19 @@ export function SiteMap({
   address,
   name,
   className,
-  zoom = 15,
+  zoom = 16,
 }: {
   lat: number | null;
   lng: number | null;
   address?: string | null;
   name?: string;
   className?: string;
-  /**
-   * Slippy-map zoom level, not degrees — 15 shows a plot and the roads around it, which is what
-   * somebody needs to recognise a site. Higher is closer in.
-   */
+  /** Google zoom level — 16 shows a plot and the roads around it. Higher is closer in. */
   zoom?: number;
 }) {
+  const [view, setView] = useState<'map' | 'satellite' | 'street'>('map');
+  const [streetAvailable, setStreetAvailable] = useState<boolean | null>(null);
+
   if (lat === null || lng === null) {
     return (
       <div
@@ -64,59 +65,87 @@ export function SiteMap({
     );
   }
 
-  // The link people actually navigate with, whatever renders the picture above it.
-  const directions = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  const point = `${lat},${lng}`;
+  // The app people actually drive with, whatever renders the picture above it.
+  const directions = `https://www.google.com/maps/dir/?api=1&destination=${point}`;
 
   /*
-   * A fixed pixel width is needed to work out which tiles to fetch, and the card is fluid. 760 is
-   * wider than the widest column this appears in, so the extra tiles are cropped rather than
-   * missing — a map with a bald edge looks broken in a way a slightly over-fetched one does not.
+   * Street View is only offered once its metadata endpoint confirms imagery within 50 m. The call
+   * is free and unmetered, which is the whole reason to make it rather than show a grey tile.
    */
-  const width = 760;
-  const tiles = MAPTILER_KEY ? tilesFor(lat, lng, zoom, width, MAP_HEIGHT) : [];
+  if (GOOGLE_KEY && streetAvailable === null) {
+    void fetch(
+      `https://maps.googleapis.com/maps/api/streetview/metadata?location=${point}&radius=50&key=${GOOGLE_KEY}`,
+    )
+      .then((response) => response.json())
+      .then((body: { status?: string }) => setStreetAvailable(body.status === 'OK'))
+      .catch(() => setStreetAvailable(false));
+  }
+
+  const staticMap = (type: 'roadmap' | 'hybrid') =>
+    `https://maps.googleapis.com/maps/api/staticmap?center=${point}&zoom=${zoom}&size=${MAP_WIDTH}x${MAP_HEIGHT}&scale=2&maptype=${type}` +
+    `&markers=color:0x6C4CE0%7C${point}&key=${GOOGLE_KEY}`;
+
+  const streetView =
+    `https://maps.googleapis.com/maps/api/streetview?size=${MAP_WIDTH}x${MAP_HEIGHT}&location=${point}` +
+    `&fov=80&pitch=5&source=outdoor&key=${GOOGLE_KEY}`;
+
+  const source =
+    view === 'street' ? streetView : staticMap(view === 'satellite' ? 'hybrid' : 'roadmap');
+
+  const TABS = [
+    { id: 'map' as const, label: 'Map', icon: MapIcon, show: true },
+    { id: 'satellite' as const, label: 'Satellite', icon: ImageIcon, show: true },
+    { id: 'street' as const, label: 'Street', icon: Navigation, show: streetAvailable === true },
+  ].filter((tab) => tab.show);
 
   return (
     <div className={cn('flex flex-col overflow-hidden rounded-panel border border-line', className)}>
-      {tiles.length === 0 ? (
+      {!GOOGLE_KEY ? (
         <div
           className="flex items-center justify-center bg-neutral-bg px-4 text-center text-[13px] text-ink-muted"
           style={{ height: MAP_HEIGHT }}
         >
-          Map images need NEXT_PUBLIC_MAPTILER_KEY. The coordinates and the directions link below
-          still work.
+          Map images need NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. The coordinates and the directions link
+          below still work.
         </div>
       ) : (
-        <div
-          role="img"
-          aria-label={name ? `Map of ${name}` : 'Site location'}
-          className="relative overflow-hidden bg-neutral-bg"
-          style={{ height: MAP_HEIGHT }}
-        >
-          {tiles.map((tile) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={`${tile.z}/${tile.x}/${tile.y}`}
-              src={`https://api.maptiler.com/maps/streets-v2/256/${tile.z}/${tile.x}/${tile.y}.png?key=${MAPTILER_KEY}`}
-              alt=""
-              width={256}
-              height={256}
-              loading="lazy"
-              draggable={false}
-              className="absolute max-w-none select-none"
-              style={{ left: tile.left, top: tile.top }}
-            />
-          ))}
+        <div className="relative bg-neutral-bg" style={{ height: MAP_HEIGHT }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            key={view}
+            src={source}
+            alt={name ? `${view === 'street' ? 'Street view' : 'Map'} of ${name}` : 'Site location'}
+            width={MAP_WIDTH}
+            height={MAP_HEIGHT}
+            loading="lazy"
+            draggable={false}
+            className="size-full select-none object-cover"
+          />
 
-          {/* The pin sits at the centre because that is what the tiles were chosen around. */}
-          <span className="pointer-events-none absolute left-1/2 top-1/2 -ml-3 -mt-6 text-accent drop-shadow">
-            <MapPin className="size-6 fill-accent-soft" />
-          </span>
-
-          <span className="absolute bottom-0 right-0 bg-surface/80 px-1.5 py-0.5 text-[9.5px] text-ink-muted">
-            © MapTiler © OpenStreetMap contributors
-          </span>
+          {TABS.length > 1 && (
+            <div className="absolute left-2 top-2 flex overflow-hidden rounded-btn border border-line bg-surface/95 shadow-sm backdrop-blur-sm">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setView(tab.id)}
+                  className={cn(
+                    'flex min-h-0 items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium transition',
+                    view === tab.id
+                      ? 'bg-accent text-white'
+                      : 'text-ink-soft hover:bg-neutral-bg',
+                  )}
+                >
+                  <tab.icon className="size-3.5" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft bg-surface px-3.5 py-2.5">
         <span className="flex min-w-0 items-center gap-2 text-[13px]">
           <MapPin className="size-3.5 flex-none text-ink-faint" />

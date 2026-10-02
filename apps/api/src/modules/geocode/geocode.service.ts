@@ -42,9 +42,18 @@ export class GeocodeService {
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.results;
 
-    const results = this.config.MAPTILER_KEY
-      ? await this.viaMapTiler(query)
-      : await this.viaNominatim(query);
+    /*
+     * Google first, because Indian addresses are exactly what the alternatives are worst at.
+     * "Sy. No. 42/1B, Thudiyalur" is a real place and means nothing to a general gazetteer; a
+     * builder's next project is usually described that way rather than by a street number.
+     *
+     * The other two stay as fallbacks so a checkout with no key still has a working search.
+     */
+    const results = this.config.GOOGLE_MAPS_API_KEY
+      ? await this.viaGoogle(query)
+      : this.config.MAPTILER_KEY
+        ? await this.viaMapTiler(query)
+        : await this.viaNominatim(query);
 
     if (results.length > 0) this.remember(key, results);
     return results;
@@ -58,6 +67,82 @@ export class GeocodeService {
    * that policy allows. Using one provider for both also means the search results and the map
    * underneath them come from the same data, so a place found is a place drawn.
    */
+  /**
+   * Google's Geocoding API.
+   *
+   * Server-side, with a key that is **not** the browser one: this key is unrestricted by referrer
+   * and must stay out of any bundle. Restrict it by IP in the Google Cloud console instead.
+   *
+   * `region=in` and `components=country:IN` together: the first biases interpretation, the second
+   * stops a search for "Bellary Road" returning somewhere in Texas.
+   */
+  private async viaGoogle(query: string): Promise<GeocodeResult[]> {
+    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    url.searchParams.set('address', query);
+    url.searchParams.set('key', this.config.GOOGLE_MAPS_API_KEY!);
+    url.searchParams.set('region', 'in');
+    url.searchParams.set('components', 'country:IN');
+
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!response.ok) {
+        this.logger.warn(`Google geocoding returned ${response.status}`);
+        return [];
+      }
+
+      const body = (await response.json()) as {
+        status?: string;
+        error_message?: string;
+        results?: Array<{
+          formatted_address?: string;
+          geometry?: {
+            location?: { lat: number; lng: number };
+            viewport?: {
+              northeast?: { lat: number; lng: number };
+              southwest?: { lat: number; lng: number };
+            };
+          };
+        }>;
+      };
+
+      // `ZERO_RESULTS` is an answer, not a failure. Anything else names a configuration problem —
+      // a key without the Geocoding API enabled, or billing not set up — and saying which one is
+      // the difference between a five-minute fix and an afternoon.
+      if (body.status && body.status !== 'OK' && body.status !== 'ZERO_RESULTS') {
+        this.logger.warn(`Google geocoding: ${body.status} ${body.error_message ?? ''}`);
+        return [];
+      }
+
+      return (body.results ?? [])
+        .map((row) => {
+          const location = row.geometry?.location;
+          if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
+            return null;
+          }
+          const box = row.geometry?.viewport;
+          return {
+            label: row.formatted_address ?? `${location.lat}, ${location.lng}`,
+            lat: location.lat,
+            lng: location.lng,
+            // Ours is [south, north, west, east], as the other providers already produce.
+            bounds:
+              box?.southwest && box.northeast
+                ? ([box.southwest.lat, box.northeast.lat, box.southwest.lng, box.northeast.lng] as [
+                    number,
+                    number,
+                    number,
+                    number,
+                  ])
+                : null,
+          };
+        })
+        .filter((row): row is GeocodeResult => row !== null);
+    } catch (cause) {
+      this.logger.warn({ err: cause }, 'Google geocoding failed');
+      return [];
+    }
+  }
+
   private async viaMapTiler(query: string): Promise<GeocodeResult[]> {
     const url = new URL(
       `https://api.maptiler.com/geocoding/${encodeURIComponent(query)}.json`,

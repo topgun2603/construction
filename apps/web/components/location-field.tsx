@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 
 /*
- * The map picker is loaded only when somebody opens it. Leaflet plus its tiles is the heaviest thing
- * on this form, and most sites are created without ever touching it.
+ * The map picker is loaded only when somebody opens it. The Maps SDK is the heaviest thing on this
+ * form, and most sites are created without ever touching it.
  */
 const LocationPicker = dynamic(
   () => import('@/components/location-picker').then((m) => m.LocationPicker),
@@ -36,10 +36,18 @@ export function LocationField({
   lat,
   lng,
   onChange,
+  onAddress,
 }: {
   lat: string;
   lng: string;
   onChange: (next: { lat: string; lng: string }) => void;
+  /**
+   * The address Google reads back from the pin.
+   *
+   * Offered rather than imposed: a caller that has an address field can fill it from the map, and
+   * one that does not simply ignores this. Nothing is overwritten without the caller deciding to.
+   */
+  onAddress?: (address: string) => void;
 }) {
   const [picking, setPicking] = useState(false);
 
@@ -83,11 +91,12 @@ export function LocationField({
       {picking && (
         <LocationPicker
           value={parsed}
-          onChange={(next) =>
+          onChange={(next) => {
             // Five decimals is about a metre — finer than a site boundary needs, and short enough to
             // read back and check against a survey.
-            onChange({ lat: next.lat.toFixed(5), lng: next.lng.toFixed(5) })
-          }
+            onChange({ lat: next.lat.toFixed(5), lng: next.lng.toFixed(5) });
+            if (next.address) onAddress?.(next.address);
+          }}
         />
       )}
 

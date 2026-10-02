@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { createProject } from '@/lib/actions';
@@ -25,6 +25,7 @@ export function NewProjectDialog() {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [location, setLocation] = useState({ lat: '', lng: '' });
+  const addressBox = useRef<HTMLInputElement>(null);
   const [pending, start] = useTransition();
 
   function onSubmit(formData: FormData) {
@@ -88,10 +89,21 @@ export function NewProjectDialog() {
             </Field>
           </div>
           <Field label="Address" htmlFor="address">
-            <Input id="address" name="address" placeholder="Optional" />
+            <Input id="address" name="address" ref={addressBox} placeholder="Optional" />
           </Field>
 
-          <LocationField lat={location.lat} lng={location.lng} onChange={setLocation} />
+          <LocationField
+            lat={location.lat}
+            lng={location.lng}
+            onChange={setLocation}
+            // Only when it is empty: somebody who typed "Plot 14, behind the mill" meant that, and
+            // a geocoder's idea of the nearest named road is not an improvement on it.
+            onAddress={(address) => {
+              if (addressBox.current && addressBox.current.value.trim() === '') {
+                addressBox.current.value = address;
+              }
+            }}
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Start date" htmlFor="start_date">
               <Input id="start_date" name="start_date" type="date" />

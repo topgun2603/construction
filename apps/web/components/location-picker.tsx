@@ -1,44 +1,45 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Map as LeafletMap, Marker } from 'leaflet';
-import { Crosshair, Loader2, MapPin, Search } from 'lucide-react';
+import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
+import { Crosshair, Layers, Loader2, MapPin, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-/*
- * Leaflet's stylesheet, imported for its side effect. Top level rather than inside the dynamic
- * import because a CSS module has no type to await â€” and it costs nothing here, since this whole
- * component is itself loaded lazily, so the CSS travels in that same chunk.
- */
-import 'leaflet/dist/leaflet.css';
-
 /**
- * Public by design: a tile key travels to the browser with every request for a tile, so hiding it
- * is not a thing that can be done. Restrict it by domain in the MapTiler console instead.
+ * The browser key. Public by design — it travels with every map request, so hiding it is not a
+ * thing that can be done. Restrict it by HTTP referrer in the Google Cloud console, and to the
+ * three APIs this uses: Maps JavaScript, Places, Geocoding.
  */
-const MAPTILER_KEY = process.env['NEXT_PUBLIC_MAPTILER_KEY'] ?? '';
+const GOOGLE_KEY = process.env['NEXT_PUBLIC_GOOGLE_MAPS_API_KEY'] ?? '';
 
 export interface PickedLocation {
   lat: number;
   lng: number;
+  /** What Google calls this spot. Null until a lookup names it. */
+  address?: string | null;
 }
 
 /**
  * Choosing where a building is going to be.
  *
- * Three ways in, because a plot has three ways of being described and only one of them is an address:
+ * Four ways in, because a plot has four ways of being described and only one of them is an address:
  *
- * - **Search** for the locality, then adjust. Gets you to the right kilometre.
- * - **Click the map** to drop the pin, and drag it to fine-tune. This is the one that matters: an
- *   empty plot on the corner of a road usually has no postal address to search for, and the owner
- *   planning it is sitting in an office rather than standing on it.
- * - **Use my location**, for the supervisor who is standing on it.
+ * - **Search**, with Google's own suggestions as you type. Indian addresses are the case other
+ *   geocoders are worst at — "Sy. No. 42/1B, Thudiyalur" means nothing to a general gazetteer and
+ *   is a real place to Google — and this is why the maps moved.
+ * - **Click the map** to drop the pin, and drag it to fine-tune. The one that matters: an empty
+ *   plot on the corner of a road usually has no postal address to search for.
+ * - **Satellite**, because a bare plot is recognisable from the field boundaries and the trees
+ *   around it long before it has a building or a street number.
+ * - **Use my location**, for the supervisor standing on it.
  *
- * Leaflet is imported dynamically so its ~40 KB and CSS load only when somebody opens the picker.
- * Setting a site location is an occasional office task; it has no business weighing down the roll-call
- * screen a supervisor opens on 3G every morning.
+ * Whatever puts the pin down, the address is read back from the coordinates and handed to the
+ * caller, so a site that was pinned on a field still ends up with something written on the page.
+ *
+ * The SDK loads on mount rather than in the bundle: setting a site location is an occasional office
+ * task and has no business weighing down the roll-call screen a supervisor opens every morning.
  */
 export function LocationPicker({
   value,
@@ -50,15 +51,15 @@ export function LocationPicker({
   className?: string;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
-  const map = useRef<LeafletMap | null>(null);
-  const marker = useRef<Marker | null>(null);
+  const searchBox = useRef<HTMLInputElement | null>(null);
+  const map = useRef<google.maps.Map | null>(null);
+  const marker = useRef<google.maps.Marker | null>(null);
+  const geocoder = useRef<google.maps.Geocoder | null>(null);
   const latest = useRef(onChange);
   latest.current = onChange;
 
   const [ready, setReady] = useState(false);
-  const [query, setQuery] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<Array<{ label: string; lat: number; lng: number }>>([]);
+  const [satellite, setSatellite] = useState(false);
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -66,72 +67,113 @@ export function LocationPicker({
   const initial = value ?? { lat: 20.5937, lng: 78.9629 };
 
   useEffect(() => {
+    if (!GOOGLE_KEY) {
+      setNote('Maps need NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. Coordinates can still be typed in.');
+      return;
+    }
+
     let cancelled = false;
 
     void (async () => {
-      const L = await import('leaflet');
+      // The functional API: `setOptions` before anything loads, then one import per library. The
+      // `Loader` class this used at first is deprecated in v2 of the package.
+      setOptions({ key: GOOGLE_KEY, v: 'weekly', region: 'IN', language: 'en' });
+      const [{ Map }, { Geocoder }, { Autocomplete }] = await Promise.all([
+        importLibrary('maps'),
+        importLibrary('geocoding'),
+        importLibrary('places'),
+      ]);
       if (cancelled || !host.current || map.current) return;
 
-      const instance = L.map(host.current, {
-        center: [initial.lat, initial.lng],
-        zoom: value ? 17 : 5,
-        // A site page is a scrolling page; grabbing the wheel would trap the reader inside the map.
-        scrollWheelZoom: false,
-        attributionControl: true,
+      const instance = new Map(host.current, {
+        center: initial,
+        zoom: value ? 18 : 5,
+        mapTypeId: 'roadmap',
+        // A site page scrolls; grabbing the wheel would trap the reader inside the map.
+        scrollwheel: false,
+        gestureHandling: 'cooperative',
+        streetViewControl: true,
+        mapTypeControl: false,
+        fullscreenControl: true,
+        clickableIcons: false,
       });
+      geocoder.current = new Geocoder();
 
-      /*
-       * MapTiler, not OpenStreetMap's own tile servers.
-       *
-       * Theirs are volunteer-run and their usage policy is enforced by blocking â€” it blocked this
-       * app, and a blocked client gets a striped "Access blocked" image in place of every tile, for
-       * every customer at once. Panning a picker is exactly the pattern that trips it.
-       *
-       * The key is public by design and belongs in the browser; restrict it by domain in the
-       * MapTiler console rather than trying to hide it.
-       */
-      L.tileLayer(
-        `https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`,
-        {
-          maxZoom: 19,
-          attribution: 'Â© MapTiler Â© OpenStreetMap contributors',
-        },
-      ).addTo(instance);
-
-      /*
-       * Leaflet's default marker points at image files resolved relative to the CSS, which a bundler
-       * rewrites and breaks. A div marker avoids the whole problem and matches the app's accent.
-       */
-      const pin = L.divIcon({
-        className: '',
-        html: '<span style="display:block;width:22px;height:22px;border-radius:50%;background:#6C4CE0;border:3px solid #fff;box-shadow:0 2px 8px rgba(28,33,38,.35)"></span>',
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
-      });
-
-      function place(lat: number, lng: number) {
-        if (marker.current) {
-          marker.current.setLatLng([lat, lng]);
-        } else {
-          marker.current = L.marker([lat, lng], { icon: pin, draggable: true }).addTo(instance);
-          marker.current.on('dragend', () => {
-            const position = marker.current?.getLatLng();
-            if (position) latest.current({ lat: position.lat, lng: position.lng });
-          });
+      /** Reads the address back from the pin, so a plot with no street number still gets words. */
+      async function describe(lat: number, lng: number): Promise<string | null> {
+        try {
+          const { results } = await geocoder.current!.geocode({ location: { lat, lng } });
+          return results[0]?.formatted_address ?? null;
+        } catch {
+          // A failed lookup is not a failed pin. The coordinates are the thing being chosen.
+          return null;
         }
-        latest.current({ lat, lng });
       }
 
-      instance.on('click', (event) => place(event.latlng.lat, event.latlng.lng));
-      if (value) place(value.lat, value.lng);
+      async function place(lat: number, lng: number, known?: string | null) {
+        if (marker.current) {
+          marker.current.setPosition({ lat, lng });
+        } else {
+          marker.current = new google.maps.Marker({
+            position: { lat, lng },
+            map: instance,
+            draggable: true,
+            title: 'Drag to adjust',
+          });
+          marker.current.addListener('dragend', () => {
+            const position = marker.current?.getPosition();
+            if (!position) return;
+            void place(position.lat(), position.lng());
+          });
+        }
+        latest.current({ lat, lng, address: known ?? (await describe(lat, lng)) });
+      }
+
+      instance.addListener('click', (event: google.maps.MapMouseEvent) => {
+        if (event.latLng) void place(event.latLng.lat(), event.latLng.lng());
+      });
+
+      /*
+       * Places autocomplete, restricted to India and biased to what is on screen.
+       *
+       * `geocode` rather than `establishment`: a builder is looking for a locality or a survey
+       * number, not for a restaurant, and the business results crowd those out.
+       */
+      if (searchBox.current) {
+        const autocomplete = new Autocomplete(searchBox.current, {
+          componentRestrictions: { country: 'in' },
+          fields: ['geometry', 'formatted_address', 'name'],
+          types: ['geocode'],
+        });
+        autocomplete.bindTo('bounds', instance);
+        autocomplete.addListener('place_changed', () => {
+          const picked = autocomplete.getPlace();
+          const location = picked.geometry?.location;
+          if (!location) {
+            setNote('Pick one of the suggestions, or click the map.');
+            return;
+          }
+          setNote(null);
+          if (picked.geometry?.viewport) {
+            instance.fitBounds(picked.geometry.viewport);
+          } else {
+            instance.setCenter(location);
+            instance.setZoom(18);
+          }
+          void place(location.lat(), location.lng(), picked.formatted_address ?? null);
+        });
+      }
+
+      if (value) void place(value.lat, value.lng, value.address ?? null);
 
       map.current = instance;
       setReady(true);
-    })();
+    })().catch(() => {
+      setNote('The map could not load. Check the API key and its referrer restrictions.');
+    });
 
     return () => {
       cancelled = true;
-      map.current?.remove();
       map.current = null;
       marker.current = null;
     };
@@ -140,124 +182,85 @@ export function LocationPicker({
     // moved. `latest` holds the current `onChange` so the stale closure never matters.
   }, []);
 
-  /** Follow the value when it changes from outside â€” a search hit, or "use my location". */
+  /** Follow the value when it changes from outside — "use my location", or a form reset. */
   useEffect(() => {
     if (!ready || !value || !map.current) return;
-    map.current.setView([value.lat, value.lng], Math.max(map.current.getZoom(), 16));
-    if (marker.current) marker.current.setLatLng([value.lat, value.lng]);
+    map.current.setCenter({ lat: value.lat, lng: value.lng });
+    map.current.setZoom(Math.max(map.current.getZoom() ?? 0, 17));
+    marker.current?.setPosition({ lat: value.lat, lng: value.lng });
   }, [ready, value]);
 
-  async function search(event: React.FormEvent) {
-    event.preventDefault();
-    if (query.trim().length < 3) return;
-    setSearching(true);
-    setNote(null);
-    try {
-      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query.trim())}`);
-      const body = (await response.json()) as { results?: Array<{ label: string; lat: number; lng: number }> };
-      const found = body.results ?? [];
-      setResults(found);
-      if (found.length === 0) {
-        // Not an error. Empty plots frequently have no name anything has heard of, which is exactly
-        // why clicking the map is offered alongside.
-        setNote('Nothing found for that. Click the map to drop the pin instead.');
-      }
-    } catch {
-      setNote('Search is unavailable. Click the map to drop the pin instead.');
-    } finally {
-      setSearching(false);
-    }
+  function toggleSatellite() {
+    const next = !satellite;
+    setSatellite(next);
+    // Hybrid, not satellite: the road names are what tell you which plot you are looking at.
+    map.current?.setMapTypeId(next ? 'hybrid' : 'roadmap');
   }
 
-  function locate() {
-    setNote(null);
-    if (!('geolocation' in navigator)) {
-      setNote('This browser cannot report a location.');
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      setNote('This browser cannot share a location.');
       return;
     }
     setLocating(true);
+    setNote(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false);
         onChange({ lat: position.coords.latitude, lng: position.coords.longitude });
       },
-      (cause) => {
+      () => {
         setLocating(false);
-        setNote(
-          cause.code === cause.PERMISSION_DENIED
-            ? 'Location permission was refused.'
-            : 'Could not get a location.',
-        );
+        setNote('Could not get a location. Allow it in the browser, or click the map.');
       },
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
+      { enableHighAccuracy: true, timeout: 10_000 },
     );
   }
 
   return (
-    <div className={cn('flex flex-col gap-2.5', className)}>
+    <div className={cn('flex flex-col gap-2', className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <form onSubmit={search} className="flex min-w-[240px] flex-1 items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search a locality â€” Whitefield, Bengaluru"
-              className="pl-9"
-              aria-label="Search for a place"
-            />
-          </div>
-          <Button type="submit" variant="secondary" disabled={searching || query.trim().length < 3}>
-            {searching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-            Search
-          </Button>
-        </form>
-        <Button type="button" variant="secondary" onClick={locate} disabled={locating}>
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+          <Input
+            ref={searchBox}
+            placeholder="Search a locality, road or landmark"
+            className="pl-9"
+            // Enter would submit the dialog this usually sits in, before the suggestion is taken.
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.preventDefault();
+            }}
+          />
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={toggleSatellite}>
+          <Layers className="size-4" /> {satellite ? 'Map' : 'Satellite'}
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={useMyLocation} disabled={locating}>
           {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
-          Use my location
+          I am on site
         </Button>
       </div>
 
-      {results.length > 0 && (
-        <ul className="max-h-[168px] overflow-y-auto rounded-panel border border-line bg-surface">
-          {results.map((result) => (
-            <li key={`${result.lat},${result.lng}`}>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange({ lat: result.lat, lng: result.lng });
-                  setResults([]);
-                  setNote('Now drag the pin, or click the map, to put it on the plot exactly.');
-                }}
-                className="flex w-full items-start gap-2.5 border-b border-line-soft px-3 py-2.5 text-left text-[13.5px] leading-snug transition last:border-0 hover:bg-raised"
-              >
-                <MapPin className="mt-0.5 size-4 flex-none text-ink-faint" />
-                <span className="min-w-0">{result.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="relative overflow-hidden rounded-panel border border-line">
-        <div ref={host} className="h-[320px] w-full bg-neutral-bg" />
-        {!ready && (
-          <span className="absolute inset-0 flex items-center justify-center bg-neutral-bg">
-            <Loader2 className="size-5 animate-spin text-ink-faint" />
-          </span>
-        )}
-      </div>
+      <div
+        ref={host}
+        className="h-[320px] w-full overflow-hidden rounded-panel border border-line bg-neutral-bg"
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
-        <span className="text-ink-muted">
-          {note ?? 'Click the map to drop the pin, then drag it to place it exactly.'}
+        <span className="flex items-center gap-1.5 text-ink-muted">
+          <MapPin className="size-3.5 text-ink-faint" />
+          {value
+            ? value.address ?? `${value.lat.toFixed(6)}, ${value.lng.toFixed(6)}`
+            : 'Search, or click the map to drop a pin. Drag it to fine-tune.'}
         </span>
         {value && (
-          <span className="font-mono text-ink-soft">
-            {value.lat.toFixed(5)}, {value.lng.toFixed(5)}
+          <span className="font-mono text-[11.5px] text-ink-faint">
+            {value.lat.toFixed(6)}, {value.lng.toFixed(6)}
           </span>
         )}
       </div>
+
+      {note && <p className="text-[12.5px] text-pending-fg">{note}</p>}
     </div>
   );
 }
