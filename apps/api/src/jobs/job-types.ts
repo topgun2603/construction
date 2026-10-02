@@ -133,10 +133,24 @@ export interface ThumbnailJob {
   s3Key: string;
 }
 
-export type MediaJobName = 'thumbnail';
+/**
+ * Reading a document's text out so questions can be answered from it.
+ *
+ * In the media queue rather than a new one: it is the same shape of work as a thumbnail — take an
+ * uploaded file, derive something small from it, and never block the request that uploaded it.
+ */
+export interface DocumentTextJob {
+  tenantId: string;
+  documentId: string;
+  s3Key: string;
+  contentType: string;
+}
+
+export type MediaJobName = 'thumbnail' | 'document-text';
 
 export interface MediaJobs {
   thumbnail: ThumbnailJob;
+  'document-text': DocumentTextJob;
 }
 
 /**

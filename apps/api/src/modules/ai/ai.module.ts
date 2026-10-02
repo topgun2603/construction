@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AskController } from './ask.controller';
 import { AskService } from './ask.service';
 import { BillReader } from './bill-reader.service';
+import { DocumentQaService } from './document-qa.service';
 import { VoiceReader } from './voice-reader.service';
 
 /**
@@ -13,7 +14,7 @@ import { VoiceReader } from './voice-reader.service';
  */
 @Module({
   controllers: [AskController],
-  providers: [AskService, BillReader, VoiceReader],
-  exports: [AskService, BillReader, VoiceReader],
+  providers: [AskService, BillReader, VoiceReader, DocumentQaService],
+  exports: [AskService, BillReader, VoiceReader, DocumentQaService],
 })
 export class AiModule {}

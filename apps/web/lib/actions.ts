@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { ScanBillResult, VoiceDprResult } from '@sitebook/shared';
+import type { AskDocumentsResult, ScanBillResult, VoiceDprResult } from '@sitebook/shared';
 import { runAction, serverFetch, type ActionResult } from './server-api';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from './session';
 import type {
@@ -857,6 +857,22 @@ export async function transcribeVoiceNote(input: {
 }): Promise<ActionResult<VoiceDprResult>> {
   return runAction(() =>
     serverFetch<VoiceDprResult>('/dpr/voice', { method: 'POST', body: input }),
+  );
+}
+
+/**
+ * Answers a question from the text of the documents, with the page it came from.
+ *
+ * Scoped by the API to the sites this session can see, before anything is read — so this passes
+ * no scope of its own beyond the optional narrowing, and must not start to.
+ */
+export async function askDocuments(input: {
+  question: string;
+  project_id?: string;
+  document_id?: string;
+}): Promise<ActionResult<AskDocumentsResult>> {
+  return runAction(() =>
+    serverFetch<AskDocumentsResult>('/documents/ask', { method: 'POST', body: input }),
   );
 }
 

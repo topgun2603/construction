@@ -4,7 +4,8 @@ import type { Job } from 'bullmq';
 import sharp from 'sharp';
 import { ObjectStore } from '../../common/storage/object-store.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
-import { QUEUE, type ThumbnailJob } from '../job-types';
+import { DocumentTextService } from '../../modules/portal/document-text.service';
+import { QUEUE, type DocumentTextJob, type ThumbnailJob } from '../job-types';
 
 /**
  * Thumbnails (spec §10).
@@ -26,6 +27,7 @@ export class MediaProcessor extends WorkerHost {
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly store: ObjectStore,
+    private readonly documentText: DocumentTextService,
   ) {
     super();
   }
@@ -34,6 +36,7 @@ export class MediaProcessor extends WorkerHost {
   private static readonly WIDTH = 480;
 
   async process(job: Job): Promise<unknown> {
+    if (job.name === 'document-text') return this.readDocument(job.data as DocumentTextJob);
     if (job.name !== 'thumbnail') {
       this.logger.warn({ name: job.name }, 'Unknown media job');
       return null;
@@ -96,6 +99,69 @@ export class MediaProcessor extends WorkerHost {
       'Thumbnail generated',
     );
     return { photoId: source.id, key, bytes: thumbnail.length };
+  }
+
+  /**
+   * Reads a document's text out so questions can be answered from it, with page numbers.
+   *
+   * Forgiving in the same way the thumbnail is, and for the same reason: searchable text is an
+   * improvement, not a precondition. A file that has gone, or one with no text layer at all, is
+   * marked read and left alone — the alternative is a job that retries three times over a scanned
+   * blueprint and then sits in the failed queue for a week looking like a bug.
+   *
+   * Replaced, not appended. A re-read has to leave exactly one copy of each page, or a document
+   * re-indexed twice would crowd everything else out of the search results by sheer duplication.
+   */
+  private async readDocument(data: DocumentTextJob): Promise<unknown> {
+    const db = this.tenantDb.clientFor(data.tenantId);
+
+    const document = await db.document.findFirst({
+      where: { id: data.documentId, deletedAt: null },
+      select: { id: true, contentType: true, s3Key: true },
+    });
+    if (!document) return { skipped: 'row gone' };
+
+    let chunks: { page: number; ordinal: number; content: string }[];
+    try {
+      const file = await this.store.get(document.s3Key);
+      chunks = await this.documentText.chunksOf(file, document.contentType);
+    } catch (error) {
+      this.logger.warn(
+        { err: error, documentId: document.id },
+        'Could not read the document; it stays unsearchable',
+      );
+      return { documentId: document.id, skipped: 'unreadable' };
+    }
+
+    await db.$transaction(async (tx) => {
+      await tx.documentChunk.deleteMany({ where: { documentId: document.id } });
+      if (chunks.length > 0) {
+        await tx.documentChunk.createMany({
+          data: chunks.map((chunk) => ({
+            tenantId: data.tenantId,
+            documentId: document.id,
+            page: chunk.page,
+            ordinal: chunk.ordinal,
+            content: chunk.content,
+          })),
+        });
+      }
+      // Stamped whatever the outcome. Zero pages is an answer — "this is a scan" — and recording it
+      // is what stops the same file being parsed again on every question.
+      await tx.document.update({
+        where: { id: document.id },
+        data: {
+          textExtractedAt: new Date(),
+          textPages: new Set(chunks.map((chunk) => chunk.page)).size,
+        },
+      });
+    });
+
+    this.logger.log(
+      { documentId: document.id, chunks: chunks.length },
+      chunks.length > 0 ? 'Document text indexed' : 'Document has no text layer',
+    );
+    return { documentId: document.id, chunks: chunks.length };
   }
 }
 

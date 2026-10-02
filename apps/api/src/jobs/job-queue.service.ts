@@ -5,6 +5,7 @@ import { env } from '../config/env';
 import {
   DEFAULT_JOB_OPTIONS,
   QUEUE,
+  type DocumentTextJob,
   type DprSubmittedJob,
   type IndentStatusJob,
   type SiteMessagePostedJob,
@@ -60,6 +61,17 @@ export class JobQueueService {
    */
   async generateThumbnail(job: ThumbnailJob): Promise<void> {
     await this.add(this.media, QUEUE.media, 'thumbnail', job, `thumb-${job.mediaId}`);
+  }
+
+  /**
+   * Reads a document's text out for searching, in the background.
+   *
+   * Keyed on the document, so uploading a drawing and then asking a question that notices it has
+   * not been read yet is one job rather than two. A 60-page structural set takes a few seconds to
+   * parse, and nobody should wait for that at the end of an upload.
+   */
+  async extractDocumentText(job: DocumentTextJob): Promise<void> {
+    await this.add(this.media, QUEUE.media, 'document-text', job, `doctext-${job.documentId}`);
   }
 
   private async add(

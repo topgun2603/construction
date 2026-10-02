@@ -9,6 +9,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { JobQueueService } from '../../jobs/job-queue.service';
 import { UploadsService } from '../uploads/uploads.service';
 
 const DOCUMENT_SELECT = {
@@ -48,6 +49,7 @@ export class DocumentsService {
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
     private readonly uploads: UploadsService,
+    private readonly jobs: JobQueueService,
   ) {}
 
   private clientOnly(actor: RequestUser): boolean {
@@ -174,6 +176,20 @@ export class DocumentsService {
         clientId: input.client_id ?? null,
       },
       select: DOCUMENT_SELECT,
+    });
+
+    /*
+     * Read its text in the background so questions can be answered from it.
+     *
+     * Queued, not awaited: a 60-page structural set takes seconds to parse and the person who just
+     * uploaded it is waiting on a dialog. With no Redis the enqueue is a no-op and the document is
+     * simply not searchable — which is the feature being off, not an upload failing.
+     */
+    await this.jobs.extractDocumentText({
+      tenantId: actor.tenantId,
+      documentId: document.id,
+      s3Key: document.s3Key,
+      contentType: document.contentType,
     });
 
     return this.view(actor, document);

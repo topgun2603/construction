@@ -3,6 +3,7 @@ import { Global, Module, type DynamicModule, type Provider } from '@nestjs/commo
 import { ObjectStore } from '../common/storage/object-store.service';
 import { env } from '../config/env';
 import { BillingModule } from '../modules/billing/billing.module';
+import { DocumentTextService } from '../modules/portal/document-text.service';
 import { WagePeriodsModule } from '../modules/wage-periods/wage-periods.module';
 import { DEFAULT_JOB_OPTIONS, QUEUE } from './job-types';
 import { JobQueueService } from './job-queue.service';
@@ -47,6 +48,9 @@ export class JobsModule {
         WhatsappProcessor,
         ReportsProcessor,
         MediaProcessor,
+        // Reading a PDF's text. A plain class with no dependencies, provided here rather than
+        // imported from PortalModule so the worker does not pull the whole client portal in.
+        DocumentTextService,
         // Raw object storage, worker-side only: it has no actor to check a key against, so it must
         // never be reachable from a request.
         ObjectStore,

@@ -46,6 +46,7 @@ import { ProjectTimeline } from './project-timeline';
 import { SiteConversation } from './site-conversation';
 import { PaymentScheduleTab } from './payment-schedule';
 import { SiteApprovals } from './site-approvals';
+import { AskDocuments } from '@/components/ask-documents';
 import { DocumentsList } from '@/components/documents-list';
 
 const TABS = [
@@ -350,11 +351,16 @@ export default async function ProjectPage({
       )}
 
       {active === 'documents' && hasDocuments && (
-        <DocumentsList
-          projectId={id}
-          documents={documents}
-          canManage={me.permissions.includes('documents.manage')}
-        />
+        <div className="flex flex-col gap-5">
+          {/* Narrowed to this site: on a site's own tab, "the drawings" means these drawings, and
+              answering from another building's structural set would be worse than not answering. */}
+          {documents.length > 0 && <AskDocuments projectId={id} />}
+          <DocumentsList
+            projectId={id}
+            documents={documents}
+            canManage={me.permissions.includes('documents.manage')}
+          />
+        </div>
       )}
 
       {active === 'payments' && canSeePayments && (

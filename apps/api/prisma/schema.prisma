@@ -249,6 +249,7 @@ model Tenant {
   messageAttachments SiteMessageAttachment[]
   messageReads       SiteMessageRead[]
   documents          Document[]
+  documentChunks     DocumentChunk[]
   paymentStages      PaymentStage[]
   clientPayments     ClientPayment[]
   approvals          Approval[]
@@ -1333,16 +1334,44 @@ model Document {
   clientId        String?          @map("client_id") @db.Uuid
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  /// When its text was last read out for searching. Null means nobody has tried yet.
+  textExtractedAt DateTime?        @map("text_extracted_at") @db.Timestamptz(6)
+  /// Pages that yielded readable text. Zero after a successful read means a scan, not a failure.
+  textPages       Int?             @map("text_pages")
 
-  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  project  Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploader User       @relation("document_uploader", fields: [uploadedBy], references: [id], onDelete: Restrict)
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User            @relation("document_uploader", fields: [uploadedBy], references: [id], onDelete: Restrict)
   Approval Approval[]
+  chunks   DocumentChunk[]
 
   @@unique([tenantId, clientId], map: "documents_tenant_id_client_id_key")
   @@unique([familyId, version], map: "documents_family_id_version_key")
   @@index([tenantId, projectId, createdAt(sort: Desc)])
   @@map("documents")
+}
+
+/// One readable piece of one document, so a question can be answered with a page number.
+///
+/// The full-text index over `content` is a GIN expression index created in the migration — Prisma's
+/// datamodel cannot express one, and leaving it out here keeps the drift check honest.
+model DocumentChunk {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  documentId String   @map("document_id") @db.Uuid
+  /// 1-based, as a PDF viewer counts them, so a citation can be followed by hand.
+  page       Int
+  /// Which piece of that page, for pages long enough to split.
+  ordinal    Int      @default(0)
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, page, ordinal], map: "document_chunks_document_id_page_ordinal_key")
+  @@index([tenantId, documentId])
+  @@map("document_chunks")
 }
 
 // ---------------------------------------------------------------------------

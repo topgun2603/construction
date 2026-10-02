@@ -2,6 +2,7 @@ import { FolderOpen } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { SiteDocument } from '@/lib/api-types';
+import { AskDocuments } from '@/components/ask-documents';
 import { DocumentsList } from '@/components/documents-list';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
@@ -53,6 +54,11 @@ export default async function DocumentsPage() {
           The current revision of everything filed against your sites.
         </span>
       </div>
+
+      {/* Above the list, not below it. The question is why somebody came to this page — they are
+          looking for a figure, not for a filename — and a list of sixty drawings is what they were
+          trying to avoid scrolling. Only shown when there is something to search. */}
+      {items.length > 0 && <AskDocuments />}
 
       <DocumentsList documents={items} canManage={canManage} showProject sites={sites.items} />
     </FadeIn>

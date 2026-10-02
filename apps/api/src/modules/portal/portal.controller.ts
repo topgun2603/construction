@@ -12,13 +12,16 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
+  askDocumentsSchema,
   createDocumentSchema,
   listDocumentsQuerySchema,
   listMessagesQuerySchema,
   markMessagesReadSchema,
   postMessageSchema,
   updateDocumentSchema,
+  type AskDocumentsInput,
   type CreateDocumentInput,
   type ListDocumentsQuery,
   type ListMessagesQuery,
@@ -29,6 +32,7 @@ import {
 import { CurrentUser, RequiresModule, RequiresPermission } from '../../common/decorators';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import type { RequestUser } from '../../common/auth/request-user';
+import { DocumentQaService } from '../ai/document-qa.service';
 import { DocumentsService } from './documents.service';
 import { MessagesService } from './messages.service';
 
@@ -126,7 +130,32 @@ export class MessagesController {
 @RequiresModule('documents')
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly questions: DocumentQaService,
+  ) {}
+
+  /**
+   * Answers a question from the text of the documents the caller can see.
+   *
+   * `documents.view`, the same permission as opening them — the answer comes from pages the asker
+   * could already read, and the search is scoped to their own sites before the model is involved.
+   * A client with access to their own drawings can ask about their own drawings, which is right.
+   *
+   * Above the parameterised routes so "ask" is never read as a family id. Throttled because each
+   * call costs money at a vendor; thirty an hour is a working afternoon of questions.
+   */
+  @Throttle({ default: { limit: 30, ttl: 3_600_000 } })
+  @RequiresPermission('documents.view')
+  @Post('ask')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Answer a question from the documents, with the page it came from' })
+  ask(
+    @CurrentUser() user: RequestUser,
+    @Body(zodBody(askDocumentsSchema)) body: AskDocumentsInput,
+  ) {
+    return this.questions.ask(user, body);
+  }
 
   @RequiresPermission('documents.view')
   @Get()

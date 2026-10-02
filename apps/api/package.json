@@ -41,6 +41,7 @@
     "nestjs-pino": "^4.1.0",
     "openai": "^7.27.0",
     "pdf-to-img": "^7.0.0",
+    "pdfjs-dist": "6.2.108",
     "pino": "^9.4.0",
     "pino-http": "^10.3.0",
     "reflect-metadata": "^0.2.2",

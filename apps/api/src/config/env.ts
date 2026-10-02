@@ -176,6 +176,16 @@ const envSchema = z
      * than a point of word accuracy.
      */
     OPENAI_TRANSCRIBE_MODEL: z.string().default('whisper-1'),
+    /*
+     * Answering a question from pages of a drawing or a contract.
+     *
+     * The better model, like the bill reader, and for the same reason: the input is construction
+     * prose full of codes and dimensions — "M25", "Cl. 7.3.2", "150mm c/c" — and a figure read back
+     * one digit out is a figure somebody pours concrete to. The cheap model also gives up on the
+     * instruction that matters most here, which is to answer "the documents do not say" instead of
+     * producing something plausible.
+     */
+    OPENAI_DOCUMENT_MODEL: z.string().default('gpt-4o'),
 
     /**
      * Map tiles and geocoding. Without it the geocoder falls back to Nominatim's volunteer

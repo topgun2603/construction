@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { AiModule } from '../ai/ai.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { ApprovalsService } from './approvals.service';
 import { ClientBillingService } from './client-billing.service';
+import { DocumentTextService } from './document-text.service';
 import { DocumentsService } from './documents.service';
 import { MessagesService } from './messages.service';
 import {
@@ -24,7 +26,8 @@ import {
 @Module({
   // These sign URLs for what they hand back: attachments, documents and the drawing attached to an
   // approval all stay private objects.
-  imports: [UploadsModule],
+  // `AiModule` for answering a question from a document's own pages.
+  imports: [AiModule, UploadsModule],
   controllers: [
     SiteMessagesController,
     MessagesController,
@@ -35,6 +38,12 @@ import {
     ApprovalsController,
     ProjectApprovalsController,
   ],
-  providers: [MessagesService, DocumentsService, ClientBillingService, ApprovalsService],
+  providers: [
+    MessagesService,
+    DocumentsService,
+    DocumentTextService,
+    ClientBillingService,
+    ApprovalsService,
+  ],
 })
 export class PortalModule {}
