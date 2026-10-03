@@ -184,13 +184,31 @@ class _DocumentsListState extends ConsumerState<DocumentsList> {
                   IconButton.filledTonal(
                     onPressed: () => _openFilters(rows),
                     icon: Badge(
-                      isLabelVisible: _category != null || _from != null || _to != null,
+                      isLabelVisible: _from != null || _to != null,
                       backgroundColor: Palette.accent,
                       child: const Icon(Icons.tune, size: 20),
                     ),
                     tooltip: 'Filter and sort',
                   ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              // The category, lifted out of the filter sheet. It is the one thing people narrow by
+              // constantly — "show me the drawings" — and a sheet is two taps too many for that.
+              FilterChips(
+                options: {
+                  'all': t('All'),
+                  'drawing': t('Drawings'),
+                  'invoice': t('Bills'),
+                  'contract': t('Contracts'),
+                  'approval': t('Approvals'),
+                  'other': t('Other'),
+                },
+                selected: _category ?? 'all',
+                onSelected: (value) => setState(() {
+                  _category = value == 'all' ? null : value;
+                  _reset();
+                }),
               ),
               if (_filtered)
                 Padding(

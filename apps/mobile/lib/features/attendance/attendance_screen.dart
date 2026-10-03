@@ -93,7 +93,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     final workers = crew.value!;
     if (workers.isEmpty) {
       return const EmptyNote(
-        icon: Icons.groups_outlined,
+        image: 'images/onboarding_rollcall.png',
         title: 'Nobody is on this site',
         body:
             'The roll call only lists workers assigned to this site. Assign them on the site, or '

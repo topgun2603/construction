@@ -33,15 +33,8 @@ class HomeScreen extends ConsumerWidget {
       child: ListView(
         padding: EdgeInsets.fromLTRB(16, 14, 16, bottomInset(context)),
         children: [
-          Text(
-            _greeting(me?.name ?? ''),
-            style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
-          ),
-          Text(
-            longDate(todayIso()),
-            style: const TextStyle(fontSize: 13.5, color: Palette.inkMuted),
-          ),
-          const SizedBox(height: 18),
+          _GreetingBanner(greeting: _greeting(me?.name ?? '')),
+          const SizedBox(height: 14),
           AsyncSection<Map<String, dynamic>>(
             value: overview,
             onRetry: () => ref.invalidate(overviewProvider),
@@ -99,6 +92,8 @@ class _Overview extends ConsumerWidget {
               child: StatTile(
                 label: 'On site today',
                 value: '${totals['headcount_today'] ?? 0}',
+                icon: Icons.person_outline,
+                tint: Palette.accentSoft,
                 onTap: () => ref.read(currentSectionProvider.notifier).state = 'attendance',
               ),
             ),
@@ -107,6 +102,8 @@ class _Overview extends ConsumerWidget {
               child: StatTile(
                 label: missingReports == 1 ? 'Report not filed' : 'Reports not filed',
                 value: '$missingReports',
+                icon: Icons.description_outlined,
+                tint: missingReports > 0 ? Palette.pendingBg : null,
                 tone: missingReports > 0 ? Palette.pending : null,
                 onTap: () => ref.read(currentSectionProvider.notifier).state = 'dpr',
               ),
@@ -121,6 +118,8 @@ class _Overview extends ConsumerWidget {
                 child: StatTile(
                   label: 'Indents waiting',
                   value: '$pendingIndents',
+                  icon: Icons.local_shipping_outlined,
+                  tint: pendingIndents > 0 ? Palette.pendingBg : Palette.doneBg,
                   tone: pendingIndents > 0 ? Palette.pending : null,
                   onTap: () => ref.read(currentSectionProvider.notifier).state = 'indents',
                 ),
@@ -131,6 +130,8 @@ class _Overview extends ConsumerWidget {
                 child: StatTile(
                   label: 'Expenses waiting',
                   value: '$pendingExpenses',
+                  icon: Icons.account_balance_wallet_outlined,
+                  tint: pendingExpenses > 0 ? Palette.pendingBg : Palette.doneBg,
                   tone: pendingExpenses > 0 ? Palette.pending : null,
                   onTap: () => ref.read(currentSectionProvider.notifier).state = 'expenses',
                 ),
@@ -149,6 +150,8 @@ class _Overview extends ConsumerWidget {
                 child: StatTile(
                   label: 'Labour this month',
                   value: formatInrCompact(totals['labour_cost_month'] as String?),
+                  icon: Icons.trending_up,
+                  tint: Palette.accentSoft,
                 ),
               ),
               const SizedBox(width: 10),
@@ -156,6 +159,8 @@ class _Overview extends ConsumerWidget {
                 child: StatTile(
                   label: 'Spend this month',
                   value: formatInrCompact(totals['spend_month'] as String?),
+                  icon: Icons.bar_chart_rounded,
+                  tint: Palette.pendingBg,
                 ),
               ),
             ],
@@ -255,6 +260,79 @@ class _SiteToday extends StatelessWidget {
               label: dprStatus == 'missing' ? 'No report' : 'Reported',
             ),
             const Icon(Icons.chevron_right, size: 20, color: Palette.inkFaint),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The day, over the site.
+///
+/// A greeting in plain text was two lines of grey at the top of a screen that is otherwise numbers.
+/// Behind a photograph of a site it is the one thing on this screen that is not a figure — which is
+/// what makes the figures underneath read as a summary rather than as a wall.
+class _GreetingBanner extends StatelessWidget {
+  const _GreetingBanner({required this.greeting});
+
+  final String greeting;
+
+  @override
+  Widget build(BuildContext context) {
+    // Split so the name can carry the weight: "Good afternoon," is the part nobody reads twice.
+    final comma = greeting.indexOf(',');
+    final salutation = comma == -1 ? greeting : greeting.substring(0, comma + 1);
+    final name = comma == -1 ? '' : greeting.substring(comma + 1).trim();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(
+        height: 132,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset('images/photo_site_hero.png', fit: BoxFit.cover),
+            // Dark here, unlike the sign-in hero: this photograph is a bright midday sky and the
+            // type over it is white, so the gap opens by darkening rather than by washing out.
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  stops: [0.0, 0.55, 1.0],
+                  colors: [Color(0xD91B1A2E), Color(0x8C1B1A2E), Color(0x331B1A2E)],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    salutation,
+                    style: const TextStyle(fontSize: 14, color: Colors.white70),
+                  ),
+                  if (name.isNotEmpty)
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  const SizedBox(height: 2),
+                  Text(
+                    longDate(todayIso()),
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

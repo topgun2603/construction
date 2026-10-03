@@ -17,11 +17,20 @@ import '../../shared/widgets.dart';
 import '../../core/i18n.dart';
 
 /// Daily progress reports: what was read, and what gets written.
-class DprScreen extends ConsumerWidget {
+class DprScreen extends ConsumerStatefulWidget {
   const DprScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DprScreen> createState() => _DprScreenState();
+}
+
+class _DprScreenState extends ConsumerState<DprScreen> {
+  /// Which reports are shown. Filed-but-unread is the common question — "what came in today" —
+  /// and a draft somebody abandoned is noise against it.
+  String _status = 'all';
+
+  @override
+  Widget build(BuildContext context) {
     final reports = ref.watch(dprProvider);
     final me = ref.watch(authControllerProvider).me;
 
@@ -47,8 +56,12 @@ class DprScreen extends ConsumerWidget {
         child: AsyncSection<List<Map<String, dynamic>>>(
           value: reports,
           onRetry: () => ref.invalidate(dprProvider),
-          builder: (rows) {
-            if (rows.isEmpty) {
+          builder: (all) {
+            final rows = _status == 'all'
+                ? all
+                : all.where((row) => row['status'] == _status).toList();
+
+            if (all.isEmpty) {
               return ListView(
                 children: [
                   EmptyNote(
@@ -61,11 +74,45 @@ class DprScreen extends ConsumerWidget {
                 ],
               );
             }
-            return ListView.separated(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, bottomInset(context, hasFab: true)),
-              itemCount: rows.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
-              itemBuilder: (context, index) => _ReportCard(report: rows[index]),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                  child: FilterChips(
+                    options: {
+                      'all': t('All'),
+                      'submitted': t('Submitted'),
+                      'draft': t('Draft'),
+                    },
+                    selected: _status,
+                    onSelected: (value) => setState(() => _status = value),
+                  ),
+                ),
+                Expanded(
+                  child: rows.isEmpty
+                      ? ListView(
+                          children: [
+                            EmptyNote(
+                              icon: Icons.filter_alt_off_outlined,
+                              title: t('Nothing here'),
+                              body: t('No report matches that filter.'),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            bottomInset(context, hasFab: true),
+                          ),
+                          itemCount: rows.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) => _ReportCard(report: rows[index]),
+                        ),
+                ),
+              ],
             );
           },
         ),

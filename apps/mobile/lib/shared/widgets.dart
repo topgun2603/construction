@@ -253,6 +253,8 @@ class StatTile extends StatelessWidget {
     this.note,
     this.tone,
     this.onTap,
+    this.icon,
+    this.tint,
   });
 
   final String label;
@@ -263,6 +265,16 @@ class StatTile extends StatelessWidget {
   final Color? tone;
   final VoidCallback? onTap;
 
+  /// A badge in the top corner saying what the number counts.
+  ///
+  /// Four of these sit in a grid on the day's screen, and at a glance they are four numbers with
+  /// four short labels — which is four things to read. The badge is what lets somebody find the one
+  /// they came for without reading any of them.
+  final IconData? icon;
+
+  /// The badge's background, and the tile's own wash. Defaults to the neutral grey.
+  final Color? tint;
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -271,19 +283,39 @@ class StatTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: Palette.surface,
+          color: tint == null ? Palette.surface : tint!.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Palette.line),
+          border: Border.all(color: tint == null ? Palette.line : Colors.transparent),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: tone ?? Palette.ink),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: tone ?? Palette.ink,
+                    ),
+                  ),
+                ),
+                if (icon case final icon?)
+                  Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: (tint ?? Palette.accent).withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Icon(icon, size: 15, color: tone ?? Palette.inkSoft),
+                  ),
+              ],
             ),
             const SizedBox(height: 3),
             Text(
@@ -304,6 +336,123 @@ class StatTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The pill row that narrows a list: All / Active / Planning / Completed.
+///
+/// Chips rather than a dropdown, because the options are few and the current one has to be legible
+/// without opening anything — a supervisor checking "is anything waiting on me" should see the
+/// answer, not a control that hides it. It scrolls sideways when the labels are long rather than
+/// wrapping, so the list below never moves down a row as somebody types.
+class FilterChips extends StatelessWidget {
+  const FilterChips({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    this.counts = const {},
+  });
+
+  /// Value to label. The first is conventionally the "everything" option.
+  final Map<String, String> options;
+  final String selected;
+  final void Function(String value) onSelected;
+
+  /// Optional count per value, shown after the label — "Waiting 3".
+  final Map<String, int> counts;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        itemCount: options.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final value = options.keys.elementAt(index);
+          final label = options[value]!;
+          final count = counts[value];
+          final active = value == selected;
+
+          return InkWell(
+            onTap: () => onSelected(value),
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: active ? Palette.accent : Palette.surface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: active ? Palette.accent : Palette.line),
+              ),
+              child: Text(
+                count == null ? label : '$label  $count',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: active ? Colors.white : Palette.inkSoft,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A rounded search box, the one every list screen opens with.
+class SearchBox extends StatelessWidget {
+  const SearchBox({
+    super.key,
+    required this.hint,
+    required this.onChanged,
+    this.controller,
+    this.trailing,
+  });
+
+  final String hint;
+  final ValueChanged<String> onChanged;
+  final TextEditingController? controller;
+
+  /// A filter button beside the box, where a screen has more to narrow by than chips can carry.
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final field = TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: hint,
+        prefixIcon: const Icon(Icons.search, size: 20, color: Palette.inkFaint),
+        contentPadding: const EdgeInsets.symmetric(vertical: 13),
+        filled: true,
+        fillColor: Palette.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Palette.line),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Palette.line),
+        ),
+      ),
+    );
+
+    if (trailing == null) return field;
+    return Row(
+      children: [
+        Expanded(child: field),
+        const SizedBox(width: 10),
+        trailing!,
+      ],
     );
   }
 }

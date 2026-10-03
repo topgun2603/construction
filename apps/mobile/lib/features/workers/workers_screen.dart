@@ -22,6 +22,7 @@ class WorkersScreen extends ConsumerStatefulWidget {
 
 class _WorkersScreenState extends ConsumerState<WorkersScreen> {
   String _query = '';
+  String _skill = 'all';
 
   @override
   Widget build(BuildContext context) {
@@ -54,14 +55,25 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
           showMoney: canSeeWages,
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: TextField(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+          child: SearchBox(
+            hint: t('Search by name, trade or contractor...'),
             onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
-            decoration: const InputDecoration(
-              hintText: 'Search by name, trade or contractor',
-              prefixIcon: Icon(Icons.search, size: 20),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: FilterChips(
+            // The three the rate is set from, which is what somebody is usually hunting for when
+            // they open this list with a wage question in mind.
+            options: {
+              'all': t('All'),
+              'skilled': t('Skilled'),
+              'semi': t('Semi'),
+              'unskilled': t('Unskilled'),
+            },
+            selected: _skill,
+            onSelected: (value) => setState(() => _skill = value),
           ),
         ),
         Expanded(
@@ -76,6 +88,7 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
               builder: (rows) {
                 final visible =
                     rows.where((worker) {
+                      if (_skill != 'all' && worker['skill_level'] != _skill) return false;
                       if (_query.isEmpty) return true;
                       final haystack = [
                         worker['name'],

@@ -31,6 +31,7 @@ class SitesScreen extends ConsumerStatefulWidget {
 
 class _SitesScreenState extends ConsumerState<SitesScreen> {
   String _query = '';
+  String _status = 'all';
 
   @override
   Widget build(BuildContext context) {
@@ -56,14 +57,23 @@ class _SitesScreenState extends ConsumerState<SitesScreen> {
       body: Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: TextField(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+          child: SearchBox(
+            hint: t('Search sites, clients or address...'),
             onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
-            decoration: const InputDecoration(
-              hintText: 'Search sites, clients, addresses',
-              prefixIcon: Icon(Icons.search, size: 20),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: FilterChips(
+            options: {
+              'all': t('All'),
+              'active': t('Active'),
+              'planning': t('Planning'),
+              'completed': t('Completed'),
+            },
+            selected: _status,
+            onSelected: (value) => setState(() => _status = value),
           ),
         ),
         Expanded(
@@ -76,16 +86,16 @@ class _SitesScreenState extends ConsumerState<SitesScreen> {
               value: sites,
               onRetry: () => ref.invalidate(sitesProvider),
               builder: (rows) {
-                final visible = _query.isEmpty
-                    ? rows
-                    : rows.where((site) {
-                        final haystack = [
-                          site['name'],
-                          site['client_name'],
-                          site['address'],
-                        ].whereType<String>().join(' ').toLowerCase();
-                        return haystack.contains(_query);
-                      }).toList();
+                final visible = rows.where((site) {
+                  if (_status != 'all' && site['status'] != _status) return false;
+                  if (_query.isEmpty) return true;
+                  final haystack = [
+                    site['name'],
+                    site['client_name'],
+                    site['address'],
+                  ].whereType<String>().join(' ').toLowerCase();
+                  return haystack.contains(_query);
+                }).toList();
 
                 if (visible.isEmpty) {
                   return ListView(
