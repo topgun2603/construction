@@ -12,6 +12,7 @@ import 'payment_schedule.dart';
 import '../documents/documents_list.dart';
 import '../portal/site_conversation_screen.dart';
 import '../../core/i18n.dart';
+import 'sites_screen.dart';
 
 /// One site: what it is, where it has got to, and who is on it.
 class SiteDetailScreen extends ConsumerWidget {
@@ -26,7 +27,19 @@ class SiteDetailScreen extends ConsumerWidget {
     final me = ref.watch(authControllerProvider).me;
 
     return Scaffold(
-      appBar: AppBar(title: Text(name)),
+      appBar: AppBar(
+        title: Text(name),
+        actions: [
+          // Only for somebody who may change a site, and only once it has loaded — the form is
+          // filled from the row, so offering it against nothing would open an empty one.
+          if ((me?.can('projects.manage') ?? false) && site.hasValue)
+            IconButton(
+              tooltip: t('Edit site'),
+              onPressed: () => openSiteForm(context, existing: site.value!),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(siteProvider(projectId));

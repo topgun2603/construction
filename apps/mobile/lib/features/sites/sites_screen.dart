@@ -47,7 +47,7 @@ class _SitesScreenState extends ConsumerState<SitesScreen> {
               child: FloatingActionButton.extended(
                 backgroundColor: Palette.accent,
                 foregroundColor: Colors.white,
-                onPressed: () => _openSiteForm(context),
+                onPressed: () => openSiteForm(context),
                 icon: const Icon(Icons.add),
                 label: Text(t('New site')),
               ),
@@ -120,16 +120,20 @@ class _SitesScreenState extends ConsumerState<SitesScreen> {
   }
 }
 
-/// The new-site sheet.
-Future<void> _openSiteForm(BuildContext context) => showModalBottomSheet<void>(
-  context: context,
-  isScrollControlled: true,
-  backgroundColor: Palette.surface,
-  shape: const RoundedRectangleBorder(
-    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-  ),
-  builder: (_) => const _SiteForm(),
-);
+/// The site sheet — new, or amending an existing one.
+///
+/// Public because the site's own screen opens it to edit: dropping a pin on a site that was created
+/// without one has to be reachable from the site, not only from the list it was created in.
+Future<void> openSiteForm(BuildContext context, {Map<String, dynamic>? existing}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Palette.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _SiteForm(existing: existing),
+    );
 
 class _SiteCard extends StatelessWidget {
   const _SiteCard({required this.site});
@@ -326,22 +330,53 @@ class _Fact extends StatelessWidget {
 /// offers and the API also takes as optional; a budget still under negotiation and a handover date
 /// that is only a hope are worse than blank, because they are believed.
 class _SiteForm extends ConsumerStatefulWidget {
-  const _SiteForm();
+  const _SiteForm({this.existing});
+
+  /// The site being amended, or null to create one.
+  ///
+  /// The same form either way. A separate edit screen would be a second place for the location
+  /// picker, the date rules and the budget parsing to drift apart — and the reason this exists at
+  /// all is that a site created without a pin could never be given one.
+  final Map<String, dynamic>? existing;
 
   @override
   ConsumerState<_SiteForm> createState() => _SiteFormState();
 }
 
 class _SiteFormState extends ConsumerState<_SiteForm> {
-  final _name = TextEditingController();
-  final _client = TextEditingController();
-  final _address = TextEditingController();
-  final _budget = TextEditingController();
+  late final _name = TextEditingController(text: _existing?['name'] as String? ?? '');
+  late final _client = TextEditingController(text: _existing?['client_name'] as String? ?? '');
+  late final _address = TextEditingController(text: _existing?['address'] as String? ?? '');
+  late final _budget = TextEditingController(text: _rupees(_existing?['budget_amount']));
 
-  String _status = 'planning';
-  String? _startDate;
-  String? _targetEndDate;
-  LatLng? _location;
+  Map<String, dynamic>? get _existing => widget.existing;
+  bool get _editing => _existing != null;
+
+  late String _status = _existing?['status'] as String? ?? 'planning';
+  late String? _startDate = _existing?['start_date'] as String?;
+  late String? _targetEndDate = _existing?['target_end_date'] as String?;
+  late LatLng? _location = _initialLocation();
+
+  /// Whether this started with a pin, so submit can tell "left alone" from "taken off".
+  late final bool _hadLocation = _initialLocation() != null;
+
+  LatLng? _initialLocation() {
+    final lat = (_existing?['lat'] as num?)?.toDouble();
+    final lng = (_existing?['lng'] as num?)?.toDouble();
+    return (lat == null || lng == null) ? null : LatLng(lat, lng);
+  }
+
+  /// Paise back to the rupees somebody typed, so an amendment starts from what is already there.
+  static String _rupees(Object? paise) {
+    final value = BigInt.tryParse(paise as String? ?? '');
+    if (value == null) return '';
+    final whole = value ~/ BigInt.from(100);
+    final rest = value % BigInt.from(100);
+    return rest == BigInt.zero
+        ? whole.toString()
+        : '$whole.${rest.toString().padLeft(2, '0')}';
+  }
+
   final List<XFile> _media = [];
   bool _saving = false;
 
@@ -376,7 +411,7 @@ class _SiteFormState extends ConsumerState<_SiteForm> {
               children: [
                 Expanded(
                   child: Text(
-                    t('New site'),
+                    _editing ? t('Edit site') : t('New site'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -390,7 +425,9 @@ class _SiteFormState extends ConsumerState<_SiteForm> {
             const _FieldLabel('Site name'),
             TextField(
               controller: _name,
-              autofocus: true,
+              // Only on a new site. Opening the keyboard over a form somebody came to in order to
+              // drop a pin is three taps of friction for nothing.
+              autofocus: !_editing,
               textCapitalization: TextCapitalization.words,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               decoration: const InputDecoration(hintText: 'Lakeview Tower'),
@@ -507,7 +544,7 @@ class _SiteFormState extends ConsumerState<_SiteForm> {
                         ],
                       ],
                     )
-                  : Text(t('Create site')),
+                  : Text(_editing ? t('Save changes') : t('Create site')),
             ),
           ],
         ),
@@ -623,6 +660,30 @@ class _SiteFormState extends ConsumerState<_SiteForm> {
     });
     try {
       final api = ref.read(apiProvider);
+
+      if (_editing) {
+        await api.updateSite(
+          _existing!['id'] as String,
+          name: name,
+          clientName: _client.text.trim(),
+          address: _address.text.trim(),
+          budgetPaise: budget,
+          startDate: _startDate,
+          targetEndDate: _targetEndDate,
+          status: _status,
+          lat: _location?.latitude,
+          lng: _location?.longitude,
+          // Only a pin that *was* there and is now gone is a removal. Without this, a site that
+          // never had one would send an explicit null on every save, which is the same request a
+          // deliberate clear makes — harmless here, but it stops meaning anything.
+          clearLocation: _hadLocation && _location == null,
+        );
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        notify(context, '$name updated');
+        return;
+      }
+
       final id = await api.createSite(
         name: name,
         clientName: _client.text.trim(),

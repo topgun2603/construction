@@ -10,6 +10,13 @@
 library;
 
 const taStrings = <String, String>{
+  'Edit site': 'தளத்தை திருத்து',
+  'Save changes': 'மாற்றங்களை சேமி',
+  'Tap the pencil above to drop a pin on this site.': 'இந்த தளத்தில் பின் வைக்க மேலே உள்ள பென்சிலை தட்டுங்கள்.',
+  'Satellite': 'செயற்கைக்கோள்',
+  'Map': 'வரைபடம்',
+  'No location set': 'இடம் குறிக்கப்படவில்லை',
+  'Directions': 'வழி',
   'Access blocked': 'அணுகல் தடைசெய்யப்பட்டது',
   'Across every material': 'ஒவ்வொரு சாமானுக்கும்',
   'Add': 'சேர்க்கவும்',

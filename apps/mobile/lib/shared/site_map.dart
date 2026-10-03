@@ -67,7 +67,7 @@ class _SiteMapState extends State<SiteMap> {
                   const SizedBox(height: 5),
                   Text(
                     widget.address ??
-                        t('Drop a pin on this site from the web app and it appears here.'),
+                        t('Tap the pencil above to drop a pin on this site.'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 13, color: Palette.inkMuted, height: 1.4),
                   ),

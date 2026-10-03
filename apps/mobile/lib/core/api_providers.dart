@@ -449,6 +449,53 @@ class Api {
     return _object(payload)['id'] as String;
   }
 
+  /// Amend a site.
+  ///
+  /// Only what is passed is sent: the API reads an absent key as "leave it alone", so a form that
+  /// only changed the pin does not overwrite the budget with whatever was on screen.
+  ///
+  /// The location is the exception that made this method necessary. A site created in a hurry with
+  /// no pin could never be given one — the only form that took a location was the one that created
+  /// the site, and there was no way back into it.
+  Future<void> updateSite(
+    String id, {
+    String? name,
+    String? clientName,
+    String? address,
+    String? budgetPaise,
+    String? startDate,
+    String? targetEndDate,
+    String? status,
+    double? lat,
+    double? lng,
+    /// True when the pin is being taken off rather than left alone. Null lat/lng alone cannot say
+    /// which of the two is meant.
+    bool clearLocation = false,
+  }) async {
+    await _client.patch(
+      '/projects/$id',
+      body: {
+        if (name != null && name.isNotEmpty) 'name': name,
+        'status': ?status,
+        'client_name': ?clientName,
+        // Nullable on update on purpose: clearing a wrong address is a real edit, and the API
+        // distinguishes an explicit null from an absent key.
+        if (address != null) 'address': address.isEmpty ? null : address,
+        if (budgetPaise != null && budgetPaise.isNotEmpty) 'budget_amount': budgetPaise,
+        'start_date': ?startDate,
+        'target_end_date': ?targetEndDate,
+        if (clearLocation) ...{'lat': null, 'lng': null},
+        // Both or neither: a latitude without a longitude is not half a location, it is a point in
+        // the sea off West Africa.
+        if (!clearLocation && lat != null && lng != null) ...{'lat': lat, 'lng': lng},
+      },
+    );
+    _ref.invalidate(sitesProvider);
+    _ref.invalidate(siteProvider(id));
+    _ref.invalidate(overviewProvider);
+    _ref.invalidate(todayProvider);
+  }
+
   /// Everyone who brings labour to site. Used by the worker form and the contractor admin.
   Future<String> createWorker({
     required String name,
