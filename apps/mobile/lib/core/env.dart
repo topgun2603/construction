@@ -24,6 +24,22 @@ class Env {
     return 'http://localhost:4100/v1';
   }
 
+  /*
+   * The Google Maps key, for the *static* map image on a site card.
+   *
+   * The same key Gradle puts in the manifest for the Maps SDK, passed in again because Dart cannot
+   * read a manifest. That is not a second secret: an Android Maps key ships inside the APK either
+   * way, and it is restricted in the Cloud console to this package and signing certificate.
+   *
+   * It exists because the two are separate products with separate switches. "Maps SDK for Android"
+   * has to be enabled on the Cloud project for the interactive map to draw anything at all, and on
+   * this project it is not — while the Static Maps API is, and works. The card is a picture with
+   * its gestures turned off, so a picture is all it ever needed.
+   */
+  static const String mapsApiKey = String.fromEnvironment('MAPS_API_KEY');
+
+  static bool get staticMaps => mapsApiKey.isNotEmpty;
+
   /// Skips Firebase and sends `dev:<phone>` to `/auth/exchange`, which the API accepts only when it
   /// is itself running with `DEV_AUTH_BYPASS=true`. Both halves have to agree, so this can never
   /// open a door on a production API — the worst it can do is fail to sign in.

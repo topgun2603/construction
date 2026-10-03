@@ -205,8 +205,27 @@ Maps are Google Maps, matching the web app. The volunteer tile server this repla
 once, and a blocked client gets a striped "access blocked" image in place of every tile, for every
 site at the same time.
 
-The key is `MAPS_API_KEY` in `android/local.properties` (gitignored); Gradle injects it into the
-manifest. An Android Maps key ships inside the APK and cannot be hidden, so restrict it in the Cloud
+The key is `MAPS_API_KEY` in `android/local.properties` (gitignored). Gradle injects it into the
+manifest for the SDK, and it is passed to Dart as well for the static image:
+
+```bash
+flutter build apk --dart-define=MAPS_API_KEY=<the same key>
+```
+
+**Two different products, two switches.** The site card is a *static image* from the Maps Static
+API; the pin picker is the interactive *Maps SDK for Android*. APIs are enabled one at a time on a
+Cloud project, and on `buildr-4f0a3` Static Maps and Geocoding are on while **Maps SDK for Android
+is not** — which is why the interactive map drew nothing but grey while everything else worked. The
+card no longer waits for that; the picker still does.
+
+To confirm the SDK is the missing piece, open a site and read the log:
+
+```bash
+adb logcat -d | grep -i "Google Maps Android"
+```
+
+An authorisation failure names the key and the API it wanted. Enable **Maps SDK for Android** under
+APIs & Services → Library, and the picker lights up with no code change. An Android Maps key ships inside the APK and cannot be hidden, so restrict it in the Cloud
 console to `com.buildr.buildr_mobile` plus the signing SHA-1 — that, not secrecy, is what stops
 somebody else spending it. A checkout with no key still builds; the map renders grey.
 

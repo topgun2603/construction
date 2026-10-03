@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/env.dart';
 import '../core/i18n.dart';
 import '../core/theme.dart';
 
@@ -89,23 +90,29 @@ class _SiteMapState extends State<SiteMap> {
             height: widget.height,
             child: Stack(
               children: [
-                GoogleMap(
-                  initialCameraPosition: CameraPosition(target: point, zoom: 16),
-                  mapType: _type,
-                  markers: {
-                    Marker(markerId: const MarkerId('site'), position: point),
-                  },
-                  // The card is for recognising a place, not for exploring. Panning it inside a
-                  // scrolling page fights the scroll, so the gestures are off and the whole thing
-                  // opens properly on tap.
-                  zoomControlsEnabled: false,
-                  zoomGesturesEnabled: false,
-                  scrollGesturesEnabled: false,
-                  rotateGesturesEnabled: false,
-                  tiltGesturesEnabled: false,
-                  myLocationButtonEnabled: false,
-                  liteModeEnabled: true,
-                ),
+                /*
+                 * A static image, not the interactive SDK.
+                 *
+                 * The card turns every gesture off — it is a picture whose job is to let somebody
+                 * recognise a place, and tapping hands the coordinates to a real map app. So it
+                 * only ever needed a picture, and a picture is what the Static Maps API returns.
+                 *
+                 * That also happens to be the half that works: APIs are enabled one at a time on a
+                 * Cloud project, Static Maps is on, and "Maps SDK for Android" is not — which is
+                 * why the interactive map drew nothing but grey. The picker still needs the SDK
+                 * and still wants it enabled; this screen no longer waits for that.
+                 */
+                if (Env.staticMaps)
+                  Image.network(
+                    _staticUrl(point, _type),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const _MapUnavailable(),
+                    loadingBuilder: (context, child, progress) => progress == null
+                        ? child
+                        : const ColoredBox(color: Palette.neutralBg),
+                  )
+                else
+                  const _MapUnavailable(),
                 Positioned.fill(
                   child: Material(
                     color: Colors.transparent,
@@ -170,6 +177,25 @@ class _SiteMapState extends State<SiteMap> {
     );
   }
 
+  /// The Static Maps URL for this pin.
+  ///
+  /// `scale=2` because a 190px card on a phone is 380 real pixels, and the unscaled image is
+  /// visibly soft. `hybrid` rather than `satellite` for the toggle, so roads stay labelled over the
+  /// imagery — an unlabelled aerial of an empty plot is pretty and useless.
+  String _staticUrl(LatLng point, MapType type) {
+    final lat = point.latitude;
+    final lng = point.longitude;
+    final kind = type == MapType.normal ? 'roadmap' : 'hybrid';
+    return 'https://maps.googleapis.com/maps/api/staticmap'
+        '?center=$lat,$lng'
+        '&zoom=16'
+        '&size=640x320'
+        '&scale=2'
+        '&maptype=$kind'
+        '&markers=color:0x6C4CE0%7C$lat,$lng'
+        '&key=${Env.mapsApiKey}';
+  }
+
   Future<void> _open(LatLng point) async {
     final label = Uri.encodeComponent(widget.name ?? 'Site');
     // `geo:` hands it to whatever map app is installed and carries the pin label. Where nothing
@@ -188,5 +214,34 @@ class _SiteMapState extends State<SiteMap> {
       return;
     }
     await launchUrl(web, mode: LaunchMode.externalApplication);
+  }
+}
+
+/// Shown where a map cannot be drawn at all.
+///
+/// A grey rectangle with nothing in it reads as a broken app. This says which of the two things is
+/// missing, because they have different fixes: no key in the build, or no location on the site.
+class _MapUnavailable extends StatelessWidget {
+  const _MapUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Palette.neutralBg,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.map_outlined, size: 26, color: Palette.inkFaint),
+            const SizedBox(height: 6),
+            Text(
+              t('Map images are not available in this build.'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: Palette.inkMuted),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
