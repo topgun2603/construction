@@ -2,6 +2,7 @@ import { ShieldCheck } from 'lucide-react';
 import { platformFetch } from '@/lib/platform-session';
 import { FadeIn } from '@/components/motion';
 import { OperatorControls } from './operator-controls';
+import { EmailLink } from './email-link';
 import { getT } from '@/lib/i18n-server';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,8 @@ export const dynamic = 'force-dynamic';
 interface Operator {
   phone: string;
   name: string | null;
+  /** A Google address they may also sign in with, or null if nobody has linked one. */
+  email: string | null;
   root: boolean;
   granted_by: string | null;
   granted_at: string | null;
@@ -58,10 +61,18 @@ export default async function OperatorsPage() {
               key={operator.phone}
               className="flex items-center gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
             >
-              <ShieldCheck className="size-4 text-accent" aria-hidden />
+              <ShieldCheck className="size-4 flex-none text-accent" aria-hidden />
               <span className="font-mono text-[14px]">+{operator.phone}</span>
-              <span className="ml-auto text-[12.5px] text-ink-faint">
-                {t('Changed by redeploying, not here')}
+              {/*
+                A root operator's *number* comes from the environment and cannot be touched here,
+                but the Google address linked to it is an ordinary row and can — which is the only
+                way a root operator gets one at all.
+              */}
+              <span className="ml-4">
+                <EmailLink phone={operator.phone} email={operator.email} canManage={me.root} />
+              </span>
+              <span className="ml-auto flex-none text-[12.5px] text-ink-faint">
+                {t('Number changed by redeploying, not here')}
               </span>
             </div>
           ))}

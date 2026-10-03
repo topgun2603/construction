@@ -447,6 +447,131 @@ describe('platform console', () => {
       // Revocation takes effect on the next request, not when the eight-hour token expires.
       await test.http().get('/v1/admin/tenants').set(grantedAuth).expect(403);
     });
+
+    describe('signing in with a linked Google address', () => {
+      const LINKED = '919000000079';
+      const ADDRESS = 'support@example.com';
+
+      afterAll(async () => {
+        await test
+          .http()
+          .delete(`/v1/admin/operators/${LINKED}`)
+          .set(adminAuth)
+          .expect((response) => {
+            // 204 or 404 — the test that revoked it already may have run.
+            expect([204, 404]).toContain(response.status);
+          });
+      });
+
+      it('refuses an address nobody has linked, and says nothing about why', async () => {
+        const response = await test
+          .http()
+          .post('/v1/admin/auth/login')
+          .send({ firebase_token: `dev:${ADDRESS}` })
+          .expect(401);
+
+        // The same refusal a number off the allowlist gets. The console's URL is not a secret and
+        // who may open it must not be enumerable through it, so the two cannot be told apart.
+        expect(response.body.message).toBe('That account cannot sign in here');
+      });
+
+      it('signs the operator in as their number, so the audit trail stays one person', async () => {
+        await test
+          .http()
+          .post('/v1/admin/operators')
+          .set(adminAuth)
+          .send({ phone: '9000000079', name: 'Support' })
+          .expect(201);
+
+        await test
+          .http()
+          .put(`/v1/admin/operators/${LINKED}/email`)
+          .set(adminAuth)
+          .send({ email: ADDRESS })
+          .expect(200);
+
+        const login = await test
+          .http()
+          .post('/v1/admin/auth/login')
+          .send({ firebase_token: `dev:${ADDRESS}` })
+          .expect(201);
+
+        // The whole point: an address is an alternative key to an operator, not a second identity.
+        // The session comes back as the number, which is what every audit row is keyed by.
+        expect(login.body.phone).toBe(LINKED);
+
+        const me = await test
+          .http()
+          .get('/v1/admin/me')
+          .set({ Authorization: `Bearer ${login.body.access_token}` })
+          .expect(200);
+        expect(me.body.phone).toBe(LINKED);
+        expect(me.body.root).toBe(false);
+      });
+
+      it('is case and whitespace insensitive, because typing an address is not the point', async () => {
+        const login = await test
+          .http()
+          .post('/v1/admin/auth/login')
+          .send({ firebase_token: `dev:  SUPPORT@Example.COM  ` })
+          .expect(201);
+        expect(login.body.phone).toBe(LINKED);
+      });
+
+      it('will not let one address open two operator accounts', async () => {
+        await test
+          .http()
+          .post('/v1/admin/operators')
+          .set(adminAuth)
+          .send({ phone: '9000000080' })
+          .expect(201);
+
+        await test
+          .http()
+          .put('/v1/admin/operators/919000000080/email')
+          .set(adminAuth)
+          .send({ email: ADDRESS })
+          .expect(409);
+
+        await test.http().delete('/v1/admin/operators/919000000080').set(adminAuth).expect(204);
+      });
+
+      it('stops the address working the moment the operator is revoked', async () => {
+        await test.http().delete(`/v1/admin/operators/${LINKED}`).set(adminAuth).expect(204);
+
+        // The row survives revocation so the record of who had access when is kept. The address
+        // on it has to stop being a way in, or revoking somebody would only close one of two doors.
+        await test
+          .http()
+          .post('/v1/admin/auth/login')
+          .send({ firebase_token: `dev:${ADDRESS}` })
+          .expect(401);
+      });
+
+      it('is root-only, like granting: an address is a way in', async () => {
+        await test
+          .http()
+          .post('/v1/admin/operators')
+          .set(adminAuth)
+          .send({ phone: '9000000081' })
+          .expect(201);
+
+        const login = await test
+          .http()
+          .post('/v1/admin/auth/login')
+          .send({ firebase_token: 'dev:919000000081' })
+          .expect(201);
+
+        await test
+          .http()
+          .put('/v1/admin/operators/919000000081/email')
+          .set({ Authorization: `Bearer ${login.body.access_token}` })
+          .send({ email: 'widening@example.com' })
+          .expect(403);
+
+        await test.http().delete('/v1/admin/operators/919000000081').set(adminAuth).expect(204);
+      });
+    });
   });
 
   describe('the plan catalogue', () => {

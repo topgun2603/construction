@@ -62,6 +62,19 @@ export const grantOperatorSchema = z.object({
 export type GrantOperatorInput = z.infer<typeof grantOperatorSchema>;
 
 /**
+ * Linking a Google address to an operator, so they can sign in to the console with it.
+ *
+ * `null` clears the link. Nullable rather than optional, deliberately: an absent field would be
+ * indistinguishable from "leave it alone", and this endpoint sets the address to exactly what it
+ * is given. Validated for shape here so the refusal names the problem, rather than arriving as a
+ * unique-index violation that says nothing useful.
+ */
+export const linkOperatorEmailSchema = z.object({
+  email: z.string().trim().email().max(320).nullable(),
+});
+export type LinkOperatorEmailInput = z.infer<typeof linkOperatorEmailSchema>;
+
+/**
  * Creating an account from the console.
  *
  * The path a builder takes is OTP then onboarding, and it stays the primary one. This exists for

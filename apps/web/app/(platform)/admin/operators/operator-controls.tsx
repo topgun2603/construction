@@ -9,10 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useLanguage } from '@/components/language-provider';
+import { EmailLink } from './email-link';
 
 interface Operator {
   phone: string;
   name: string | null;
+  /** A Google address they may also sign in with, or null if nobody has linked one. */
+  email: string | null;
   granted_by: string | null;
   granted_at: string | null;
 }
@@ -106,6 +109,9 @@ export function OperatorControls({
                       .join(' · ')}
                   </span>
                 </div>
+                <span className="ml-4">
+                  <EmailLink phone={operator.phone} email={operator.email} canManage={canManage} />
+                </span>
                 {canManage && (
                   <Button
                     size="icon"

@@ -36,13 +36,31 @@ export class PlatformAuthService {
       throw ApiError.forbidden('The platform console is not enabled on this deployment');
     }
 
-    const phone = await this.phoneAuth.verify(input.firebase_token);
+    /*
+     * Either proof, one identity.
+     *
+     * An operator may sign in with their number or with a Google address they have linked, and
+     * both arrive here as the same console session: the address is resolved to the phone it was
+     * linked to before any token is issued. The console's identity is the number — the token
+     * carries it and every audit row is keyed by it — so an address that minted its own identity
+     * would record two people where there is one.
+     */
+    const proof = await this.phoneAuth.verifyIdentity(input.firebase_token);
+    const phone =
+      proof.kind === 'phone' ? proof.phone : await this.operators.phoneForEmail(proof.email);
 
-    if (!(await this.operators.allows(phone))) {
-      // Logged, because a stranger reaching a verified OTP at the console door is worth
-      // knowing about. The caller is told nothing beyond "no".
-      this.logger.warn('Platform console login refused for a number not on the allowlist');
-      throw ApiError.unauthenticated('That number cannot sign in here');
+    if (phone === null || !(await this.operators.allows(phone))) {
+      /*
+       * Logged, because a stranger reaching a verified sign-in at the console door is worth
+       * knowing about. The caller is told nothing beyond "no" — and the same "no" whether the
+       * number is unknown, the address is linked to nobody, or the operator was revoked this
+       * morning. The console's URL is not a secret; who may open it should not be enumerable
+       * through it, and three distinguishable refusals would make it so.
+       */
+      this.logger.warn(
+        `Platform console login refused for ${proof.kind === 'phone' ? 'a number' : 'an address'} not on the allowlist`,
+      );
+      throw ApiError.unauthenticated('That account cannot sign in here');
     }
 
     await this.platform.recordLogin(phone);

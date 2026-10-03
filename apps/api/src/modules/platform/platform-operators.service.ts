@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { toE164Indian } from '@sitebook/shared';
 import { ApiError } from '../../common/errors/api-error';
+import { normaliseEmail } from '../auth/phone-auth.service';
 import { PlatformAdmins } from './platform-admins.service';
 import { PlatformDb } from './platform-db.service';
 
 export interface OperatorView {
   phone: string;
   name: string | null;
+  /** A Google address this operator may also sign in with, or null if they have not linked one. */
+  email: string | null;
   /** Root operators come from `PLATFORM_ADMIN_PHONES` and cannot be revoked from here. */
   root: boolean;
   granted_by: string | null;
@@ -63,30 +66,129 @@ export class PlatformOperators {
     return row !== null;
   }
 
+  /**
+   * The phone behind a Google address, or null if nobody has linked it.
+   *
+   * Deliberately resolves to a *phone*. The console's identity is the number — the token carries
+   * it, every audit row is keyed by it — so signing in with an address has to arrive at the same
+   * place as signing in with an SMS, or the trail would record two people where there is one.
+   *
+   * A revoked operator resolves to nothing. The row survives revocation so the record of who had
+   * access when is kept, and the linked address has to stop working with it.
+   */
+  async phoneForEmail(email: string): Promise<string | null> {
+    const row = await this.db.client.platformOperator.findFirst({
+      where: { email, revokedAt: null },
+      select: { phone: true },
+    });
+    return row?.phone ?? null;
+  }
+
   async list(): Promise<OperatorView[]> {
     const granted = await this.db.client.platformOperator.findMany({
       where: { revokedAt: null },
       orderBy: { grantedAt: 'asc' },
     });
 
-    // Root numbers are not in the table, so they are folded in here — an operator list that
-    // omitted the people who own the deployment would be a misleading answer to "who has access".
+    /*
+     * Root numbers are not in the table, so they are folded in here — an operator list that
+     * omitted the people who own the deployment would be a misleading answer to "who has access".
+     *
+     * A root operator *can* have a row, though, since linking a Google address needs somewhere to
+     * put it. So the merge is by phone: the row supplies the address and the name, the env supplies
+     * `root`, and the number appears once. Listing it twice would read as two operators sharing a
+     * number, which is the one thing this table is meant to make visible.
+     */
+    const byPhone = new Map(granted.map((row) => [row.phone, row] as const));
+
     return [
       ...this.admins.phones.map((phone) => ({
         phone,
-        name: null,
+        name: byPhone.get(phone)?.name ?? null,
+        email: byPhone.get(phone)?.email ?? null,
         root: true,
         granted_by: null,
         granted_at: null,
       })),
-      ...granted.map((row) => ({
-        phone: row.phone,
-        name: row.name,
-        root: false,
-        granted_by: row.grantedBy,
-        granted_at: row.grantedAt.toISOString(),
-      })),
+      ...granted
+        .filter((row) => !this.isRoot(row.phone))
+        .map((row) => ({
+          phone: row.phone,
+          name: row.name,
+          email: row.email,
+          root: false,
+          granted_by: row.grantedBy,
+          granted_at: row.grantedAt.toISOString(),
+        })),
     ];
+  }
+
+  /**
+   * Links a Google address to an operator, or clears one.
+   *
+   * Root-only, like granting: an address is a way in, so handing one out is the same act as
+   * handing out console access and belongs to the same small circle.
+   *
+   * A root operator has no row until this creates one. That row is not a grant — `allows()` lets
+   * them in from the env regardless, and `list()` folds it back into the env entry — it is just
+   * where the address lives.
+   */
+  async linkEmail(
+    actorPhone: string,
+    rawPhone: string,
+    rawEmail: string | null,
+  ): Promise<OperatorView> {
+    this.assertRoot(actorPhone);
+
+    const phone = toE164Indian(rawPhone);
+    if (!phone) throw ApiError.validationFailed(undefined, 'That is not an Indian mobile number');
+
+    // Normalised to the same form sign-in arrives in — trimmed and lower-cased, and nothing
+    // cleverer: Gmail ignores dots and `+` suffixes, other providers do not, and normalising on
+    // Google's rules would merge two addresses a different mail server treats as two people. The
+    // shape is checked by the schema at the controller; this is the storage form.
+    const email = rawEmail === null ? null : normaliseEmail(rawEmail);
+
+    if (email) {
+      // Checked before writing so the refusal names the problem. The unique index would catch it
+      // either way, as a constraint violation that says nothing useful to whoever is reading it.
+      const taken = await this.db.client.platformOperator.findFirst({
+        where: { email, phone: { not: phone } },
+        select: { phone: true },
+      });
+      if (taken) {
+        throw ApiError.conflict('Another operator has already linked that address');
+      }
+    }
+
+    const root = this.isRoot(phone);
+    const existing = await this.db.client.platformOperator.findUnique({ where: { phone } });
+    if (!existing && !root) {
+      throw ApiError.notFound('That number does not have console access');
+    }
+    if (existing?.revokedAt && !root) {
+      throw ApiError.notFound('That number does not have console access');
+    }
+
+    const row = await this.db.client.platformOperator.upsert({
+      where: { phone },
+      create: { phone, email, grantedBy: actorPhone },
+      update: { email },
+    });
+
+    await this.audit(actorPhone, email ? 'operator.email_linked' : 'operator.email_cleared', {
+      phone,
+      email,
+    });
+
+    return {
+      phone: row.phone,
+      name: row.name,
+      email: row.email,
+      root,
+      granted_by: root ? null : row.grantedBy,
+      granted_at: root ? null : row.grantedAt.toISOString(),
+    };
   }
 
   async grant(actorPhone: string, input: { phone: string; name?: string }): Promise<OperatorView> {
@@ -116,6 +218,9 @@ export class PlatformOperators {
     return {
       phone: row.phone,
       name: row.name,
+      // Carried through rather than nulled: granting access back to somebody previously revoked
+      // restores their row, and the address they had linked is part of it.
+      email: row.email,
       root: false,
       granted_by: row.grantedBy,
       granted_at: row.grantedAt.toISOString(),

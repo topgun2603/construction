@@ -1175,6 +1175,15 @@ model PlatformOperator {
   /// Stored form, `91XXXXXXXXXX`, matching how a verified phone arrives from Firebase.
   phone      String    @unique
   name       String?
+  /// A Google address this operator may also sign in with.
+  ///
+  /// An alternative key to the same person, never a second identity: a sign-in by address is
+  /// resolved to this row's `phone` before a token is issued, so the audit trail stays phone-keyed
+  /// and a Google login and an SMS login by the same operator are indistinguishable in it.
+  ///
+  /// Nullable, because most operators never link one, and unique where present so one address can
+  /// never open two operator accounts.
+  email      String?   @unique
   /// The root operator who granted this. Kept as a phone, not a foreign key, because the
   /// grantor is usually an env entry with no row here at all.
   grantedBy  String    @map("granted_by")

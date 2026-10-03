@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -21,6 +22,7 @@ import {
   deleteTenantSchema,
   updatePlanSchema,
   grantOperatorSchema,
+  linkOperatorEmailSchema,
   listTenantsQuerySchema,
   platformLoginSchema,
   updateTenantPlatformSchema,
@@ -29,6 +31,7 @@ import {
   type DeleteTenantInput,
   type UpdatePlanInput,
   type GrantOperatorInput,
+  type LinkOperatorEmailInput,
   type ListTenantsQuery,
   type PlatformLoginInput,
   type UpdateTenantPlatformInput,
@@ -234,6 +237,23 @@ export class PlatformController {
     @Body(zodBody(grantOperatorSchema)) body: GrantOperatorInput,
   ) {
     return this.operators.grant(actor(request), body);
+  }
+
+  /**
+   * Links a Google address to an operator, or clears it by sending `null`.
+   *
+   * A `PUT` on the operator rather than a verb, because it sets one field to one value and sending
+   * it twice is the same as sending it once — the address is either linked or it is not.
+   */
+  @UseGuards(PlatformGuard)
+  @Put('operators/:phone/email')
+  @ApiOperation({ summary: 'Link or clear an operator’s Google address' })
+  linkOperatorEmail(
+    @Req() request: PlatformRequest,
+    @Param('phone') phone: string,
+    @Body(zodBody(linkOperatorEmailSchema)) body: LinkOperatorEmailInput,
+  ) {
+    return this.operators.linkEmail(actor(request), phone, body.email);
   }
 
   @UseGuards(PlatformGuard)

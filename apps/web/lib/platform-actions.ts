@@ -77,6 +77,27 @@ export async function grantOperator(input: {
   return result;
 }
 
+/**
+ * Links a Google address to an operator, so they can sign in to the console with it — or clears
+ * the link by passing null.
+ *
+ * Root-only on the API, like granting: an address is a way in, so handing one out is the same act
+ * as handing out access. Not re-checked here, for the reason above.
+ */
+export async function linkOperatorEmail(
+  phone: string,
+  email: string | null,
+): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch(`/operators/${encodeURIComponent(phone)}/email`, {
+      method: 'PUT',
+      body: { email },
+    }),
+  );
+  if (result.ok) revalidatePath('/admin/operators');
+  return result;
+}
+
 export async function revokeOperator(phone: string): Promise<ActionResult> {
   const result = await runAction(() =>
     platformFetch(`/operators/${encodeURIComponent(phone)}`, { method: 'DELETE' }),
