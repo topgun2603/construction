@@ -88,7 +88,7 @@ export function NewTenantDialog({
         <DialogHeader>
           <DialogTitle>{t('New account')}</DialogTitle>
           <DialogDescription>
-            {t('For a customer who is not signing up themselves. They sign in with the owner&apos;s number — nothing is sent, so tell them it is ready.')}
+            {t("For a customer who is not signing up themselves. They sign in with the owner's number — nothing is sent, so tell them it is ready.")}
           </DialogDescription>
         </DialogHeader>
 

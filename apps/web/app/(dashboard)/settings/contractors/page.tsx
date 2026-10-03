@@ -21,7 +21,9 @@ export default async function ContractorsPage() {
     <FadeIn className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <p className="max-w-xl text-[13.5px] leading-relaxed text-ink-muted">
-          {t('Each contractor gets their own wage period. Workers with no contractor are paid as direct labour, which is its own group.')}
+          {t(
+            'Each contractor gets their own wage period. Workers with no contractor are paid as direct labour, which is its own group.',
+          )}
         </p>
         <AddContractorDialog />
       </div>
@@ -30,6 +32,7 @@ export default async function ContractorsPage() {
         <EmptyState
           icon={<Users />}
           title={t('No contractors yet')}
+          illustration="illus_contractors"
           body={t('Add the gangs you subcontract to, so their wage sheets stay separate.')}
           action={<AddContractorDialog />}
         />

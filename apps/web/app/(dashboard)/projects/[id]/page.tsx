@@ -172,8 +172,7 @@ export default async function ProjectPage({
    * them is the builder's margin.
    */
   const canSeePayments =
-    me.enabled_modules.includes('client_portal') &&
-    me.permissions.includes('client_payments.view');
+    me.enabled_modules.includes('client_portal') && me.permissions.includes('client_payments.view');
   const canManagePayments = me.permissions.includes('client_payments.manage');
   const canSeeApprovals = me.enabled_modules.includes('client_portal') && canTalk;
 
@@ -215,9 +214,9 @@ export default async function ProjectPage({
    */
   const shareable =
     active === 'approvals' && hasDocuments
-      ? (
-          await serverFetch<{ items: SiteDocument[] }>(`/documents?project_id=${id}`)
-        ).items.filter((document) => document.visible_to_client)
+      ? (await serverFetch<{ items: SiteDocument[] }>(`/documents?project_id=${id}`)).items.filter(
+          (document) => document.visible_to_client,
+        )
       : [];
   const documents =
     active === 'documents' && hasDocuments
@@ -249,18 +248,22 @@ export default async function ProjectPage({
             )}
           </div>
           <span className="text-[13px] text-ink-muted">
-            {[project.address, project.client_name].filter(Boolean).join(' · ') || 'No site details'}
+            {[project.address, project.client_name].filter(Boolean).join(' · ') ||
+              'No site details'}
           </span>
         </div>
 
         <div className="flex flex-wrap items-end gap-5">
           {canEditSite && <EditSiteDialog project={project} />}
           <dl className="flex gap-7 pb-1">
-          <HeaderStat
-            label={t('Schedule elapsed')}
-            value={timeline ? `${timeline.elapsedPercent}%` : '—'}
-          />
-          <HeaderStat label={t('Budget')} value={budget === null ? '—' : moneyShort(budget.toString())} />
+            <HeaderStat
+              label={t('Schedule elapsed')}
+              value={timeline ? `${timeline.elapsedPercent}%` : '—'}
+            />
+            <HeaderStat
+              label={t('Budget')}
+              value={budget === null ? '—' : moneyShort(budget.toString())}
+            />
             <HeaderStat label={t('Handover')} value={shortDate(project.target_end_date)} />
           </dl>
         </div>
@@ -334,11 +337,7 @@ export default async function ProjectPage({
             canEdit={me.permissions.includes('projects.manage')}
           />
 
-          <ProjectTimeline
-            projectId={id}
-            milestones={milestones}
-            canEdit={canEditTimeline}
-          />
+          <ProjectTimeline projectId={id} milestones={milestones} canEdit={canEditTimeline} />
         </div>
       )}
 
@@ -405,7 +404,10 @@ export default async function ProjectPage({
             <EmptyState
               icon={<FileText />}
               title={t('No reports filed yet')}
-              body={t('Supervisors file the daily progress report from the mobile app. It takes about a minute.')}
+              illustration="illus_reports"
+              body={t(
+                'Supervisors file the daily progress report from the mobile app. It takes about a minute.',
+              )}
             />
           ) : (
             reports.items.map((report) => (
@@ -483,7 +485,9 @@ export default async function ProjectPage({
           </div>
           {members.length === 0 ? (
             <p className="text-[13.5px] text-ink-muted">
-              {t('Nobody is assigned yet. Owners and accounts see every site without being added; anybody else needs putting on it here.')}
+              {t(
+                'Nobody is assigned yet. Owners and accounts see every site without being added; anybody else needs putting on it here.',
+              )}
             </p>
           ) : (
             <ul className="flex flex-col">

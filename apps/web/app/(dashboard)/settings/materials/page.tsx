@@ -25,7 +25,9 @@ export default async function MaterialsPage() {
     <FadeIn className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <p className="max-w-xl text-[13.5px] leading-relaxed text-ink-muted">
-          {t('The catalogue supervisors pick from when raising an indent. Adding a name that already exists reuses it rather than creating a duplicate.')}
+          {t(
+            'The catalogue supervisors pick from when raising an indent. Adding a name that already exists reuses it rather than creating a duplicate.',
+          )}
         </p>
         <AddMaterialDialog />
       </div>
@@ -34,6 +36,7 @@ export default async function MaterialsPage() {
         <EmptyState
           icon={<Package />}
           title={t('No materials yet')}
+          illustration="illus_materials"
           body={t('Add cement, steel and aggregate so site staff can raise indents against them.')}
           action={<AddMaterialDialog />}
         />

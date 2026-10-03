@@ -94,7 +94,7 @@ export function ConsoleStage({ children }: { children: ReactNode }) {
             </h1>
 
             <p className="max-w-[46ch] text-[15px] leading-relaxed text-[#B9B7D0]">
-              {t('Not the builder&rsquo;s app. This console reads across every tenant on the platform and can change what any of them is allowed to do.')}
+              {t('Not the builder’s app. This console reads across every tenant on the platform and can change what any of them is allowed to do.')}
             </p>
           </motion.div>
 

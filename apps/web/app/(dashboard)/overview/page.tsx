@@ -17,6 +17,7 @@ import { OverrunAlert } from './overrun-alert';
 import { SpendBar } from './spend-bar';
 import { TodayFeed } from './today-feed';
 import { getT } from '@/lib/i18n-server';
+import { OverviewBanner } from './overview-banner';
 
 export const metadata = { title: 'Overview · BUILDR' };
 
@@ -45,6 +46,13 @@ export default async function OverviewPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <FadeIn>
+        <OverviewBanner
+          name={me.user.name}
+          siteCount={totals.site_count}
+          headcount={totals.headcount_today}
+        />
+      </FadeIn>
       <FadeIn>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile

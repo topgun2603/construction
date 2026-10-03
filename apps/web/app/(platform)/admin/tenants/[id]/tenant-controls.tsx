@@ -100,7 +100,7 @@ export function TenantControls({
           </div>
           {/* Said plainly, because it is the part that surprises people. */}
           <span className="text-[12px] text-ink-muted">
-            {t('Changing the plan resets modules to that plan&rsquo;s defaults.')}
+            {t('Changing the plan resets modules to that plan’s defaults.')}
           </span>
         </div>
 

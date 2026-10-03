@@ -24,6 +24,7 @@ export default async function ProjectsPage() {
       <EmptyState
         icon={<Building2 />}
         title={t('No projects yet')}
+        illustration="illus_contractors"
         body={t('Create the first site to start filing daily reports, attendance and indents.')}
         action={canCreate ? <NewProjectDialog /> : undefined}
       />

@@ -78,7 +78,7 @@ export function UserMenu({
           )}
           <DropdownMenuItem asChild>
             <Link href="/settings/plan">
-              <ReceiptText /> {t('Plan &amp; modules')}
+              <ReceiptText /> {t('Plan & modules')}
             </Link>
           </DropdownMenuItem>
 

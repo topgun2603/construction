@@ -27,7 +27,7 @@ export async function TodayFeed({
     <Card className={cn('flex flex-col', className)}>
       <div className="flex flex-none items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-          {t('Today&rsquo;s reports')}
+          {t('Today’s reports')}
         </span>
         <span className="font-mono text-[13px] text-ink-muted">{reports.length}</span>
       </div>

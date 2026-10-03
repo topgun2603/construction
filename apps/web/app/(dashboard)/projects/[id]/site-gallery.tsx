@@ -167,7 +167,7 @@ export function SiteGallery({
           </div>
           {canEdit && items.length > 1 && (
             <span className="text-[12px] text-ink-faint">
-              {t('Drag to reorder — the first photo leads this site&rsquo;s card.')}
+              {t('Drag to reorder — the first photo leads this site’s card.')}
             </span>
           )}
         </div>

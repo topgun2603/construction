@@ -21,10 +21,7 @@ export const metadata = { title: 'Roles · BUILDR' };
  */
 export default async function RolesPage() {
   const t = await getT();
-  const [roles, me] = await Promise.all([
-    serverFetch<Role[]>('/roles'),
-    requireSelf(),
-  ]);
+  const [roles, me] = await Promise.all([serverFetch<Role[]>('/roles'), requireSelf()]);
 
   const canManage = me.permissions.includes('roles.manage');
   const system = roles.filter((role) => role.is_system);
@@ -34,9 +31,9 @@ export default async function RolesPage() {
     <FadeIn className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <p className="max-w-xl text-[13.5px] leading-relaxed text-ink-muted">
-          A role is a set of things somebody may do. The five built-in roles cover most
-          builders; create your own when you need something they do not describe — a store
-          keeper who raises indents but approves nothing, say.
+          A role is a set of things somebody may do. The five built-in roles cover most builders;
+          create your own when you need something they do not describe — a store keeper who raises
+          indents but approves nothing, say.
         </p>
         {canManage && <RoleDialog systemRoles={system} />}
       </div>
@@ -49,7 +46,10 @@ export default async function RolesPage() {
           <EmptyState
             icon={<ShieldCheck />}
             title={t('No custom roles yet')}
-            body={t('Start from a built-in role and tick only what the job needs. People keep whatever role they are on until you move them.')}
+            illustration="illus_roles"
+            body={t(
+              'Start from a built-in role and tick only what the job needs. People keep whatever role they are on until you move them.',
+            )}
             action={canManage ? <RoleDialog systemRoles={system} /> : undefined}
           />
         ) : (

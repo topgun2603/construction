@@ -95,7 +95,9 @@ export default async function StockPage({
               than nothing on site
             </span>
             <span className="text-[13px] leading-relaxed text-ink-muted">
-              {t('That means material was issued that the ledger never saw arrive — usually an inward challan nobody entered. Worth fixing now: the overrun report reads as nonsense until it is.')}
+              {t(
+                'That means material was issued that the ledger never saw arrive — usually an inward challan nobody entered. Worth fixing now: the overrun report reads as nonsense until it is.',
+              )}
             </span>
           </div>
         </Card>
@@ -105,14 +107,17 @@ export default async function StockPage({
         <EmptyState
           icon={<Boxes />}
           title={t('Nothing on the stock ledger yet')}
-          body={t('Receiving an approved indent books material in automatically. You can also record a delivery or an issue by hand.')}
+          illustration="illus_stock_empty"
+          body={t(
+            'Receiving an approved indent books material in automatically. You can also record a delivery or an issue by hand.',
+          )}
           action={
             canRecord && projectId ? (
               <RecordMovementDialog
-            projectId={projectId}
-            projects={projects.items}
-            materials={materials.items}
-          />
+                projectId={projectId}
+                projects={projects.items}
+                materials={materials.items}
+              />
             ) : undefined
           }
         />
@@ -172,7 +177,8 @@ export default async function StockPage({
                         </Badge>
                       ) : (
                         <span className="font-mono font-semibold">
-                          {row.on_hand} <span className="text-[12px] text-ink-muted">{row.unit}</span>
+                          {row.on_hand}{' '}
+                          <span className="text-[12px] text-ink-muted">{row.unit}</span>
                         </span>
                       )}
                     </td>

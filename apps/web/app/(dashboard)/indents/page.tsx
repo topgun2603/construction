@@ -45,7 +45,12 @@ export default async function IndentsPage({
           note={urgent.length > 0 ? `${urgent.length} urgent` : t('Nothing urgent')}
           noteTone={urgent.length > 0 ? 'blocked' : 'done'}
         />
-        <StatTile label={t('Approved, not delivered')} value={String(approved.length)} animate note={t('Ordered or awaiting delivery')} />
+        <StatTile
+          label={t('Approved, not delivered')}
+          value={String(approved.length)}
+          animate
+          note={t('Ordered or awaiting delivery')}
+        />
         <StatTile
           label={t('Sites affected')}
           value={String(new Set(waiting.map((indent) => indent.project_id)).size)}
@@ -58,7 +63,10 @@ export default async function IndentsPage({
         <EmptyState
           icon={<ClipboardCheck />}
           title={t('Nothing to approve')}
-          body={t('Material indents raised by supervisors land here for a project manager or owner to clear.')}
+          illustration="illus_deliveries"
+          body={t(
+            'Material indents raised by supervisors land here for a project manager or owner to clear.',
+          )}
         />
       ) : (
         <Stagger className="grid gap-4 lg:grid-cols-2">
