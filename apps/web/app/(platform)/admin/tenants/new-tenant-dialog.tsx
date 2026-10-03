@@ -50,7 +50,17 @@ export function NewTenantDialog({
   const { t } = useLanguage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [plan, setPlan] = useState(plans[0]?.code ?? 'three_months');
+  /*
+   * Lifetime first, where there is one on sale.
+   *
+   * This is the plan the product is sold on, so it is the one an operator is almost always
+   * recording — and the term a customer who paid by cheque has bought. The old default was simply
+   * the first card in the catalogue, which is the shortest term, so the common case needed a change
+   * every time and the mistake it invited was an account that expires on somebody who paid once.
+   */
+  const [plan, setPlan] = useState(
+    () => plans.find((option) => option.months === null)?.code ?? plans[0]?.code ?? '',
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -60,6 +70,12 @@ export function NewTenantDialog({
 
   function submit(formData: FormData) {
     setError(null);
+    // An empty catalogue, which the server would refuse anyway. Said here so it reads as a thing
+    // to go and do rather than as a failed save.
+    if (!plan) {
+      setError('There are no plans to put this account on. Add one on the Plans page first.');
+      return;
+    }
     start(async () => {
       const result = await createTenantFromConsole({
         name: String(formData.get('name') ?? '').trim(),

@@ -177,6 +177,36 @@ describe('platform console', () => {
       expect(response.body.revenue.mrr).toMatch(/^\d+$/);
       expect(typeof response.body.revenue.mrr).toBe('string');
     });
+
+    it('reports lifetime sales separately instead of leaving them out of both figures', async () => {
+      /*
+       * This product is sold mainly on a term that never ends, and MRR counts only what recurs —
+       * so for a while the console showed ₹0 to a business that had sold plenty. The fix is a
+       * second figure, not a fudged first one: the two must not overlap, and lifetime must never
+       * be amortised into a monthly number nobody can justify.
+       */
+      const response = await test.http().get('/v1/admin/metrics').set(adminAuth).expect(200);
+
+      expect(response.body.revenue.lifetime).toMatch(/^\d+$/);
+      expect(typeof response.body.revenue.lifetime).toBe('string');
+      expect(typeof response.body.revenue.lifetime_accounts).toBe('number');
+
+      // A lifetime sale moves the lifetime figure and leaves MRR exactly where it was.
+      const beforeMrr = BigInt(response.body.revenue.mrr);
+      const beforeLifetime = BigInt(response.body.revenue.lifetime);
+
+      await test
+        .http()
+        .post('/v1/billing/subscribe')
+        .set({ Authorization: `Bearer ${tenantB.accessToken}` })
+        .send({ plan: 'lifetime' })
+        .expect(201);
+
+      // Trialing, so neither figure should have moved yet — both only count what is being billed.
+      const onTrial = await test.http().get('/v1/admin/metrics').set(adminAuth).expect(200);
+      expect(BigInt(onTrial.body.revenue.mrr)).toBe(beforeMrr);
+      expect(BigInt(onTrial.body.revenue.lifetime)).toBe(beforeLifetime);
+    });
   });
 
   describe('analytics', () => {

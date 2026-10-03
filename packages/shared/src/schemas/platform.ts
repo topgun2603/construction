@@ -77,6 +77,14 @@ export const createTenantPlatformSchema = z.object({
   name: z.string().trim().min(2).max(160),
   owner_name: z.string().trim().min(1).max(120),
   owner_phone: z.string().trim().min(6).max(20),
-  plan: planCodeSchema.default('three_months'),
+  /**
+   * Required, with no default.
+   *
+   * An operator creating an account has been told what the customer paid for, so there is nothing
+   * for a default to guess. It had one — `three_months` — which quietly put a lifetime customer on
+   * a term that would expire on them; a default of `lifetime` would make the opposite mistake and
+   * give the expensive plan away on a dropped field. The console sends it every time.
+   */
+  plan: planCodeSchema,
 });
 export type CreateTenantPlatformInput = z.infer<typeof createTenantPlatformSchema>;

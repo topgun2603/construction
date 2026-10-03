@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { effectiveModules, monthlyRecurringPaise, type Plan } from '@sitebook/shared';
+import {
+  effectiveModules,
+  lifetimePaise,
+  monthlyRecurringPaise,
+  type Plan,
+} from '@sitebook/shared';
 import { randomUUID } from 'node:crypto';
 import {
   defaultModulesForPlan,
@@ -122,6 +127,18 @@ export class PlatformService {
        */
       revenue: {
         mrr: monthlyRecurringPaise(billable).toString(),
+        /*
+         * Lifetime sales, reported beside MRR rather than folded into it.
+         *
+         * This product is sold mainly on a term that never ends, and MRR counts only what
+         * recurs — so without this figure the console showed ₹0 for a business that had sold
+         * plenty. Total booked, not amortised: there is no honest monthly number to divide a
+         * one-off payment into.
+         */
+        lifetime: lifetimePaise(billable).toString(),
+        lifetime_accounts: billable.filter(
+          (row) => row.months === null && row.billing_status === 'active',
+        ).length,
         paying: billable.filter((row) => row.billing_status === 'active').length,
         trialing: billable.filter((row) => row.billing_status === 'trialing').length,
         past_due: billable.filter((row) => row.billing_status === 'past_due').length,
@@ -133,7 +150,17 @@ export class PlatformService {
         cancelled: statusCount('cancelled'),
         new_this_month: newThisMonth,
       },
-      plans: { starter: planCount('starter'), pro: planCount('pro') },
+      /*
+       * How many accounts sit on each term, keyed by plan code.
+       *
+       * This was `{ starter, pro }` — the two tiers the product had before terms replaced them.
+       * Neither code has existed since, so it reported `{ 0, 0 }` to a console that had stopped
+       * reading it. A map built from the catalogue cannot go stale the same way: a plan added on
+       * the Plans page appears here without a deploy.
+       */
+      plans: Object.fromEntries(
+        [...catalogue.keys()].map((code) => [code, planCount(code)] as const),
+      ),
       usage: {
         users,
         projects,

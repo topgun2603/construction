@@ -738,6 +738,7 @@ export const TA: Record<string, string> = {
   "Files reports and attendance on one or more sites": "ஒரு அல்லது அதற்கு மேற்பட்ட தளங்களில் அறிக்கைகள் மற்றும் வருகை",
   "Half day": "அரை நாள்",
   "Lifetime": "ஆயுள் காலம்",
+  "Lifetime sold": "விற்கப்பட்ட ஆயுள் காலம்",
   "Map": "வரைபடம்",
   "Named attendance": "பெயரிடப்பட்ட வருகை",
   "One person": "ஒரு ஆள்",

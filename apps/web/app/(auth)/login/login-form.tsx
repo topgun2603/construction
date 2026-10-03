@@ -227,10 +227,11 @@ export function LoginForm() {
       const response = await fetch(`${API_URL}/tenants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Onboarding-Token': token },
+        // No plan. The server picks the term from the catalogue — a signup that could name its
+        // own plan could name the lifetime one and be given it.
         body: JSON.stringify({
           name: String(form.get('company') ?? ''),
           owner_name: String(form.get('owner') ?? ''),
-          plan: 'three_months',
         }),
       });
       const payload = (await response.json()) as { tokens?: TokenPair; message?: string };

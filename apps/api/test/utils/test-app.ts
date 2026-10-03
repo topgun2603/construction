@@ -1,4 +1,4 @@
-import type { Plan } from '@sitebook/shared';
+import { expiryAfterMonths, type Plan } from '@sitebook/shared';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -7,6 +7,7 @@ import { APP_OPTIONS, configureApp } from '../../src/app-setup';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { TenantDb } from '../../src/common/prisma/tenant-db.service';
 import { TenantCache } from '../../src/common/auth/tenant-cache.service';
+import { PlansService } from '../../src/modules/plans/plans.service';
 
 export interface TestApp {
   app: INestApplication;
@@ -62,6 +63,13 @@ export async function onboardTenant(
 
   expect(exchange.body.onboarding_required).toBe(true);
 
+  /*
+   * No `plan` in the body. The endpoint does not take one — it chooses the shortest term on sale,
+   * because a request that could name its own plan could name `lifetime` and be given it.
+   *
+   * So a fixture that wants a particular term is put on it afterwards, below, the same way the
+   * console does it.
+   */
   const created = await test
     .http()
     .post('/v1/tenants')
@@ -69,9 +77,26 @@ export async function onboardTenant(
     .send({
       name: options.name,
       owner_name: options.ownerName ?? 'Owner',
-      plan: options.plan ?? 'three_months',
     })
     .expect(201);
+
+  // A fixture that asked for a specific term gets it here. Written straight to the row, with the
+  // same expiry rule the console applies, so the plan the test wanted is the plan it is testing
+  // against — and the tenant cache is dropped, or the guards would keep reading the old one.
+  if (options.plan) {
+    const months = await test.app.get(PlansService).monthsFor(options.plan);
+    await test.tenantDb.transaction(created.body.tenant.id, async (tx) => {
+      await tx.tenant.update({
+        where: { id: created.body.tenant.id },
+        data: {
+          plan: options.plan as string,
+          planStartedOn: new Date(),
+          planExpiresOn: expiryAfterMonths(months, new Date()),
+        },
+      });
+    });
+    test.app.get(TenantCache).invalidate(created.body.tenant.id);
+  }
 
   const me = await test
     .http()

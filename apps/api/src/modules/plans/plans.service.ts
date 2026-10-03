@@ -52,6 +52,32 @@ export class PlansService {
     return row ? toView(row) : null;
   }
 
+  /**
+   * The plan a builder who signs themselves up starts on.
+   *
+   * The shortest term still being sold. It is chosen here, from the catalogue, rather than taken
+   * from the onboarding request — the request used to carry it, which meant anybody who could pass
+   * OTP could ask for `lifetime` and be given it.
+   *
+   * Lifetime can never be picked by this, because a plan with no term cannot be the shortest one.
+   * That is the point: it is the most expensive thing sold here and nobody arrives on it by
+   * accident. If every active plan is a lifetime plan this refuses rather than giving one away —
+   * an operator who sells only lifetime creates the accounts themselves.
+   */
+  async signupPlan(): Promise<string> {
+    const row = await this.prisma.plan.findFirst({
+      where: { isActive: true, months: { not: null } },
+      orderBy: [{ months: 'asc' }, { sortOrder: 'asc' }],
+      select: { code: true },
+    });
+    if (!row) {
+      throw ApiError.conflict(
+        'No plan with a term is on sale, so an account cannot be opened. Ask us to set one up.',
+      );
+    }
+    return row.code;
+  }
+
   /** How long a term runs, for working out when it ends. Null for a plan that never expires. */
   async monthsFor(code: string): Promise<number | null> {
     const row = await this.prisma.plan.findUnique({

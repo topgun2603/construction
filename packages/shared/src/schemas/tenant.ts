@@ -5,11 +5,20 @@ import { MODULES } from '../plans';
 /**
  * `POST /tenants` — onboarding. Authorised by the onboarding token handed back by
  * `/auth/exchange` for an unknown phone, so the phone is never taken from the body.
+ *
+ * **No `plan` field, deliberately.** It used to be here with a default, and the server put the
+ * account on whatever the body said — so anybody who could pass OTP with an unregistered number
+ * could ask for `lifetime` and be given the most expensive plan in the catalogue for nothing. An
+ * unknown code was worse still: the term length of a plan that does not exist is null, which is
+ * also how lifetime is spelled, so a typo bought a lifetime account too.
+ *
+ * Which term a new account starts on is a commercial decision, so the server makes it from the
+ * catalogue. Zod strips unknown keys, so a client still sending `plan` is ignored rather than
+ * rejected.
  */
 export const createTenantSchema = z.object({
   name: z.string().trim().min(2).max(160),
   owner_name: z.string().trim().min(1).max(120),
-  plan: planCodeSchema.default('three_months'),
 });
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 

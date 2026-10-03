@@ -5,6 +5,7 @@ import {
   Building2,
   Flame,
   IndianRupee,
+  Infinity as InfinityIcon,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -31,9 +32,11 @@ export const metadata = { title: 'Overview · BUILDR platform' };
  * activation funnel come first because they say whether the product is working; the
  * dormancy list comes last because it is the one thing on the page with names to ring.
  *
- * There is no revenue figure. Billing is not built yet (spec §16 step 12), so plan prices
- * exist nowhere in this system — and an invented MRR is the one number on a console like
- * this that somebody would actually make a decision on.
+ * Revenue is two figures, not one. This product is sold mainly on a term that never ends, and a
+ * lifetime payment is real money that does not recur — so MRR counts the terms that renew and
+ * "Lifetime sold" counts the rest, side by side. Folding the two together would report a run rate
+ * the business does not have; reporting only MRR, which is what this page used to do, showed ₹0
+ * for a business that had sold plenty.
  */
 export default async function PlatformOverviewPage({
   searchParams,
@@ -71,7 +74,7 @@ export default async function PlatformOverviewPage({
         <RangePicker weeks={analytics.weeks} />
       </div>
 
-      <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {/*
           First tile now that billing exists. Counts only what is actually being charged — a trial or
           a past-due account is not revenue, and the past-due count beside it is the number worth
@@ -88,6 +91,25 @@ export default async function PlatformOverviewPage({
           }
           noteTone={metrics.revenue.past_due > 0 ? 'blocked' : 'done'}
           icon={<IndianRupee className="size-4" />}
+        />
+        {/*
+          Beside MRR rather than inside it. Lifetime is the plan this product is sold on and it is
+          not recurring revenue, so it gets its own figure — total booked, never amortised over a
+          guessed lifespan. Without it the tile above read ₹0 for a business selling lifetime.
+        */}
+        <StatTile
+          label={t('Lifetime sold')}
+          value={moneyShort(metrics.revenue.lifetime)}
+          animate
+          note={
+            metrics.revenue.lifetime_accounts === 0
+              ? 'Nobody on a lifetime plan yet'
+              : `${metrics.revenue.lifetime_accounts} account${
+                  metrics.revenue.lifetime_accounts === 1 ? '' : 's'
+                } · never expires`
+          }
+          noteTone={metrics.revenue.lifetime_accounts > 0 ? 'done' : 'neutral'}
+          icon={<InfinityIcon className="size-4" />}
         />
         <StatTile
           label={t('Tenants')}

@@ -30,6 +30,76 @@ describe('auth and plan gating', () => {
     expect(response.body.code).toBe('UNAUTHENTICATED');
   });
 
+  /*
+   * Onboarding does not let the caller choose its plan.
+   *
+   * It used to. The body carried `plan` and the server put the account on whatever it said, so
+   * anybody who could pass OTP with an unregistered number — which is anybody with a phone — could
+   * ask for `lifetime` and be handed the most expensive plan in the catalogue for nothing. An
+   * unknown code did the same thing by accident: the term of a plan that does not exist is null,
+   * and null is also how lifetime is written, so the expiry came out as "never".
+   *
+   * Two cases, because they failed through different doors and a fix for one is not a fix for both.
+   */
+  describe('the plan a new account lands on', () => {
+    const asked: string[] = [];
+
+    afterAll(async () => {
+      for (const id of asked) await destroyTenant(test, id);
+    });
+
+    /*
+     * Through `tenantDb`, not the plain client.
+     *
+     * `tenants` has FORCE ROW LEVEL SECURITY, so a read outside a transaction that has set
+     * `app.tenant_id` matches no rows at all — `findUniqueOrThrow` would fail for the wrong
+     * reason and the test would look like it had caught something.
+     */
+    async function expiryOf(tenantId: string): Promise<Date | null> {
+      return test.tenantDb.transaction(tenantId, async (tx) => {
+        const row = await tx.tenant.findUniqueOrThrow({
+          where: { id: tenantId },
+          select: { planExpiresOn: true },
+        });
+        return row.planExpiresOn;
+      });
+    }
+
+    async function onboardAsking(plan: string): Promise<{ id: string; plan: string }> {
+      const phone = uniquePhone();
+      const exchange = await test
+        .http()
+        .post('/v1/auth/exchange')
+        .send({ firebase_token: `dev:${phone}` })
+        .expect(200);
+
+      const created = await test
+        .http()
+        .post('/v1/tenants')
+        .set('X-Onboarding-Token', exchange.body.onboarding_token)
+        .send({ name: 'Chancer Builders', owner_name: 'Owner', plan })
+        .expect(201);
+
+      asked.push(created.body.tenant.id);
+      return { id: created.body.tenant.id, plan: created.body.tenant.plan };
+    }
+
+    it('does not hand out lifetime to a request that asks for it', async () => {
+      const tenant = await onboardAsking('lifetime');
+      expect(tenant.plan).not.toBe('lifetime');
+
+      // And the term is real, not absent. An account with no expiry is a lifetime account
+      // whatever its plan column says, which is how this went wrong the first time.
+      expect(await expiryOf(tenant.id)).not.toBeNull();
+    });
+
+    it('does not hand out a never-ending term for a plan that does not exist', async () => {
+      const tenant = await onboardAsking('free_forever_please');
+      expect(tenant.plan).not.toBe('free_forever_please');
+      expect(await expiryOf(tenant.id)).not.toBeNull();
+    });
+  });
+
   it('rejects a tampered token', async () => {
     const tampered = `${tenant.accessToken.slice(0, -4)}AAAA`;
     const response = await test

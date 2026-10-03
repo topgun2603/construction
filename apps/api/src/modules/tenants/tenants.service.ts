@@ -63,17 +63,28 @@ export class TenantsService {
 
     const tenantId = randomUUID();
 
+    /*
+     * The term comes from the catalogue, not from the request.
+     *
+     * It used to be `input.plan`, which the body carried — so `{"plan":"lifetime"}` on this
+     * endpoint opened a lifetime account for free, and an unknown code did the same thing by
+     * accident, because the term length of a plan that does not exist is null and null is how
+     * lifetime is written. Read outside the transaction: `plans` has no tenant_id and no RLS.
+     */
+    const plan = await this.plans.signupPlan();
+    const months = await this.plans.monthsFor(plan);
+
     const { tenant, ownerId } = await this.tenantDb.transaction(tenantId, async (tx) => {
       const created = await tx.tenant.create({
         data: {
           id: tenantId,
           name: input.name,
-          plan: input.plan,
+          plan,
           // The term starts the moment the account does. Without these two an account would have
           // no expiry at all, which reads as lifetime — the most expensive plan, given away.
           planStartedOn: new Date(),
-          planExpiresOn: expiryAfterMonths(await this.plans.monthsFor(input.plan), new Date()),
-          enabledModules: defaultModulesForPlan(input.plan),
+          planExpiresOn: expiryAfterMonths(months, new Date()),
+          enabledModules: defaultModulesForPlan(plan),
         },
         select: selectTenant,
       });

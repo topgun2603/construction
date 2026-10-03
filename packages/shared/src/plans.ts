@@ -156,3 +156,24 @@ export function monthlyRecurringPaise(
     .filter((tenant) => tenant.months !== null && tenant.months > 0)
     .reduce((sum, tenant) => sum + tenant.price / BigInt(tenant.months as number), 0n);
 }
+
+/**
+ * Money booked from plans that never expire, in paise.
+ *
+ * The other half of the sentence `monthlyRecurringPaise` leaves unfinished. Lifetime is kept out
+ * of MRR because it is not recurring, and for a product sold mainly on a lifetime term that left
+ * the console reporting ₹0 beside a real business — the one number on that page somebody would
+ * make a decision on, reading as though nothing had ever been sold.
+ *
+ * So it is counted, separately and plainly: total booked, never divided by anything. There is no
+ * honest monthly figure to turn a one-off into, and inventing one by amortising it over a guessed
+ * lifespan is how a company talks itself into a run rate it does not have.
+ */
+export function lifetimePaise(
+  tenants: ReadonlyArray<{ price: bigint; months: number | null; billing_status: string }>,
+): bigint {
+  return tenants
+    .filter((tenant) => tenant.billing_status === 'active')
+    .filter((tenant) => tenant.months === null)
+    .reduce((sum, tenant) => sum + tenant.price, 0n);
+}

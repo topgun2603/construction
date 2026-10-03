@@ -5,6 +5,7 @@ import {
   effectiveModules,
   hasModule,
   isModuleName,
+  lifetimePaise,
   monthlyRecurringPaise,
   expiryAfterMonths,
   planStanding,
@@ -67,6 +68,41 @@ describe('monthlyRecurringPaise', () => {
       { price: 299_900n, months: 3, billing_status: 'cancelled' },
     ]);
     expect(mrr).toBe(0n);
+  });
+});
+
+describe('lifetimePaise', () => {
+  it('counts a lifetime payment whole, not spread over anything', () => {
+    // The point of the figure. A ₹24,999 lifetime sale is ₹24,999 booked — there is no honest
+    // monthly number to divide it into, because nobody knows how long the account will live.
+    expect(lifetimePaise([{ price: 2_499_900n, months: null, billing_status: 'active' }])).toBe(
+      2_499_900n,
+    );
+  });
+
+  it('leaves out the terms that renew, which MRR already counts', () => {
+    // The two figures partition the catalogue between them. Anything counted twice would be a
+    // console adding a year's MRR to a lifetime total and reporting the same money as both.
+    expect(lifetimePaise([{ price: 999_900n, months: 12, billing_status: 'active' }])).toBe(0n);
+  });
+
+  it('counts only what is actually being billed', () => {
+    expect(
+      lifetimePaise([
+        { price: 2_499_900n, months: null, billing_status: 'cancelled' },
+        { price: 2_499_900n, months: null, billing_status: 'trialing' },
+      ]),
+    ).toBe(0n);
+  });
+
+  it('adds up, so the two figures together describe one business', () => {
+    const rows = [
+      { price: 2_499_900n, months: null, billing_status: 'active' },
+      { price: 2_499_900n, months: null, billing_status: 'active' },
+      { price: 999_900n, months: 12, billing_status: 'active' },
+    ];
+    expect(lifetimePaise(rows)).toBe(4_999_800n);
+    expect(monthlyRecurringPaise(rows)).toBe(83_325n);
   });
 });
 

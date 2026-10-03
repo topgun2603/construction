@@ -41,6 +41,14 @@ export interface PlatformMetrics {
   revenue: {
     /** Paise per month, counting only subscriptions actually being charged. */
     mrr: string;
+    /**
+     * Paise booked from plans that never expire — total, not amortised.
+     *
+     * Kept out of `mrr` because it does not recur, and reported because leaving it out of both
+     * showed ₹0 for a product sold mainly on a lifetime term.
+     */
+    lifetime: string;
+    lifetime_accounts: number;
     paying: number;
     trialing: number;
     past_due: number;
@@ -52,7 +60,8 @@ export interface PlatformMetrics {
     cancelled: number;
     new_this_month: number;
   };
-  plans: { starter: number; pro: number };
+  /** How many accounts sit on each term, keyed by plan code. */
+  plans: Record<string, number>;
   usage: { users: number; projects: number; active_projects: number; workers: number };
 }
 
