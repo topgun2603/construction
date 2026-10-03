@@ -48,7 +48,6 @@ function draw(role: string, permissions: string[], modules = ALL_MODULES) {
     <SideNav
       tenantName="ARK Constructions"
       logoUrl={null}
-      plan="pro"
       role={role}
       permissions={permissions}
       enabledModules={modules}

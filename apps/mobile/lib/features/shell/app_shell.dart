@@ -470,11 +470,6 @@ class _Drawer extends ConsumerWidget {
                       color: Palette.inkFaint,
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    me.plan.isEmpty ? '' : me.planLabel,
-                    style: const TextStyle(fontSize: 12, color: Palette.inkFaint),
-                  ),
                 ],
               ),
             ),

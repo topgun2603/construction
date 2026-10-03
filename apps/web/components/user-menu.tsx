@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useTransition } from 'react';
-import { ChevronDown, Languages, LogOut, ReceiptText, Settings, UserRound } from 'lucide-react';
+import { ChevronDown, Languages, LogOut, Settings, UserRound } from 'lucide-react';
 import { APP_LANGUAGES } from '@sitebook/shared';
 import { signOut } from '@/lib/actions';
 import {
@@ -76,12 +76,6 @@ export function UserMenu({
               </Link>
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem asChild>
-            <Link href="/settings/plan">
-              <ReceiptText /> {t('Plan & modules')}
-            </Link>
-          </DropdownMenuItem>
-
           <DropdownMenuSeparator />
           {/* Language, where somebody looks for it: with the rest of "things about me", not buried
               in settings a supervisor has no permission to open. */}

@@ -5,8 +5,6 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   Banknote,
-  ChevronRight,
-  Crown,
   Receipt,
   Building2,
   FolderOpen,
@@ -165,7 +163,6 @@ const GROUPS: NavGroup[] = [
 export function SideNav({
   tenantName,
   logoUrl,
-  plan,
   role,
   enabledModules,
   permissions,
@@ -174,7 +171,6 @@ export function SideNav({
 }: {
   tenantName: string;
   logoUrl: string | null;
-  plan: string;
   role: string;
   enabledModules: string[];
   permissions: string[];
@@ -230,7 +226,7 @@ export function SideNav({
        * The site, barely there, at the foot of the rail.
        *
        * Desaturated and down at 9%: it is a texture, not a picture. Anything stronger competes
-       * with the plan card sitting on top of it, and the rail's job is to be read past.
+       * and the rail's job is to be read past.
        */}
       <div
         aria-hidden
@@ -359,29 +355,6 @@ export function SideNav({
       </div>
 
       <div className="flex flex-none flex-col gap-2 p-3">
-        {!collapsed && (
-          // A link, not a label. It was the one thing in the rail that looked like a button and
-          // did nothing; what somebody wants after reading "3 months plan" is the plan page.
-          <Link
-            href="/settings/plan"
-            className="flex items-center gap-3 rounded-[13px] border border-white/10 bg-white/[0.07] px-3 py-2.5 backdrop-blur-sm transition hover:bg-white/[0.12]"
-          >
-            <span className="flex size-8 flex-none items-center justify-center rounded-[10px] bg-accent/90">
-              <Crown className="size-4 text-white" />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              {/* No `capitalize`: the catalogue decides how a plan is written — "3 months",
-                  not "3 Months" — and the rail should not restyle somebody's wording. */}
-              <span className="truncate text-[12.5px] font-semibold leading-tight text-white">
-                {plan} plan
-              </span>
-              <span className="text-[11px] leading-snug text-white/45">
-                {enabledModules.length} modules on
-              </span>
-            </span>
-            <ChevronRight className="size-4 flex-none text-white/40" />
-          </Link>
-        )}
         {collapsed && (
           <button
             type="button"

@@ -11,7 +11,6 @@ const TABS = [
   { href: '/settings/contractors', label: 'Contractors' },
   { href: '/settings/materials', label: 'Materials' },
   { href: '/settings/automation', label: 'Automation' },
-  { href: '/settings/plan', label: 'Plan' },
 ];
 
 export function SettingsTabs() {
