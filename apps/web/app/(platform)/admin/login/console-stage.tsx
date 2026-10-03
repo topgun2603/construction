@@ -55,29 +55,30 @@ export function ConsoleStage({ children }: { children: ReactNode }) {
         as a page that loaded wrong.
       */}
       <Image
-        src="/photo_console_hero.webp"
+        src="/admin_bg.webp"
         alt=""
         aria-hidden
         fill
         priority
         sizes="100vw"
-        className="object-cover object-[60%_center]"
+        className="object-cover object-[70%_center]"
       />
 
       {/*
-        Three overlays doing three different jobs, which is why they are not one gradient:
-        a flat purple multiply that grades the whole photograph to the brand, a left-to-right
-        darkening so the headline has something to sit on, and a bottom vignette so the card's
-        lower edge does not float on a bright patch of hi-vis jacket.
+        Two overlays, not three, and no colour multiply.
+
+        The photograph is already the brand's colours — a purple dusk over a lit site — so grading
+        it again only turned the sky to mud. What it does need is somewhere for the type to sit: a
+        left-to-right darkening, because the headline lives on the left where the sky is open, and a
+        bottom vignette so the card's lower edge does not float on the bright scaffolding.
       */}
-      <div aria-hidden className="absolute inset-0 bg-[#2A1A5E] mix-blend-multiply" />
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-r from-[#120D26] via-[#120D26]/85 to-[#120D26]/30"
+        className="absolute inset-0 bg-gradient-to-r from-[#0E0A1E] via-[#0E0A1E]/80 to-[#0E0A1E]/25"
       />
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-t from-[#0E0A1E] via-transparent to-[#0E0A1E]/60"
+        className="absolute inset-0 bg-gradient-to-t from-[#0E0A1E]/90 via-transparent to-[#0E0A1E]/45"
       />
 
       {/* A single accent bloom, kept from the old stage. Slow enough to read as light. */}

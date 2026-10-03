@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Infinity as InfinityIcon, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Check, Infinity as InfinityIcon, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PlanView } from '@sitebook/shared';
 import { createPlan, deletePlan, updatePlan } from '@/lib/platform-actions';
@@ -37,6 +37,20 @@ export function PlanCatalogue({
   const onSale = plans.filter((plan) => plan.is_active);
   const retired = plans.filter((plan) => !plan.is_active);
 
+  /*
+   * Lifetime is pulled out of the grid and given the top of the page.
+   *
+   * Four equal cards said the four terms were four equal choices. They are not: this is sold on
+   * lifetime, and the renewing terms are what somebody takes who is not ready for it yet. A page
+   * that does not say which one is the product makes an operator read four prices to work out the
+   * answer, every time they open it.
+   *
+   * By `months === null` rather than by the code `lifetime`, because the term is the real
+   * definition — an operator who adds "Forever" tomorrow should get the hero too.
+   */
+  const lifetime = onSale.find((plan) => plan.months === null) ?? null;
+  const terms = onSale.filter((plan) => plan !== lifetime);
+
   return (
     <div className="flex flex-col gap-5">
       {canManage && !adding && !editing && (
@@ -57,14 +71,31 @@ export function PlanCatalogue({
         />
       )}
 
+      {lifetime && (
+        <LifetimeHero
+          plan={lifetime}
+          canManage={canManage}
+          onEdit={() => {
+            setAdding(false);
+            setEditing(lifetime);
+          }}
+        />
+      )}
+
       {plans.length === 0 ? (
         <EmptyState
           title={t('No plans yet')}
           body={t('Add the terms you sell. Until there is one, nobody can be put on anything.')}
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[...onSale, ...retired].map((plan) => (
+        <div className="flex flex-col gap-3">
+          {(terms.length > 0 || retired.length > 0) && (
+            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+              {lifetime ? t('Renewing terms') : t('Terms')}
+            </span>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {[...terms, ...retired].map((plan) => (
             <Card
               key={plan.id}
               className={`flex flex-col gap-3 p-4 ${plan.is_active ? '' : 'opacity-60'} ${
@@ -142,9 +173,91 @@ export function PlanCatalogue({
               )}
             </Card>
           ))}
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The lifetime plan, given the top of the page.
+ *
+ * Dark, because it is the one card here that is a statement rather than a row in a list — the same
+ * material as the console's own sign-in door, so the two read as the same product talking about
+ * itself. The price is set large and the term is spelled "Never expires" rather than left as an
+ * absent month count, since "no end date" is the entire proposition being sold.
+ *
+ * Deliberately not a second editor. Everything here is a reading of the same plan row the grid
+ * below edits, and `Edit` opens that same form — a card that could be edited in two places would
+ * eventually disagree with itself about what the price is.
+ */
+function LifetimeHero({
+  plan,
+  canManage,
+  onEdit,
+}: {
+  plan: PlanView;
+  canManage: boolean;
+  onEdit: () => void;
+}) {
+  const { t } = useLanguage();
+
+  return (
+    <Card className="relative isolate overflow-hidden border-0 bg-nav p-0">
+      {/* One accent bloom, as on the console door. Static: a plan card is not a thing to animate. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-20 -top-24 size-[320px] rounded-full bg-accent/30 blur-[90px]"
+      />
+      <div className="relative flex flex-wrap items-center justify-between gap-6 p-6">
+        <div className="flex flex-col gap-3">
+          <span className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.16em] text-accent-onDark">
+            <InfinityIcon className="size-4" />
+            {plan.badge ?? t('What we sell')}
+          </span>
+
+          <div className="flex flex-wrap items-baseline gap-3">
+            <span className="text-[34px] font-semibold leading-none tracking-[-0.03em] text-white">
+              {plan.name}
+            </span>
+            <span className="font-mono text-[28px] font-bold leading-none text-accent-onDark">
+              {money(plan.price)}
+            </span>
+          </div>
+
+          <p className="max-w-[52ch] text-[13.5px] leading-relaxed text-white/60">
+            {plan.description ??
+              t('Paid once. The account never expires, and there is no renewal to miss.')}
+          </p>
+
+          {plan.highlights.length > 0 && (
+            <ul className="flex flex-wrap gap-x-5 gap-y-1.5 pt-1">
+              {plan.highlights.map((line) => (
+                <li
+                  key={line}
+                  className="flex items-center gap-1.5 text-[12.5px] text-white/70"
+                >
+                  <Check className="size-3.5 flex-none text-accent-onDark" />
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex flex-col items-start gap-2.5">
+          <span className="rounded-full bg-white/[0.08] px-3 py-1.5 text-[12px] font-semibold text-white/80 ring-1 ring-inset ring-white/[0.12]">
+            {t('Never expires')} · <code className="font-mono">{plan.code}</code>
+          </span>
+          {canManage && (
+            <Button size="sm" variant="secondary" onClick={onEdit}>
+              <Pencil className="size-3.5" /> {t('Edit')}
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 

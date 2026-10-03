@@ -1,13 +1,20 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Loader2, Play, ShieldAlert } from 'lucide-react';
+import {
+  ArrowRight,
+  Infinity as InfinityIcon,
+  Loader2,
+  Play,
+  ShieldAlert,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { updateTenantPlan } from '@/lib/platform-actions';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { PlanView } from '@sitebook/shared';
+import { money } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MODULES, moduleLabel } from './modules';
 import { useLanguage } from '@/components/language-provider';
@@ -44,6 +51,11 @@ export function TenantControls({
   const [pending, start] = useTransition();
   const [modules, setModules] = useState<string[]>(enabledModules);
 
+  // By term rather than by code, so an operator who adds a second never-ending plan gets the same
+  // treatment without anybody editing this file.
+  const lifetime = plans.find((option) => option.months === null) ?? null;
+  const terms = plans.filter((option) => option !== lifetime);
+
   const dirty =
     modules.length !== enabledModules.length ||
     modules.some((name) => !enabledModules.includes(name));
@@ -67,10 +79,65 @@ export function TenantControls({
 
   return (
     <Card className="flex flex-col gap-4 p-4">
+      {/*
+        Lifetime is lifted out of the term switcher and given its own row.
+
+        It used to be the fourth button in a segmented control, which made a ₹24,999 grant that
+        never expires exactly as easy to click as moving somebody to six months — one pixel of
+        travel between "renews in July" and "never pay again", with no confirmation on either. It
+        is the plan this product is sold on, so it should be the obvious action; it is also the one
+        that cannot be undone by a renewal lapsing, so it should be a deliberate one.
+      */}
+      {lifetime && plan !== lifetime.code && (
+        <ConfirmDialog
+          title={`Give ${tenantName} ${lifetime.name}?`}
+          body={
+            <>
+              {t('Their account stops having an end date. Nothing will expire, no renewal will come up, and the only way back is to put them on a term again — which starts that term from that day.')}
+            </>
+          }
+          confirmLabel={`Give ${lifetime.name}`}
+          successMessage={`${tenantName} is on ${lifetime.name}`}
+          onConfirm={() => updateTenantPlan({ tenantId, plan: lifetime.code })}
+          trigger={
+            <button
+              type="button"
+              disabled={pending}
+              className="group flex w-full items-center gap-3.5 rounded-panel bg-nav px-4 py-3.5 text-left transition hover:bg-nav-active disabled:opacity-60"
+            >
+              <span className="flex size-10 flex-none items-center justify-center rounded-[11px] bg-accent/25 text-accent-onDark ring-1 ring-inset ring-white/[0.1]">
+                <InfinityIcon className="size-5" />
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[14.5px] font-semibold text-white">
+                  {t('Give')} {lifetime.name} · {money(lifetime.price)}
+                </span>
+                <span className="text-[12.5px] text-white/55">
+                  {t('Paid once. The account never expires and no renewal comes up.')}
+                </span>
+              </span>
+              <ArrowRight className="ml-auto size-4 flex-none text-white/40 transition group-hover:translate-x-0.5 group-hover:text-accent-onDark" />
+            </button>
+          }
+        />
+      )}
+
+      {lifetime && plan === lifetime.code && (
+        <div className="flex items-center gap-3.5 rounded-panel border border-accent bg-accent-soft px-4 py-3">
+          <InfinityIcon className="size-5 flex-none text-accent" />
+          <span className="flex flex-col">
+            <span className="text-[14px] font-semibold">{t('On')} {lifetime.name}</span>
+            <span className="text-[12.5px] text-ink-soft">
+              {t('This account has no end date. Putting them on a term below would give them one.')}
+            </span>
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
-            {t('Plan')}
+            {lifetime ? t('Or a renewing term') : t('Plan')}
           </span>
           {/*
             Said out loud because it is not obvious and it is not reversible by clicking back: an
@@ -81,7 +148,7 @@ export function TenantControls({
             {t('Starts the term again from today')}
           </span>
           <div className="flex flex-wrap gap-1 rounded-btn bg-neutral-bg p-1">
-            {plans.map((option) => (
+            {terms.map((option) => (
               <button
                 key={option.code}
                 type="button"
