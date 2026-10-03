@@ -68,7 +68,7 @@ class PaymentSchedule extends ConsumerWidget {
                         ),
                         Expanded(
                           child: _Figure(
-                            label: 'Outstanding',
+                            label: t('Outstanding'),
                             value: formatInr(totals['outstanding'] as String?),
                             strong: true,
                           ),
@@ -110,7 +110,7 @@ class PaymentSchedule extends ConsumerWidget {
                       onPressed: () =>
                           adminSheet(context, _StageForm(projectId: projectId)),
                       icon: const Icon(Icons.add, size: 17),
-                      label: const Text('Add instalment'),
+                      label: Text(t('Add instalment')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -119,7 +119,7 @@ class PaymentSchedule extends ConsumerWidget {
                       onPressed: () =>
                           adminSheet(context, _ReceiptForm(projectId: projectId, stages: items)),
                       icon: const Icon(Icons.south_west, size: 17),
-                      label: const Text('Money in'),
+                      label: Text(t('Money in')),
                     ),
                   ),
                 ],
@@ -288,9 +288,9 @@ class _StageFormState extends ConsumerState<_StageForm> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Add instalment',
+                    t('Add instalment'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -306,12 +306,12 @@ class _StageFormState extends ConsumerState<_StageForm> {
               controller: _label,
               autofocus: true,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'On completion of the slab'),
+              decoration: InputDecoration(hintText: t('On completion of the slab')),
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text(
-                'The client sees this wording, so write what they would recognise.',
+                t('The client sees this wording, so write what they would recognise.'),
                 style: TextStyle(fontSize: 12, color: Palette.inkFaint),
               ),
             ),
@@ -349,7 +349,7 @@ class _StageFormState extends ConsumerState<_StageForm> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                     )
-                  : const Text('Add instalment'),
+                  : Text(t('Add instalment')),
             ),
           ],
         ),
@@ -433,9 +433,9 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Money in',
+                    t('Money in'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -460,9 +460,9 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
               initialValue: _stageId,
               isExpanded: true,
               items: [
-                const DropdownMenuItem<String?>(
+                DropdownMenuItem<String?>(
                   value: null,
-                  child: Text('Nothing in particular'),
+                  child: Text(t('Nothing in particular')),
                 ),
                 for (final stage in widget.stages)
                   DropdownMenuItem<String?>(
@@ -488,7 +488,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
             DropdownButtonFormField<String>(
               initialValue: _mode,
               items: [
-                DropdownMenuItem(value: 'bank', child: Text('Bank transfer')),
+                DropdownMenuItem(value: 'bank', child: Text(t('Bank transfer'))),
                 DropdownMenuItem(value: 'upi', child: Text('UPI')),
                 DropdownMenuItem(value: 'cash', child: Text(t('Cash'))),
               ],
@@ -514,7 +514,7 @@ class _ReceiptFormState extends ConsumerState<_ReceiptForm> {
             const AdminLabel('Reference'),
             TextField(
               controller: _reference,
-              decoration: const InputDecoration(hintText: 'UTR or cheque number'),
+              decoration: InputDecoration(hintText: t('UTR or cheque number')),
             ),
             if (_error != null) ...[const SizedBox(height: 16), AdminError(_error!)],
             const SizedBox(height: 22),

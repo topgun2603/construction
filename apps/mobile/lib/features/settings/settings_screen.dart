@@ -33,7 +33,7 @@ class SettingsScreen extends ConsumerWidget {
         id: 'contractors',
         image: 'images/illus_contractors.png',
         icon: Icons.handshake_outlined,
-        label: 'Contractors',
+        label: t('Contractors'),
         blurb: 'The gangs who bring labour, and how they are paid',
         allowed: me.can('contractors.manage'),
         builder: ContractorsScreen.new,
@@ -70,10 +70,10 @@ class SettingsScreen extends ConsumerWidget {
     final visible = entries.where((entry) => entry.allowed).toList();
 
     if (visible.isEmpty) {
-      return const EmptyNote(
+      return EmptyNote(
         icon: Icons.lock_outline,
-        title: 'Nothing to set up here',
-        body: 'These lists are managed by whoever runs the company account.',
+        title: t('Nothing to set up here'),
+        body: t('These lists are managed by whoever runs the company account.'),
       );
     }
 

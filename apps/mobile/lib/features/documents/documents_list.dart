@@ -170,8 +170,8 @@ class _DocumentsListState extends ConsumerState<DocumentsList> {
                         setState(() => _query = value.trim().toLowerCase());
                         _reset();
                       },
-                      decoration: const InputDecoration(
-                        hintText: 'Search documents',
+                      decoration: InputDecoration(
+                        hintText: t('Search documents'),
                         prefixIcon: Icon(Icons.search, size: 20),
                         isDense: true,
                         contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -188,7 +188,7 @@ class _DocumentsListState extends ConsumerState<DocumentsList> {
                       backgroundColor: Palette.accent,
                       child: const Icon(Icons.tune, size: 20),
                     ),
-                    tooltip: 'Filter and sort',
+                    tooltip: t('Filter and sort'),
                   ),
                 ],
               ),
@@ -240,7 +240,7 @@ class _DocumentsListState extends ConsumerState<DocumentsList> {
               Card(
                 child: EmptyNote(
                   icon: Icons.search_off,
-                  title: 'Nothing matches',
+                  title: t('Nothing matches'),
                   body: _from != null || _to != null
                       ? 'Nothing was filed in that range. Try widening the dates.'
                       : 'Try part of a name, or a different category.',
@@ -348,9 +348,9 @@ class _FilterSheetState extends State<_FilterSheet> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Filter and sort',
+                    t('Filter and sort'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -367,7 +367,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               runSpacing: 8,
               children: [
                 ChoiceChip(
-                  label: const Text('Anything'),
+                  label: Text(t('Anything')),
                   selected: _category == null,
                   onSelected: (_) => setState(() => _category = null),
                 ),
@@ -409,7 +409,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                     _from = null;
                     _to = null;
                   }),
-                  child: const Text('Any date'),
+                  child: Text(t('Any date')),
                 ),
               ),
             const SizedBox(height: 18),
@@ -599,7 +599,7 @@ class _Row extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.open_in_new),
-              title: const Text('Open'),
+              title: Text(t('Open')),
               onTap: () => Navigator.of(context).pop('open'),
             ),
             ListTile(
@@ -615,25 +615,25 @@ class _Row extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Rename or recategorise'),
-              subtitle: const Text(
-                'The same document, filed correctly',
+              title: Text(t('Rename or recategorise')),
+              subtitle: Text(
+                t('The same document, filed correctly'),
                 style: TextStyle(fontSize: 12),
               ),
               onTap: () => Navigator.of(context).pop('edit'),
             ),
             ListTile(
               leading: const Icon(Icons.history),
-              title: const Text('Upload a new revision'),
-              subtitle: const Text(
-                'Keeps the name, the category and who can see it',
+              title: Text(t('Upload a new revision')),
+              subtitle: Text(
+                t('Keeps the name, the category and who can see it'),
                 style: TextStyle(fontSize: 12),
               ),
               onTap: () => Navigator.of(context).pop('revise'),
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Palette.blocked),
-              title: const Text('Remove this revision', style: TextStyle(color: Palette.blocked)),
+              title: Text(t('Remove this revision'), style: TextStyle(color: Palette.blocked)),
               onTap: () => Navigator.of(context).pop('delete'),
             ),
             const SizedBox(height: 8),
@@ -698,7 +698,7 @@ class _Row extends ConsumerWidget {
       case 'delete':
         final agreed = await confirm(
           context,
-          title: 'Remove this revision?',
+          title: t('Remove this revision?'),
           body:
               '$title comes off the list. Earlier revisions stay, and the stored file itself is '
               'kept.',
@@ -880,13 +880,13 @@ Future<String?> _askSource(BuildContext context, {required bool revision}) {
           ListTile(
             leading: const Icon(Icons.attach_file),
             title: Text(t('Choose a file')),
-            subtitle: const Text('A PDF or an image already on this phone'),
+            subtitle: Text(t('A PDF or an image already on this phone')),
             onTap: () => Navigator.of(context).pop('file'),
           ),
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
             title: Text(t('Photograph it')),
-            subtitle: const Text('Paper that only exists on site'),
+            subtitle: Text(t('Paper that only exists on site')),
             onTap: () => Navigator.of(context).pop('camera'),
           ),
           const SizedBox(height: 8),
@@ -933,7 +933,7 @@ class AddDocumentButton extends ConsumerWidget {
       heroTag: 'add-document',
       onPressed: () => addDocument(context, ref, projectId: projectId),
       icon: const Icon(Icons.note_add_outlined),
-      label: const Text('Add document'),
+      label: Text(t('Add document')),
     );
   }
 }
@@ -961,7 +961,7 @@ class _DetailsDialogState extends State<_DetailsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('File this document'),
+      title: Text(t('File this document')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -976,7 +976,7 @@ class _DetailsDialogState extends State<_DetailsDialog> {
               decoration: InputDecoration(
                 labelText: t('Name'),
                 counterText: '',
-                hintText: 'Ground floor slab layout',
+                hintText: t('Ground floor slab layout'),
               ),
             ),
             const SizedBox(height: 14),
@@ -995,9 +995,9 @@ class _DetailsDialogState extends State<_DetailsDialog> {
               onChanged: (value) => setState(() => _share = value ?? false),
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('Let the client open this', style: TextStyle(fontSize: 14)),
-              subtitle: const Text(
-                'Off by default. Something shared by accident is not something you can take back.',
+              title: Text(t('Let the client open this'), style: TextStyle(fontSize: 14)),
+              subtitle: Text(
+                t('Off by default. Something shared by accident is not something you can take back.'),
                 style: TextStyle(fontSize: 11.5),
               ),
             ),
@@ -1005,7 +1005,7 @@ class _DetailsDialogState extends State<_DetailsDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t('Cancel'))),
         TextButton(
           onPressed: _title.text.trim().isEmpty
               ? null
@@ -1051,7 +1051,7 @@ class _EditDetailsDialogState extends State<_EditDetailsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Document details'),
+      title: Text(t('Document details')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1079,7 +1079,7 @@ class _EditDetailsDialogState extends State<_EditDetailsDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t('Cancel'))),
         TextButton(
           onPressed: _title.text.trim().isEmpty
               ? null

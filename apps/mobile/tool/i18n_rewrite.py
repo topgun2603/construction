@@ -27,7 +27,23 @@ ROOT = 'lib'
 DICT_PATH = 'lib/core/i18n_ta.dart'
 
 # The named parameters that carry prose a person reads. Anything not here is left alone.
-PROSE_PARAMS = ('hintText', 'labelText', 'title', 'body', 'label', 'helperText', 'tooltip', 'message')
+PROSE_PARAMS = (
+    'hintText',
+    'labelText',
+    'title',
+    'body',
+    'label',
+    'helperText',
+    'tooltip',
+    'message',
+    # Added after an audit found 155 hard-coded strings this list had never looked at. Kept in step
+    # with `i18n_extract.py`, which is the script that finds what is still missing.
+    'addLabel',
+    'confirmLabel',
+)
+
+
+DECLARATION = re.compile(r'\s*(?:static\s+)?const\s+\w+\s*=')
 
 
 def line_starts(source):
@@ -49,23 +65,78 @@ def unescape(value):
     return value.replace("\\'", "'").replace('\\\\', '\\').replace(r'\$', '$')
 
 
+# One string literal, or a run of adjacent ones.
+#
+# Dart joins `'a ' 'b'` into `'ab'` with no operator between them, and this app wraps every long
+# sentence that way to keep lines under 100 characters. Matching a single literal therefore matched
+# only the first fragment of most real sentences — wrapping that one in `t()` left the rest dangling
+# and turned 28 files into syntax errors. The run has to be matched and replaced whole.
+_ONE = r"""(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")"""
+_RUN = r"(%s(?:\s*%s)*)" % (_ONE, _ONE)
+
+_LITERAL = re.compile(r"""'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)\"""")
+
+
+def join_run(run):
+    """The text Dart would end up with, and whether the run spans more than one literal."""
+    parts = [a if a is not None else b for a, b in _LITERAL.findall(run)]
+    return ''.join(unescape(p) for p in parts), len(parts)
+
+
+def const_spans(source):
+    """Where every `const name = ...;` declaration begins and ends.
+
+    Found by counting brackets from the `=` to the semicolon that closes it, which handles the
+    multi-line list literals this app writes its slide and tab tables as.
+    """
+    spans = []
+    for match in DECLARATION.finditer(source):
+        index = source.find('=', match.start())
+        if index == -1:
+            continue
+        depth = 0
+        while index < len(source):
+            char = source[index]
+            if char in '([{':
+                depth += 1
+            elif char in ')]}':
+                depth -= 1
+            elif char == ';' and depth <= 0:
+                break
+            index += 1
+        spans.append((match.start(), index))
+    return spans
+
+
 def rewrite(source, keys):
     count = [0]
 
+    # Spans of the file that are const declarations. The dictionary is consulted at render, never at
+    # definition: a `const _slides = [...]` is built when the module loads, with no language to read,
+    # so it keeps its English and the widget that renders it calls `t()`.
+    frozen = const_spans(source)
+
     def wrap(match):
-        prefix, quote, body = match.group(1), match.group(2), match.group(3)
-        if unescape(body) not in keys:
+        prefix, run = match.group(1), match.group(2)
+        if any(start <= match.start() < end for start, end in frozen):
+            return match.group(0)
+        text, parts = join_run(run)
+        if text not in keys:
             return match.group(0)
         count[0] += 1
-        return '%st(%s%s%s)' % (prefix, quote, body, quote)
+        # A multi-part run collapses to one literal, because `t('a ' 'b')` is a call with the joined
+        # string — correct, but unreadable, and the key is the joined string anyway.
+        if parts > 1:
+            escaped = (
+                text.replace('\\', '\\\\').replace("'", "\\'").replace('$', '\\$')
+            )
+            return "%st('%s')" % (prefix, escaped)
+        return '%st(%s)' % (prefix, run)
 
-    source = re.sub(r"(\bText\(\s*)(['\"])((?:[^'\"\\]|\\.)*?)\2", wrap, source)
-    # `_Label('People on site')` — this app's own field-label widget, which takes its words
-    # positionally rather than as a named parameter. Every form uses it, so leaving it out of this
-    # list left every field label in English under a Tamil heading.
-    source = re.sub(r"(\b_Label\(\s*)(['\"])((?:[^'\"\\]|\\.)*?)\2", wrap, source)
+    for widget in ('Text', '_Label', 'SectionLabel'):
+        source = re.sub(r"(\b%s\(\s*)%s" % (widget, _RUN), wrap, source)
     source = re.sub(
-        r"(\b(?:%s):\s*)(['\"])((?:[^'\"\\]|\\.)*?)\2" % '|'.join(PROSE_PARAMS),
+        r"(\b(?:%s):\s*)%s" % ('|'.join(PROSE_PARAMS), _RUN),
         wrap,
         source,
     )
@@ -126,9 +197,11 @@ def drop_invalid_consts():
                     # module-level constant should keep its English and be translated where it is
                     # rendered — the same rule the web app settled on.
                     line_start = source.rfind(chr(10), 0, match.start()) + 1
-                    if source[line_start : match.start()].strip() == '':
-                        if re.match(r'\s*const\s+\w+\s*=', source[line_start : match.end() + 40]):
-                            continue
+                    # `const _slides = [...]` and `static const _key = '...'` are declarations, not
+                    # widgets. Stripping their `const` leaves invalid Dart. The first version only
+                    # guarded the unindented case and duly broke `static const` inside a class.
+                    if DECLARATION.match(source[line_start : match.end() + 40]):
+                        continue
                     keyword = match
                 if keyword is None:
                     continue

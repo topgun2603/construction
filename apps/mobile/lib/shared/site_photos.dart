@@ -178,8 +178,8 @@ class _ViewerState extends ConsumerState<_Viewer> {
                   loading: () => const Center(
                     child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white54),
                   ),
-                  error: (_, _) => const Center(
-                    child: Text('Could not load this one', style: TextStyle(color: Colors.white70)),
+                  error: (_, _) => Center(
+                    child: Text(t('Could not load this one'), style: TextStyle(color: Colors.white70)),
                   ),
                   data: (link) => InteractiveViewer(
                     maxScale: 5,

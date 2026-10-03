@@ -35,7 +35,7 @@ class _MaterialsScreenState extends ConsumerState<MaterialsScreen> {
 
     return AdminScaffold(
       title: t('Materials'),
-      addLabel: 'Add material',
+      addLabel: t('Add material'),
       onAdd: canManage ? () => adminSheet(context, const _MaterialForm()) : null,
       child: Column(
         children: [
@@ -228,13 +228,13 @@ class _MaterialFormState extends ConsumerState<_MaterialForm> {
               controller: _name,
               autofocus: true,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'OPC 53 grade cement'),
+              decoration: InputDecoration(hintText: t('OPC 53 grade cement')),
             ),
             const SizedBox(height: 16),
             const AdminLabel('Counted in'),
             TextField(
               controller: _unit,
-              decoration: const InputDecoration(hintText: 'bag'),
+              decoration: InputDecoration(hintText: t('bag')),
             ),
             const Padding(
               padding: EdgeInsets.only(top: 6),
@@ -249,7 +249,7 @@ class _MaterialFormState extends ConsumerState<_MaterialForm> {
             TextField(
               controller: _category,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Cement'),
+              decoration: InputDecoration(hintText: t('Cement')),
             ),
             if (_error != null) ...[const SizedBox(height: 16), AdminError(_error!)],
             const SizedBox(height: 22),

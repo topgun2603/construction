@@ -31,7 +31,7 @@ class RolesScreen extends ConsumerWidget {
 
     return AdminScaffold(
       title: t('Roles'),
-      addLabel: 'New role',
+      addLabel: t('New role'),
       onAdd: canManage ? () => adminSheet(context, const _RoleForm()) : null,
       child: RefreshIndicator(
         onRefresh: () async {
@@ -48,12 +48,12 @@ class RolesScreen extends ConsumerWidget {
             return ListView(
               padding: EdgeInsets.fromLTRB(16, 14, 16, bottomInset(context, hasFab: canManage)),
               children: [
-                const SectionLabel('Yours'),
+                SectionLabel(t('Yours')),
                 if (custom.isEmpty)
                   Card(
                     child: EmptyNote(
                       icon: Icons.lock_outline,
-                      title: 'No roles of your own',
+                      title: t('No roles of your own'),
                       body: canManage
                           ? 'Start one from a built-in role and adjust what it can do.'
                           : 'Only the account owner can add these.',
@@ -63,7 +63,7 @@ class RolesScreen extends ConsumerWidget {
                   for (final role in custom)
                     _RoleCard(role: role, canManage: canManage, editable: true),
                 const SizedBox(height: 18),
-                const SectionLabel('Built in'),
+                SectionLabel(t('Built in')),
                 for (final role in builtIn)
                   _RoleCard(role: role, canManage: canManage, editable: false),
               ],
@@ -229,7 +229,7 @@ class _RoleFormState extends ConsumerState<_RoleForm> {
               controller: _name,
               autofocus: !_editing,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Storekeeper'),
+              decoration: InputDecoration(hintText: t('Storekeeper')),
             ),
             if (!_editing) ...[
               const SizedBox(height: 16),
@@ -251,10 +251,10 @@ class _RoleFormState extends ConsumerState<_RoleForm> {
                   },
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 6),
                 child: Text(
-                  'Copies that role’s permissions, then you adjust them below.',
+                  t('Copies that role’s permissions, then you adjust them below.'),
                   style: TextStyle(fontSize: 12, color: Palette.inkFaint),
                 ),
               ),
@@ -265,8 +265,8 @@ class _RoleFormState extends ConsumerState<_RoleForm> {
               onChanged: (value) => setState(() => _seesAll = value),
               contentPadding: EdgeInsets.zero,
               title: Text(t('Sees every site'), style: TextStyle(fontSize: 14.5)),
-              subtitle: const Text(
-                'Off means they see only the sites they are put on.',
+              subtitle: Text(
+                t('Off means they see only the sites they are put on.'),
                 style: TextStyle(fontSize: 12),
               ),
             ),

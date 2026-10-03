@@ -220,7 +220,7 @@ class ErrorNote extends StatelessWidget {
             OutlinedButton(
               style: OutlinedButton.styleFrom(minimumSize: const Size(130, 44)),
               onPressed: onRetry,
-              child: const Text('Try again'),
+              child: Text(t('Try again')),
             ),
           ],
         ],

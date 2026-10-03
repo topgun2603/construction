@@ -40,7 +40,7 @@ class IndentsScreen extends ConsumerWidget {
                   builder: (_) => const _IndentForm(),
                 ),
                 icon: const Icon(Icons.add),
-                label: const Text('Raise indent'),
+                label: Text(t('Raise indent')),
               ),
             )
           : null,
@@ -55,10 +55,10 @@ class IndentsScreen extends ConsumerWidget {
           builder: (rows) {
             if (rows.isEmpty) {
               return ListView(
-                children: const [
+                children: [
                   EmptyNote(
                     image: 'images/illus_deliveries.png',
-                    title: 'No indents',
+                    title: t('No indents'),
                     body:
                         'An indent is a request for material against a site. Raise one and it goes '
                         'to whoever approves purchases.',
@@ -92,23 +92,23 @@ class IndentsScreen extends ConsumerWidget {
                   return KpiStrip(
                     tiles: [
                       StatTile(
-                        label: 'Waiting on you',
+                        label: t('Waiting on you'),
                         value: '${waiting.length}',
                         tone: waiting.isNotEmpty ? Palette.pending : null,
                         note: waiting.isEmpty ? 'Nothing to decide' : 'Needing a decision',
                       ),
                       StatTile(
-                        label: 'Approved, not delivered',
+                        label: t('Approved, not delivered'),
                         value: '$approved',
                         note: 'Ordered or awaiting delivery',
                       ),
                       StatTile(
-                        label: 'Sites affected',
+                        label: t('Sites affected'),
                         value: '$sites',
                         note: 'With something pending',
                       ),
                       StatTile(
-                        label: 'Indents raised',
+                        label: t('Indents raised'),
                         value: '${rows.length}',
                         note: 'All time',
                       ),
@@ -186,7 +186,7 @@ class _IndentCard extends ConsumerWidget {
                       final messenger = ScaffoldMessenger.of(context);
                       final sure = await confirm(
                         context,
-                        title: 'Withdraw this indent?',
+                        title: t('Withdraw this indent?'),
                         body:
                             'It disappears from the approvals queue. Raise it again if the site '
                             'still needs the material.',
@@ -195,7 +195,7 @@ class _IndentCard extends ConsumerWidget {
                       if (!sure) return;
                       try {
                         await ref.read(apiProvider).removeIndent(indent['id'] as String);
-                        messenger.showSnackBar(const SnackBar(content: Text('Withdrawn')));
+                        messenger.showSnackBar(SnackBar(content: Text(t('Withdrawn'))));
                       } on ApiException catch (error) {
                         messenger.showSnackBar(
                           SnackBar(
@@ -313,7 +313,7 @@ class _IndentCard extends ConsumerWidget {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t('Cancel'))),
           FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(100, 44)),
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
@@ -367,9 +367,9 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Raise an indent',
+                    t('Raise an indent'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -403,7 +403,7 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
 
   Widget _form(List<Map<String, dynamic>> sites, List<Map<String, dynamic>> materials) {
     if (sites.isEmpty) {
-      return EmptyNote(title: t('No sites'), body: 'Nothing to raise an indent against.');
+      return EmptyNote(title: t('No sites'), body: t('Nothing to raise an indent against.'));
     }
     final projectId = _projectId ?? sites.first['id'] as String;
     final materialId = _materialId ?? materials.first['id'] as String;
@@ -449,12 +449,12 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
           decoration: InputDecoration(hintText: '100', suffixText: material['unit'] as String?),
         ),
         const SizedBox(height: 16),
-        const _Label('How urgent'),
+        _Label(t('How urgent')),
         SegmentedButton<String>(
           segments: [
-            ButtonSegment(value: 'normal', label: Text('Normal')),
+            ButtonSegment(value: 'normal', label: Text(t('Normal'))),
             ButtonSegment(value: 'high', label: Text(t('High'))),
-            ButtonSegment(value: 'urgent', label: Text('Urgent')),
+            ButtonSegment(value: 'urgent', label: Text(t('Urgent'))),
           ],
           selected: {_urgency},
           onSelectionChanged: (value) => setState(() => _urgency = value.first),
@@ -465,7 +465,7 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
           controller: _notes,
           maxLines: 2,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(hintText: 'For the second floor slab pour on Friday'),
+          decoration: InputDecoration(hintText: t('For the second floor slab pour on Friday')),
         ),
         if (_error != null) ...[
           const SizedBox(height: 16),
@@ -487,7 +487,7 @@ class _IndentFormState extends ConsumerState<_IndentForm> {
                   width: 20,
                   child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                 )
-              : const Text('Raise indent'),
+              : Text(t('Raise indent')),
         ),
       ],
     );

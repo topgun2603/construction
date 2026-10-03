@@ -28,8 +28,8 @@ class ContractorsScreen extends ConsumerWidget {
     final canDelete = me?.can('contractors.delete') ?? false;
 
     return AdminScaffold(
-      title: 'Contractors',
-      addLabel: 'Add contractor',
+      title: t('Contractors'),
+      addLabel: t('Add contractor'),
       onAdd: canManage ? () => adminSheet(context, const _ContractorForm()) : null,
       child: RefreshIndicator(
         onRefresh: () async {
@@ -45,7 +45,7 @@ class ContractorsScreen extends ConsumerWidget {
                 children: [
                   EmptyNote(
                     icon: Icons.handshake_outlined,
-                    title: 'No contractors yet',
+                    title: t('No contractors yet'),
                     body: canManage
                         ? 'Add the gangs you work with. Workers are grouped under them, and each '
                               'gang gets its own wage run.'
@@ -194,21 +194,21 @@ class _ContractorFormState extends ConsumerState<_ContractorForm> {
               controller: _name,
               autofocus: !_editing,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Kannan steel gang'),
+              decoration: InputDecoration(hintText: t('Kannan steel gang')),
             ),
             const SizedBox(height: 16),
             const AdminLabel('Trade'),
             TextField(
               controller: _trade,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Reinforcement'),
+              decoration: InputDecoration(hintText: t('Reinforcement')),
             ),
             const SizedBox(height: 16),
             const AdminLabel('Phone'),
             TextField(
               controller: _phone,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(prefixText: '+91  ', hintText: 'Optional'),
+              decoration: InputDecoration(prefixText: '+91  ', hintText: t('Optional')),
             ),
             const SizedBox(height: 16),
             const AdminLabel('How often they are paid'),
@@ -220,10 +220,10 @@ class _ContractorFormState extends ConsumerState<_ContractorForm> {
               ],
               onChanged: (value) => setState(() => _terms = value ?? 'weekly'),
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text(
-                'Decides the default range when a wage run is generated for them.',
+                t('Decides the default range when a wage run is generated for them.'),
                 style: TextStyle(fontSize: 12, color: Palette.inkFaint),
               ),
             ),

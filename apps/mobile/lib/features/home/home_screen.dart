@@ -90,7 +90,7 @@ class _Overview extends ConsumerWidget {
           children: [
             Expanded(
               child: StatTile(
-                label: 'On site today',
+                label: t('On site today'),
                 value: '${totals['headcount_today'] ?? 0}',
                 icon: Icons.person_outline,
                 tint: Palette.accentSoft,
@@ -116,7 +116,7 @@ class _Overview extends ConsumerWidget {
             if (me?.can('indents.approve') == true || me?.can('indents.raise') == true)
               Expanded(
                 child: StatTile(
-                  label: 'Indents waiting',
+                  label: t('Indents waiting'),
                   value: '$pendingIndents',
                   icon: Icons.local_shipping_outlined,
                   tint: pendingIndents > 0 ? Palette.pendingBg : Palette.doneBg,
@@ -128,7 +128,7 @@ class _Overview extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: StatTile(
-                  label: 'Expenses waiting',
+                  label: t('Expenses waiting'),
                   value: '$pendingExpenses',
                   icon: Icons.account_balance_wallet_outlined,
                   tint: pendingExpenses > 0 ? Palette.pendingBg : Palette.doneBg,
@@ -148,7 +148,7 @@ class _Overview extends ConsumerWidget {
             children: [
               Expanded(
                 child: StatTile(
-                  label: 'Labour this month',
+                  label: t('Labour this month'),
                   value: formatInrCompact(totals['labour_cost_month'] as String?),
                   icon: Icons.trending_up,
                   tint: Palette.accentSoft,
@@ -157,7 +157,7 @@ class _Overview extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: StatTile(
-                  label: 'Spend this month',
+                  label: t('Spend this month'),
                   value: formatInrCompact(totals['spend_month'] as String?),
                   icon: Icons.bar_chart_rounded,
                   tint: Palette.pendingBg,
@@ -169,18 +169,18 @@ class _Overview extends ConsumerWidget {
 
         const SizedBox(height: 24),
         SectionLabel(
-          'Sites today',
+          t('Sites today'),
           trailing: TextButton(
             onPressed: () => ref.read(currentSectionProvider.notifier).state = 'sites',
             child: Text(t('All sites')),
           ),
         ),
         if (sites.isEmpty)
-          const Card(
+          Card(
             child: EmptyNote(
               icon: Icons.apartment_outlined,
-              title: 'No running sites',
-              body: 'Sites appear here once somebody adds them and they are not yet completed.',
+              title: t('No running sites'),
+              body: t('Sites appear here once somebody adds them and they are not yet completed.'),
             ),
           )
         else
@@ -244,8 +244,8 @@ class _SiteToday extends StatelessWidget {
                         const SizedBox(width: 10),
                         const Icon(Icons.warning_amber_rounded, size: 14, color: Palette.blocked),
                         const SizedBox(width: 3),
-                        const Text(
-                          'issue reported',
+                        Text(
+                          t('issue reported'),
                           style: TextStyle(fontSize: 12.5, color: Palette.blocked),
                         ),
                       ],

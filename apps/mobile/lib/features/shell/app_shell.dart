@@ -88,7 +88,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'attendance',
-    label: 'Roll call',
+    label: t('Roll call'),
     icon: Icons.how_to_reg_outlined,
     builder: AttendanceScreen.new,
     permission: 'attendance.view',
@@ -104,7 +104,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'documents',
-    label: 'Documents',
+    label: t('Documents'),
     icon: Icons.folder_open_outlined,
     builder: DocumentsScreen.new,
     permission: 'documents.view',
@@ -126,14 +126,14 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'indents',
-    label: 'Indents',
+    label: t('Indents'),
     icon: Icons.local_shipping_outlined,
     builder: IndentsScreen.new,
     permission: 'indents.raise',
   ),
   Destination(
     id: 'expenses',
-    label: 'Expenses',
+    label: t('Expenses'),
     icon: Icons.receipt_long_outlined,
     builder: ExpensesScreen.new,
     permission: 'expenses.view',
@@ -147,7 +147,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'settings',
-    label: 'Set up',
+    label: t('Set up'),
     icon: Icons.tune,
     builder: SettingsScreen.new,
     // Any one of these opens the hub; the hub itself decides which lists to show.
@@ -436,7 +436,7 @@ class _Drawer extends ConsumerWidget {
                   const Divider(height: 17, indent: 16, endIndent: 16),
                   ListTile(
                     leading: const Icon(Icons.person_outline, color: Palette.inkSoft),
-                    title: const Text('Your account', style: TextStyle(fontSize: 15)),
+                    title: Text(t('Your account'), style: TextStyle(fontSize: 15)),
                     onTap: () {
                       Navigator.of(context).pop();
                       Navigator.of(

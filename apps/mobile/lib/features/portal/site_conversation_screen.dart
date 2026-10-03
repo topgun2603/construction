@@ -191,8 +191,8 @@ class _SiteConversationScreenState extends ConsumerState<SiteConversationScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
-              'Conversation',
+            Text(
+              t('Conversation'),
               style: TextStyle(fontSize: 17.5, fontWeight: FontWeight.w700),
             ),
             Text(
@@ -224,7 +224,7 @@ class _SiteConversationScreenState extends ConsumerState<SiteConversationScreen>
                       children: [
                         EmptyNote(
                           icon: Icons.forum_outlined,
-                          title: 'Nothing said yet',
+                          title: t('Nothing said yet'),
                           body: canPost
                               ? 'Questions from the client and answers from the site live here, '
                                     'against the job, instead of in somebody’s WhatsApp.'
@@ -376,8 +376,8 @@ class _Bubble extends ConsumerWidget {
                   ],
                   if (team) ...[
                     const SizedBox(height: 5),
-                    const Text(
-                      'The client cannot see this',
+                    Text(
+                      t('The client cannot see this'),
                       style: TextStyle(fontSize: 11, color: Palette.pending),
                     ),
                   ],
@@ -646,9 +646,9 @@ class _Composer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final choices = <({String value, String label, IconData icon})>[
-      (value: 'everyone', label: 'Everyone', icon: Icons.groups_outlined),
-      if (canWriteInternal) (value: 'team', label: 'Team only', icon: Icons.lock_outline),
-      if (people.isNotEmpty) (value: 'direct', label: 'One person', icon: Icons.person_outline),
+      (value: 'everyone', label: t('Everyone'), icon: Icons.groups_outlined),
+      if (canWriteInternal) (value: 'team', label: t('Team only'), icon: Icons.lock_outline),
+      if (people.isNotEmpty) (value: 'direct', label: t('One person'), icon: Icons.person_outline),
     ];
 
     return Container(

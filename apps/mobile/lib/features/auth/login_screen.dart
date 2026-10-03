@@ -134,7 +134,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     _startCooldown();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('A new code is on its way')),
+      SnackBar(content: Text(t('A new code is on its way'))),
     );
   });
 
@@ -314,7 +314,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     const SizedBox(height: 16),
     FilledButton(
       onPressed: _busy ? null : _submitCode,
-      child: _busy ? const _ButtonSpinner() : const Text('Sign in'),
+      child: _busy ? const _ButtonSpinner() : Text(t('Sign in')),
     ),
     const SizedBox(height: 4),
     Row(
@@ -335,7 +335,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   _codeController.clear();
                   _error = null;
                 }),
-          child: const Text('Change number'),
+          child: Text(t('Change number')),
         ),
       ],
     ),
@@ -584,8 +584,8 @@ class _OnboardingNotice extends ConsumerWidget {
               children: [
                 const _Wordmark(),
                 const SizedBox(height: 32),
-                const Text(
-                  'This number is not on any company yet',
+                Text(
+                  t('This number is not on any company yet'),
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: Palette.ink),
                 ),
@@ -600,7 +600,7 @@ class _OnboardingNotice extends ConsumerWidget {
                 const SizedBox(height: 28),
                 OutlinedButton(
                   onPressed: () => ref.read(authControllerProvider.notifier).backToSignIn(),
-                  child: const Text('Try another number'),
+                  child: Text(t('Try another number')),
                 ),
               ],
             ),

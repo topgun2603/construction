@@ -5,6 +5,7 @@ import '../core/api_providers.dart';
 import '../core/db/sync.dart';
 import '../core/auth_controller.dart';
 import '../core/theme.dart';
+import '../core/i18n.dart';
 
 /// What the phone is still holding.
 ///
@@ -72,7 +73,7 @@ class SyncBanner extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   foregroundColor: Palette.pending,
                 ),
-                child: const Text('Try now'),
+                child: Text(t('Try now')),
               ),
       );
     }

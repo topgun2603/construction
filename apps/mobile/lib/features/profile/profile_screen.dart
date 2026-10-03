@@ -27,7 +27,7 @@ class ProfileScreen extends ConsumerWidget {
     if (me == null) return const Scaffold(body: SizedBox.shrink());
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Your account')),
+      appBar: AppBar(title: Text(t('Your account'))),
       body: ListView(
         padding: EdgeInsets.fromLTRB(16, 14, 16, bottomInset(context, hasBar: false)),
         children: [
@@ -61,15 +61,15 @@ class ProfileScreen extends ConsumerWidget {
                   const SizedBox(height: 18),
                   const Divider(height: 1),
                   const SizedBox(height: 14),
-                  _Row(label: 'Company', value: me.companyName),
+                  _Row(label: t('Company'), value: me.companyName),
                   _Row(
                     label: t('Role'),
                     value: me.roleName.isEmpty ? titleCase(me.role) : me.roleName,
                   ),
-                  _Row(label: 'Plan', value: me.planLabel),
+                  _Row(label: t('Plan'), value: me.planLabel),
                   if (me.planExpiresOn != null)
                     _Row(
-                      label: 'Runs until',
+                      label: t('Runs until'),
                       value: longDate(me.planExpiresOn!.substring(0, 10)),
                     ),
                   _Row(
@@ -86,7 +86,7 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 22),
           const _PlanCatalogue(),
-          const SectionLabel('What your role allows'),
+          SectionLabel(t('What your role allows')),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -111,7 +111,7 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 22),
-          const SectionLabel('This build'),
+          SectionLabel(t('This build')),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -120,7 +120,7 @@ class ProfileScreen extends ConsumerWidget {
                 children: [
                   _Row(label: 'API', value: Env.apiUrl),
                   _Row(
-                    label: 'Sign-in',
+                    label: t('Sign-in'),
                     value: Env.devAuthBypass ? 'Development (no SMS)' : 'One-time code by SMS',
                   ),
                 ],
@@ -132,7 +132,7 @@ class ProfileScreen extends ConsumerWidget {
             style: OutlinedButton.styleFrom(foregroundColor: Palette.blocked),
             onPressed: () => _confirmSignOut(context, ref),
             icon: const Icon(Icons.logout, size: 18),
-            label: const Text('Sign out'),
+            label: Text(t('Sign out')),
           ),
         ],
       ),
@@ -143,14 +143,14 @@ class ProfileScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text('You will need the code sent to your number to sign in again.'),
+        title: Text(t('Sign out?')),
+        content: Text(t('You will need the code sent to your number to sign in again.')),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(t('Stay'))),
           FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(100, 44)),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Sign out'),
+            child: Text(t('Sign out')),
           ),
         ],
       ),
@@ -176,7 +176,7 @@ class ProfileScreen extends ConsumerWidget {
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const PopScope(
+        builder: (context) => PopScope(
           canPop: false,
           child: AlertDialog(
             content: Row(
@@ -188,7 +188,7 @@ class ProfileScreen extends ConsumerWidget {
                   child: CircularProgressIndicator(strokeWidth: 2.4),
                 ),
                 SizedBox(width: 16),
-                Text('Signing out…'),
+                Text(t('Signing out…')),
               ],
             ),
           ),
@@ -224,7 +224,7 @@ class _PlanCatalogue extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel('What you can buy'),
+        SectionLabel(t('What you can buy')),
         for (final plan in plans) _PlanCard(plan: plan, yours: plan['code'] == current),
         const SizedBox(height: 8),
         const Padding(

@@ -361,7 +361,7 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
                 if (rows.isEmpty) {
                   return EmptyNote(
                     title: t('No sites'),
-                    body: 'You are not on any site, so there is nothing to report against.',
+                    body: t('You are not on any site, so there is nothing to report against.'),
                   );
                 }
                 final projectId = _projectId ?? rows.first['id'] as String;
@@ -412,7 +412,7 @@ class _ReportFormState extends ConsumerState<_ReportForm> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const _Label('People on site'),
+                              _Label(t('People on site')),
                               TextField(
                                 controller: _headcount,
                                 keyboardType: TextInputType.number,
@@ -725,8 +725,8 @@ class _SpeakRow extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Rather say it? Two lines in Tamil or English fills the form in.',
+          Text(
+            t('Rather say it? Two lines in Tamil or English fills the form in.'),
             style: TextStyle(fontSize: 12.5, color: Palette.inkMuted),
           ),
           const SizedBox(height: 8),

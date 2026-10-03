@@ -38,7 +38,7 @@ class _StockScreenState extends ConsumerState<StockScreen> {
           return EmptyNote(
             icon: Icons.inventory_2_outlined,
             title: t('No sites'),
-            body: 'Stock is counted per site, so there is nothing to show yet.',
+            body: t('Stock is counted per site, so there is nothing to show yet.'),
           );
         }
         final projectId = _projectId ?? siteRows.first['id'] as String;
@@ -122,10 +122,10 @@ class _StockScreenState extends ConsumerState<StockScreen> {
 
                     if (items.isEmpty) {
                       return ListView(
-                        children: const [
+                        children: [
                           EmptyNote(
                             image: 'images/illus_stock_empty.png',
-                            title: 'Nothing booked in',
+                            title: t('Nothing booked in'),
                             body:
                                 'Material appears here once a delivery is received against an '
                                 'indent, or booked in from this screen.',
@@ -156,7 +156,7 @@ class _StockScreenState extends ConsumerState<StockScreen> {
                                   note: empty > 0 ? '$empty at zero' : 'All have stock',
                                 ),
                                 StatTile(
-                                  label: 'Needs checking',
+                                  label: t('Needs checking'),
                                   value: '$negative',
                                   tone: negative > 0 ? Palette.blocked : null,
                                   note: negative > 0
@@ -164,7 +164,7 @@ class _StockScreenState extends ConsumerState<StockScreen> {
                                       : 'Nothing below zero',
                                 ),
                                 StatTile(
-                                  label: 'Booked in',
+                                  label: t('Booked in'),
                                   value: _sum(items, 'received'),
                                   note: 'Across every material',
                                 ),
@@ -371,7 +371,7 @@ class _MovementFormState extends ConsumerState<_MovementForm> {
                 if (rows.isEmpty) {
                   return EmptyNote(
                     title: t('No materials yet'),
-                    body: 'Materials are set up once for the company, then booked per site.',
+                    body: t('Materials are set up once for the company, then booked per site.'),
                   );
                 }
                 final selected = rows.any((row) => row['id'] == _materialId)
@@ -406,7 +406,7 @@ class _MovementFormState extends ConsumerState<_MovementForm> {
             _StockLabel(_type == 'in' ? 'Challan or bill number' : 'Reference'),
             TextField(
               controller: _ref,
-              decoration: const InputDecoration(hintText: 'Optional'),
+              decoration: InputDecoration(hintText: t('Optional')),
             ),
             const SizedBox(height: 16),
             const _StockLabel('When'),
@@ -430,7 +430,7 @@ class _MovementFormState extends ConsumerState<_MovementForm> {
               controller: _note,
               maxLines: 2,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Optional'),
+              decoration: InputDecoration(hintText: t('Optional')),
             ),
             if (_error != null) ...[
               const SizedBox(height: 16),

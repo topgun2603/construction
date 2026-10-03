@@ -155,7 +155,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => _find(),
                 decoration: InputDecoration(
-                  hintText: 'Search a locality or landmark',
+                  hintText: t('Search a locality or landmark'),
                   prefixIcon: const Icon(Icons.search, size: 20),
                   suffixIcon: _searching
                       ? const Padding(
@@ -260,7 +260,7 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
                       onPressed: _locating ? null : _useMyLocation,
                       backgroundColor: Palette.surface,
                       foregroundColor: Palette.accent,
-                      tooltip: 'Use my location',
+                      tooltip: t('Use my location'),
                       child: _locating
                           ? const SizedBox(
                               height: 17,
@@ -277,21 +277,6 @@ class _LocationPickerSheetState extends ConsumerState<LocationPickerSheet> {
                       bottom: 16,
                       child: _Hint('Tap the map to drop a pin, or use the button for where you are'),
                     ),
-                  // OSM's licence asks for attribution wherever their tiles are shown.
-                  const Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: ColoredBox(
-                      color: Color(0xCCFFFFFF),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        child: Text(
-                          'Ã‚Â© OpenStreetMap',
-                          style: TextStyle(fontSize: 9.5, color: Palette.inkMuted),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

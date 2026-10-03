@@ -35,7 +35,7 @@ class WagePeriodsScreen extends ConsumerWidget {
                 foregroundColor: Colors.white,
                 onPressed: () => adminSheet(context, const _GenerateForm()),
                 icon: const Icon(Icons.add),
-                label: const Text('New run'),
+                label: Text(t('New run')),
               ),
             )
           : null,
@@ -53,7 +53,7 @@ class WagePeriodsScreen extends ConsumerWidget {
                 children: [
                   EmptyNote(
                     image: 'images/illus_wages.png',
-                    title: 'No wage runs yet',
+                    title: t('No wage runs yet'),
                     body: canGenerate
                         ? 'Generate one for a contractor and a date range. It adds up the roll '
                               'call for you — nobody retypes attendance into a wage sheet.'
@@ -82,7 +82,7 @@ class WagePeriodsScreen extends ConsumerWidget {
                     child: KpiStrip(
                       tiles: [
                         StatTile(
-                          label: 'Runs',
+                          label: t('Runs'),
                           value: '${rows.length}',
                           note: drafts > 0 ? '$drafts still draft' : 'All settled',
                         ),
@@ -155,13 +155,13 @@ class _PeriodCard extends ConsumerWidget {
               children: [
                 Expanded(
                   child: _Figure(
-                    label: 'Earned',
+                    label: t('Earned'),
                     value: formatInr(period['gross_amount'] as String?),
                   ),
                 ),
                 Expanded(
                   child: _Figure(
-                    label: 'Advances',
+                    label: t('Advances'),
                     value: formatInr(period['advances_deducted'] as String?),
                   ),
                 ),
@@ -181,7 +181,7 @@ class _PeriodCard extends ConsumerWidget {
                   final messenger = ScaffoldMessenger.of(context);
                   final sure = await confirm(
                     context,
-                    title: 'Finalise this run?',
+                    title: t('Finalise this run?'),
                     body:
                         'The figures stop moving. Correcting a day on the roll call after this '
                         'will not change what this run says anybody is owed — that is what makes '
@@ -191,14 +191,14 @@ class _PeriodCard extends ConsumerWidget {
                   if (!sure) return;
                   try {
                     await ref.read(apiProvider).finaliseWagePeriod(period['id'] as String);
-                    messenger.showSnackBar(const SnackBar(content: Text('Finalised')));
+                    messenger.showSnackBar(SnackBar(content: Text(t('Finalised'))));
                   } on ApiException catch (error) {
                     messenger.showSnackBar(
                       SnackBar(content: Text(error.message), backgroundColor: Palette.blocked),
                     );
                   }
                 },
-                child: const Text('Finalise'),
+                child: Text(t('Finalise')),
               ),
             ],
           ],
@@ -266,9 +266,9 @@ class _GenerateFormState extends ConsumerState<_GenerateForm> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'New wage run',
+                    t('New wage run'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -285,9 +285,9 @@ class _GenerateFormState extends ConsumerState<_GenerateForm> {
               error: (error, _) => ErrorNote(error: error),
               data: (rows) {
                 if (rows.isEmpty) {
-                  return const EmptyNote(
-                    title: 'No contractors',
-                    body: 'A wage run is generated per gang. Add one under Set up first.',
+                  return EmptyNote(
+                    title: t('No contractors'),
+                    body: t('A wage run is generated per gang. Add one under Set up first.'),
                   );
                 }
                 return DropdownButtonFormField<String>(
@@ -328,7 +328,7 @@ class _GenerateFormState extends ConsumerState<_GenerateForm> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                     )
-                  : const Text('Generate draft'),
+                  : Text(t('Generate draft')),
             ),
           ],
         ),

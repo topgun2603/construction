@@ -32,7 +32,7 @@ class TeamScreen extends ConsumerWidget {
 
     return AdminScaffold(
       title: t('Team'),
-      addLabel: 'Invite',
+      addLabel: t('Invite'),
       onAdd: canManage ? () => adminSheet(context, const _InviteForm()) : null,
       child: RefreshIndicator(
         onRefresh: () async {
@@ -45,11 +45,11 @@ class TeamScreen extends ConsumerWidget {
           builder: (rows) {
             if (rows.isEmpty) {
               return ListView(
-                children: const [
+                children: [
                   EmptyNote(
                     icon: Icons.badge_outlined,
-                    title: 'Nobody else has a login',
-                    body: 'Invite the people who need to see this app. Workers do not need one.',
+                    title: t('Nobody else has a login'),
+                    body: t('Invite the people who need to see this app. Workers do not need one.'),
                   ),
                 ],
               );
@@ -78,8 +78,8 @@ class TeamScreen extends ConsumerWidget {
                         ),
                         if (isMe) ...[
                           const SizedBox(width: 8),
-                          const Text(
-                            'you',
+                          Text(
+                            t('you'),
                             style: TextStyle(fontSize: 12, color: Palette.inkFaint),
                           ),
                         ],
@@ -189,9 +189,9 @@ class _InviteFormState extends ConsumerState<_InviteForm> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Invite somebody',
+                    t('Invite somebody'),
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -216,10 +216,10 @@ class _InviteFormState extends ConsumerState<_InviteForm> {
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(prefixText: '+91  ', hintText: '98765 43210'),
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text(
-                'They sign in with this number. Nothing is sent — tell them yourself.',
+                t('They sign in with this number. Nothing is sent — tell them yourself.'),
                 style: TextStyle(fontSize: 12, color: Palette.inkFaint),
               ),
             ),
@@ -263,10 +263,10 @@ class _InviteFormState extends ConsumerState<_InviteForm> {
                   ],
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 4),
                 child: Text(
-                  'They see only these. More can be added later.',
+                  t('They see only these. More can be added later.'),
                   style: TextStyle(fontSize: 12, color: Palette.inkFaint),
                 ),
               ),
@@ -281,7 +281,7 @@ class _InviteFormState extends ConsumerState<_InviteForm> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                     )
-                  : const Text('Invite'),
+                  : Text(t('Invite')),
             ),
           ],
         ),

@@ -53,7 +53,7 @@ class ExpensesScreen extends ConsumerWidget {
                   builder: (_) => const _ExpenseForm(),
                 ),
                 icon: const Icon(Icons.add),
-                label: const Text('Record spend'),
+                label: Text(t('Record spend')),
               ),
             )
           : null,
@@ -68,10 +68,10 @@ class ExpensesScreen extends ConsumerWidget {
           builder: (rows) {
             if (rows.isEmpty) {
               return ListView(
-                children: const [
+                children: [
                   EmptyNote(
                     icon: Icons.receipt_long_outlined,
-                    title: 'Nothing recorded',
+                    title: t('Nothing recorded'),
                     body:
                         'Diesel, autos, tea, small tools — the spending that never reaches a '
                         'purchase order but still adds up.',
@@ -104,7 +104,7 @@ class ExpensesScreen extends ConsumerWidget {
                         note: '${rows.length} bills',
                       ),
                       StatTile(
-                        label: 'Awaiting approval',
+                        label: t('Awaiting approval'),
                         value: '${pending.length}',
                         tone: pending.isNotEmpty ? Palette.pending : null,
                         note: pending.isEmpty
@@ -409,7 +409,7 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
               error: (error, _) => ErrorNote(error: error),
               data: (rows) {
                 if (rows.isEmpty) {
-                  return EmptyNote(title: t('No sites'), body: 'Nothing to record against.');
+                  return EmptyNote(title: t('No sites'), body: t('Nothing to record against.'));
                 }
                 final projectId = _projectId ?? rows.first['id'] as String;
                 return Column(
@@ -426,7 +426,7 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    const _Label('Amount'),
+                    _Label(t('Amount')),
                     TextField(
                       controller: _amount,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -457,7 +457,7 @@ class _ExpenseFormState extends ConsumerState<_ExpenseForm> {
                       onChanged: (value) => setState(() => _category = value ?? 'other'),
                     ),
                     const SizedBox(height: 16),
-                    const _Label('When the money left'),
+                    _Label(t('When the money left')),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
                       onPressed: () async {
@@ -637,7 +637,7 @@ class _ScanBillRow extends StatelessWidget {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    label: Text('Reading it…'),
+                    label: Text(t('Reading it…')),
                   )
                 : FilledButton.tonalIcon(
                     onPressed: onScan,

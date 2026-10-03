@@ -64,7 +64,7 @@ class SiteDetailScreen extends ConsumerWidget {
                    * Where it is and what it looks like come before what stage it is at: somebody
                    * opening a site they have never visited wants to recognise the place first.
                    */
-                  const SectionLabel('Location'),
+                  SectionLabel(t('Location')),
                   SiteMap(
                     lat: (data['lat'] as num?)?.toDouble(),
                     lng: (data['lng'] as num?)?.toDouble(),
@@ -85,12 +85,12 @@ class SiteDetailScreen extends ConsumerWidget {
               _ConversationCard(projectId: projectId, siteName: name),
             ],
             const SizedBox(height: 24),
-            const SectionLabel('Photos'),
+            SectionLabel(t('Photos')),
             SitePhotos(projectId: projectId),
             if ((me?.hasModule('documents') ?? false) && (me?.can('documents.view') ?? false)) ...[
               const SizedBox(height: 24),
               SectionLabel(
-                'Documents',
+                t('Documents'),
                 trailing: AddDocumentButton(projectId: projectId, compact: true),
               ),
               DocumentsList(projectId: projectId),
@@ -101,14 +101,14 @@ class SiteDetailScreen extends ConsumerWidget {
             // is how a builder forgets to raise it.
             if ((me?.can('client_payments.view') ?? false)) ...[
               const SizedBox(height: 24),
-              const SectionLabel('Client payments'),
+              SectionLabel(t('Client payments')),
               PaymentSchedule(projectId: projectId),
             ],
             const SizedBox(height: 24),
-            const SectionLabel('Timeline'),
+            SectionLabel(t('Timeline')),
             _Milestones(projectId: projectId),
             const SizedBox(height: 24),
-            const SectionLabel('On this site'),
+            SectionLabel(t('On this site')),
             _Members(projectId: projectId),
           ],
         ),
@@ -172,7 +172,7 @@ class _Header extends StatelessWidget {
                   child: _Pair(label: t('Started'), value: start == null ? '—' : shortDate(start)),
                 ),
                 Expanded(
-                  child: _Pair(label: 'Handover', value: end == null ? '—' : shortDate(end)),
+                  child: _Pair(label: t('Handover'), value: end == null ? '—' : shortDate(end)),
                 ),
                 if (canSeeMoney)
                   Expanded(
@@ -244,11 +244,11 @@ class _Milestones extends ConsumerWidget {
       onRetry: () => ref.invalidate(milestonesProvider(projectId)),
       builder: (rows) {
         if (rows.isEmpty) {
-          return const Card(
+          return Card(
             child: EmptyNote(
               icon: Icons.flag_outlined,
-              title: 'No milestones set',
-              body: 'Stages like foundation, slab and handover are added from the web app.',
+              title: t('No milestones set'),
+              body: t('Stages like foundation, slab and handover are added from the web app.'),
             ),
           );
         }
@@ -309,10 +309,10 @@ class _Members extends ConsumerWidget {
       onRetry: () => ref.invalidate(siteMembersProvider(projectId)),
       builder: (rows) {
         if (rows.isEmpty) {
-          return const Card(
+          return Card(
             child: EmptyNote(
               icon: Icons.groups_outlined,
-              title: 'Nobody assigned',
+              title: t('Nobody assigned'),
               body:
                   'Owners and accounts see every site without being added; anybody else is put on '
                   'it from the web app.',
@@ -385,8 +385,8 @@ class _ConversationCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Conversation',
+                    Text(
+                      t('Conversation'),
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 2),

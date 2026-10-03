@@ -50,7 +50,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           return EmptyNote(
             icon: Icons.how_to_reg_outlined,
             title: t('No sites to mark'),
-            body: 'You are not on any site yet. Whoever runs the account assigns them.',
+            body: t('You are not on any site yet. Whoever runs the account assigns them.'),
           );
         }
         final projectId = _projectId ?? siteRows.first.id;
@@ -92,9 +92,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
 
     final workers = crew.value!;
     if (workers.isEmpty) {
-      return const EmptyNote(
+      return EmptyNote(
         image: 'images/onboarding_rollcall.png',
-        title: 'Nobody is on this site',
+        title: t('Nobody is on this site'),
         body:
             'The roll call only lists workers assigned to this site. Assign them on the site, or '
             'from Workers, and they appear here — with signal or without, once this phone has '
@@ -143,7 +143,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                     }
                     _dirty = true;
                   }),
-                  child: const Text('All present'),
+                  child: Text(t('All present')),
                 ),
             ],
           ),
@@ -393,7 +393,7 @@ class _WorkerRow extends StatelessWidget {
           ),
           _MarkButton(
             label: 'P',
-            tooltip: 'Present',
+            tooltip: t('Present'),
             selected: status == 'present',
             colour: Palette.done,
             enabled: enabled,
@@ -409,7 +409,7 @@ class _WorkerRow extends StatelessWidget {
           ),
           _MarkButton(
             label: 'A',
-            tooltip: 'Absent',
+            tooltip: t('Absent'),
             selected: status == 'absent',
             colour: Palette.blocked,
             enabled: enabled,

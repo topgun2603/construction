@@ -281,7 +281,7 @@ class _WorkerKpis extends StatelessWidget {
           note: '${active.length} active',
         ),
         StatTile(
-          label: 'Contractors',
+          label: t('Contractors'),
           value: '${contractors.length}',
           note: '$direct on direct labour',
         ),
@@ -294,7 +294,7 @@ class _WorkerKpis extends StatelessWidget {
             note: 'If everybody is present',
           ),
         StatTile(
-          label: 'Work types',
+          label: t('Work types'),
           value: '${trades.length}',
           note: 'Kinds of work your crew can do',
         ),
@@ -353,8 +353,8 @@ class _WorkerActions extends ConsumerWidget {
           if (canPay)
             ListTile(
               leading: const Icon(Icons.payments_outlined, color: Palette.accent),
-              title: const Text('Record an advance'),
-              subtitle: const Text('Cash handed over now, set against their wages'),
+              title: Text(t('Record an advance')),
+              subtitle: Text(t('Cash handed over now, set against their wages')),
               onTap: () {
                 Navigator.of(context).pop();
                 showModalBottomSheet<void>(
@@ -387,7 +387,7 @@ class _WorkerActions extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.apartment_outlined, color: Palette.inkSoft),
-              title: const Text('Assign to a site'),
+              title: Text(t('Assign to a site')),
               subtitle: Text(t('From today, so the roll call has them')),
               onTap: () {
                 Navigator.of(context).pop();
@@ -429,7 +429,7 @@ class _WorkerActions extends ConsumerWidget {
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Palette.blocked),
               title: Text(t('Remove'), style: TextStyle(color: Palette.blocked)),
-              subtitle: const Text('Past attendance and wages are kept'),
+              subtitle: Text(t('Past attendance and wages are kept')),
               onTap: () async {
                 final navigator = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
@@ -559,14 +559,14 @@ class _WorkerFormState extends ConsumerState<_WorkerForm> {
             TextField(
               controller: _trade,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Mason'),
+              decoration: InputDecoration(hintText: t('Mason')),
             ),
             const SizedBox(height: 16),
             const _FieldLabel('Phone'),
             TextField(
               controller: _phone,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(prefixText: '+91  ', hintText: 'Optional'),
+              decoration: InputDecoration(prefixText: '+91  ', hintText: t('Optional')),
             ),
             const SizedBox(height: 16),
             const _FieldLabel('Daily wage'),
@@ -587,7 +587,7 @@ class _WorkerFormState extends ConsumerState<_WorkerForm> {
             DropdownButtonFormField<String>(
               initialValue: _skill,
               items: [
-                DropdownMenuItem(value: 'unskilled', child: Text('Unskilled')),
+                DropdownMenuItem(value: 'unskilled', child: Text(t('Unskilled'))),
                 DropdownMenuItem(value: 'semi', child: Text(t('Semi-skilled'))),
                 DropdownMenuItem(value: 'skilled', child: Text(t('Skilled'))),
               ],
@@ -630,10 +630,10 @@ class _WorkerFormState extends ConsumerState<_WorkerForm> {
                   onChanged: (value) => setState(() => _projectId = value),
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 6),
                 child: Text(
-                  'They show up in that site’s roll call from today.',
+                  t('They show up in that site’s roll call from today.'),
                   style: TextStyle(fontSize: 12, color: Palette.inkFaint),
                 ),
               ),
@@ -776,14 +776,14 @@ class _AdvanceFormState extends ConsumerState<_AdvanceForm> {
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
               decoration: const InputDecoration(prefixText: '₹ ', hintText: '2,000'),
             ),
-            const SizedBox(height: 16),
-            const _FieldLabel('What it is'),
+            SizedBox(height: 16),
+            _FieldLabel('What it is'),
             DropdownButtonFormField<String>(
               initialValue: _type,
-              items: const [
-                DropdownMenuItem(value: 'advance', child: Text('Advance against wages')),
-                DropdownMenuItem(value: 'bonus', child: Text('Bonus')),
-                DropdownMenuItem(value: 'deduction', child: Text('Deduction')),
+              items: [
+                DropdownMenuItem(value: 'advance', child: Text(t('Advance against wages'))),
+                DropdownMenuItem(value: 'bonus', child: Text(t('Bonus'))),
+                DropdownMenuItem(value: 'deduction', child: Text(t('Deduction'))),
               ],
               onChanged: (value) => setState(() => _type = value ?? 'advance'),
             ),
@@ -794,7 +794,7 @@ class _AdvanceFormState extends ConsumerState<_AdvanceForm> {
               items: [
                 DropdownMenuItem(value: 'cash', child: Text(t('Cash'))),
                 DropdownMenuItem(value: 'upi', child: Text('UPI')),
-                DropdownMenuItem(value: 'bank', child: Text('Bank transfer')),
+                DropdownMenuItem(value: 'bank', child: Text(t('Bank transfer'))),
               ],
               onChanged: (value) => setState(() => _mode = value ?? 'cash'),
             ),
@@ -820,7 +820,7 @@ class _AdvanceFormState extends ConsumerState<_AdvanceForm> {
               controller: _note,
               maxLines: 2,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Optional'),
+              decoration: InputDecoration(hintText: t('Optional')),
             ),
             if (_error != null) ...[const SizedBox(height: 16), _FormError(_error!)],
             const SizedBox(height: 22),
@@ -947,7 +947,7 @@ class _AssignFormState extends ConsumerState<_AssignForm> {
             const SizedBox(height: 22),
             FilledButton(
               onPressed: _saving ? null : () => _submit(sites.value),
-              child: _saving ? const _Spinner() : const Text('Assign'),
+              child: _saving ? const _Spinner() : Text(t('Assign')),
             ),
           ],
         ),

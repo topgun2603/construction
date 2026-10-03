@@ -22,7 +22,7 @@ class NotificationsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(t('Notifications')),
         actions: [
           if (unread > 0)
             TextButton(
@@ -49,10 +49,10 @@ class NotificationsScreen extends ConsumerWidget {
           builder: (rows) {
             if (rows.isEmpty) {
               return ListView(
-                children: const [
+                children: [
                   EmptyNote(
                     icon: Icons.notifications_none,
-                    title: 'Nothing yet',
+                    title: t('Nothing yet'),
                     body:
                         'Indents needing approval, reports filed and wage sheets ready all land '
                         'here.',

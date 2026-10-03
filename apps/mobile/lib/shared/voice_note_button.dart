@@ -153,7 +153,7 @@ class _VoiceNoteButtonState extends State<VoiceNoteButton> {
         return FilledButton.tonalIcon(
           onPressed: null,
           icon: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-          label: Text('Listening to it…'),
+          label: Text(t('Listening to it…')),
         );
 
       case _Stage.recording:
