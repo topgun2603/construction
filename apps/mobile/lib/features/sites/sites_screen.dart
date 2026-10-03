@@ -163,7 +163,6 @@ class _SiteCard extends StatelessWidget {
     final covers = (site['covers'] as List<dynamic>? ?? const [])
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList();
-    final photoCount = (site['photo_count'] as num?)?.toInt() ?? 0;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -176,138 +175,102 @@ class _SiteCard extends StatelessWidget {
             ),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (covers.isNotEmpty) _Cover(covers: covers, photoCount: photoCount),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          site['name'] as String? ?? 'Site',
-                          style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w600),
+        /*
+         * A thumbnail beside the name, not a cover above it.
+         *
+         * The full-width carousel this replaced showed one site per screen on a phone. A builder
+         * with six jobs opens this list to find one of them, and scrolling past five photographs to
+         * do it is the opposite of what the photographs were for. At 72px the building is still
+         * recognisable — which was the whole argument for showing it — and four sites fit.
+         */
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: covers.isEmpty
+                      ? Container(
+                          color: Palette.neutralBg,
+                          child: const Icon(
+                            Icons.apartment_outlined,
+                            color: Palette.inkFaint,
+                            size: 26,
+                          ),
+                        )
+                      // The cover arrives already signed with the list, so this costs no request.
+                      : Image.network(
+                          covers.first['url'] as String,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            color: Palette.neutralBg,
+                            child: const Icon(
+                              Icons.apartment_outlined,
+                              color: Palette.inkFaint,
+                              size: 26,
+                            ),
+                          ),
                         ),
-                      ),
-                      StatusPill(site['status'] as String? ?? 'planning'),
-                    ],
-                  ),
-                  if (subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: Palette.inkMuted),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _Fact(
-                        icon: Icons.account_balance_wallet_outlined,
-                        text: budget == null ? 'No budget' : formatInrCompact(budget),
-                      ),
-                      const SizedBox(width: 16),
-                      _Fact(
-                        icon: Icons.flag_outlined,
-                        text: site['target_end_date'] == null
-                            ? 'No handover date'
-                            : shortDate(site['target_end_date'] as String),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The photos, swipeable, with a count when there are more than fit.
-class _Cover extends StatefulWidget {
-  const _Cover({required this.covers, required this.photoCount});
-
-  final List<Map<String, dynamic>> covers;
-  final int photoCount;
-
-  @override
-  State<_Cover> createState() => _CoverState();
-}
-
-class _CoverState extends State<_Cover> {
-  int _index = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 170,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(color: Palette.neutralBg),
-          PageView.builder(
-            itemCount: widget.covers.length,
-            onPageChanged: (index) => setState(() => _index = index),
-            itemBuilder: (context, index) => Image.network(
-              widget.covers[index]['url'] as String,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  const Center(child: Icon(Icons.broken_image_outlined, color: Palette.inkFaint)),
-            ),
-          ),
-          if (widget.covers.length > 1)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 10,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (var i = 0; i < widget.covers.length; i++)
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: i == _index ? 16 : 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: i == _index ? Colors.white : Colors.white54,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          if (widget.photoCount > 0)
-            Positioned(
-              right: 10,
-              top: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xB31B1A2E),
-                  borderRadius: BorderRadius.circular(999),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.photo_camera_outlined, size: 12, color: Colors.white),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${widget.photoCount}',
-                      style: const TextStyle(color: Colors.white, fontSize: 11.5),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            site['name'] as String? ?? 'Site',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, size: 20, color: Palette.inkFaint),
+                      ],
+                    ),
+                    if (subtitle.isNotEmpty)
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, color: Palette.inkMuted),
+                      ),
+                    const SizedBox(height: 7),
+                    StatusPill(site['status'] as String? ?? 'planning'),
+                    const SizedBox(height: 9),
+                    Row(
+                      children: [
+                        _Fact(
+                          icon: Icons.account_balance_wallet_outlined,
+                          text: budget == null ? 'No budget' : formatInrCompact(budget),
+                        ),
+                        const SizedBox(width: 14),
+                        Flexible(
+                          child: _Fact(
+                            icon: Icons.flag_outlined,
+                            text: site['target_end_date'] == null
+                                ? 'No handover date'
+                                : shortDate(site['target_end_date'] as String),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

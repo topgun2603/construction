@@ -138,14 +138,37 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
                         if (showHeader)
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
-                            child: Text(
-                              contractor.toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1,
-                                color: Palette.inkMuted,
-                              ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    contractor.toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1,
+                                      color: Palette.accent,
+                                    ),
+                                  ),
+                                ),
+                                // The size of the gang, which is the number somebody is usually
+                                // after when they scroll to a contractor's name at all.
+                                Text(
+                                  () {
+                                    final n = visible
+                                        .where((w) =>
+                                            (w['contractor_name'] as String? ??
+                                                'Direct labour') ==
+                                            contractor)
+                                        .length;
+                                    return '$n ${n == 1 ? 'worker' : 'workers'}';
+                                  }(),
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: Palette.inkMuted,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         Material(
@@ -157,6 +180,11 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                           child: Row(
                             children: [
+                              // Initials, not a photograph. Most workers have no photo on file, and
+                              // a row of identical grey silhouettes is worse than no avatar at all —
+                              // initials at least differ from each other.
+                              _Initials(name: worker['name'] as String? ?? ''),
+                              const SizedBox(width: 11),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -995,4 +1023,44 @@ class _FieldLabel extends StatelessWidget {
       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Palette.inkMuted),
     ),
   );
+}
+
+/// Somebody's initials in a tinted circle.
+class _Initials extends StatelessWidget {
+  const _Initials({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final initials = parts.isEmpty
+        ? '?'
+        : parts.length == 1
+        ? parts.first.characters.first.toUpperCase()
+        : '${parts.first.characters.first}${parts.last.characters.first}'.toUpperCase();
+
+    // Hue from the name, so the same person is the same colour every time the list is drawn — which
+    // is what makes a colour worth having rather than decoration.
+    final hue = (name.hashCode.abs() % 360).toDouble();
+    final colour = HSLColor.fromAHSL(1, hue, 0.45, 0.62).toColor();
+
+    return Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colour.withValues(alpha: 0.18),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: HSLColor.fromAHSL(1, hue, 0.5, 0.34).toColor(),
+        ),
+      ),
+    );
+  }
 }
