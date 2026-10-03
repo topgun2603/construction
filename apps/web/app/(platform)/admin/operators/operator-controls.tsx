@@ -110,7 +110,12 @@ export function OperatorControls({
                   </span>
                 </div>
                 <span className="ml-4">
-                  <EmailLink phone={operator.phone} email={operator.email} canManage={canManage} />
+                  <EmailLink
+                    phone={operator.phone}
+                    email={operator.email}
+                    fromConfig={false}
+                    canManage={canManage}
+                  />
                 </span>
                 {canManage && (
                   <Button

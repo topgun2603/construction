@@ -12,6 +12,8 @@ interface Operator {
   name: string | null;
   /** A Google address they may also sign in with, or null if nobody has linked one. */
   email: string | null;
+  /** True when that address is set in the deployment config, so it cannot be changed here. */
+  email_from_config?: boolean;
   root: boolean;
   granted_by: string | null;
   granted_at: string | null;
@@ -69,7 +71,12 @@ export default async function OperatorsPage() {
                 way a root operator gets one at all.
               */}
               <span className="ml-4">
-                <EmailLink phone={operator.phone} email={operator.email} canManage={me.root} />
+                <EmailLink
+                  phone={operator.phone}
+                  email={operator.email}
+                  fromConfig={operator.email_from_config ?? false}
+                  canManage={me.root}
+                />
               </span>
               <span className="ml-auto flex-none text-[12.5px] text-ink-faint">
                 {t('Number changed by redeploying, not here')}

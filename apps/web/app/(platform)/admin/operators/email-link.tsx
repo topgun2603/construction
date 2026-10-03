@@ -25,16 +25,38 @@ import { useLanguage } from '@/components/language-provider';
 export function EmailLink({
   phone,
   email,
+  fromConfig,
   canManage,
 }: {
   phone: string;
   email: string | null;
+  /** Set in `PLATFORM_ADMIN_PHONES`, so it is shown and not offered for editing. */
+  fromConfig: boolean;
   canManage: boolean;
 }) {
   const { t } = useLanguage();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(email ?? '');
   const [pending, start] = useTransition();
+
+  /*
+   * An address from the deployment config is read-only here, and says why.
+   *
+   * The server refuses to change it — the config wins at sign-in, so a write would appear to
+   * succeed and change nothing. Showing an edit control that always fails is how people learn to
+   * distrust a screen, so it is not shown.
+   */
+  if (fromConfig && email) {
+    return (
+      <span className="flex items-center gap-1.5">
+        <Mail className="size-3.5 flex-none text-accent" aria-hidden />
+        <span className="text-[12.5px] text-ink-soft">{email}</span>
+        <span className="rounded-full bg-neutral-bg px-2 py-0.5 text-[11px] font-medium text-neutral-fg">
+          {t('from the config')}
+        </span>
+      </span>
+    );
+  }
 
   function save(next: string | null) {
     start(async () => {

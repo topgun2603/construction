@@ -402,6 +402,7 @@ export const TA: Record<string, string> = {
   "Newest first. Every revision keeps its own file — opening an old one shows exactly what was issued that day.": "புதியவை முதலில். ஒவ்வொரு திருத்தமும் தனி கோப்பாக இருக்கும் — பழையதைத் திறந்தால் அன்றைய வெளியீடு அப்படியே தெரியும்.",
   "Next": "அடுத்தது",
   "No Google address": "Google முகவரி இல்லை",
+  "No SMS is sent — any mobile number signs in, and an unknown one starts a new account.": "SMS அனுப்பப்படவில்லை — எந்த மொபைல் எண்ணும் உள்நுழையும், தெரியாத ஒன்று புதிய கணக்கைத் தொடங்கும்.",
   "No SMS is sent. Try": "SMS அனுப்பப்படவில்லை. முயற்சி செய்க",
   "No activity yet": "இன்னும் செயல்பாடு இல்லை",
   "No attendance in this period": "இந்த காலத்தில் வருகை இல்லை",
@@ -855,5 +856,6 @@ export const TA: Record<string, string> = {
   "Your roles": "உங்கள் பங்கு",
   "Your work and pay": "உங்கள் வேலை மற்றும் சம்பளம்",
   "Yours": "உங்கள்",
+  "from the config": "கட்டமைப்பிலிருந்து",
   "or": "அல்லது",
 };

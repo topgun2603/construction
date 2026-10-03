@@ -10,6 +10,13 @@ export interface OperatorView {
   name: string | null;
   /** A Google address this operator may also sign in with, or null if they have not linked one. */
   email: string | null;
+  /**
+   * True when that address comes from the deployment config rather than from a grant here.
+   *
+   * The console shows those read-only. A root operator's way in is an environment change by
+   * design — the same reasoning that keeps their number out of this table.
+   */
+  email_from_config?: boolean;
   /** Root operators come from `PLATFORM_ADMIN_PHONES` and cannot be revoked from here. */
   root: boolean;
   granted_by: string | null;
@@ -77,8 +84,14 @@ export class PlatformOperators {
    * access when is kept, and the linked address has to stop working with it.
    */
   async phoneForEmail(email: string): Promise<string | null> {
+    // The deployment config first. A root operator's address is configured there rather than
+    // granted here, and it must keep working even if the table is empty — which it is on a
+    // fresh deployment, and which is exactly when somebody needs to get in.
+    const root = this.admins.phoneForEmail(email);
+    if (root) return root;
+
     const row = await this.db.client.platformOperator.findFirst({
-      where: { email, revokedAt: null },
+      where: { email: normaliseEmail(email), revokedAt: null },
       select: { phone: true },
     });
     return row?.phone ?? null;
@@ -105,7 +118,10 @@ export class PlatformOperators {
       ...this.admins.phones.map((phone) => ({
         phone,
         name: byPhone.get(phone)?.name ?? null,
-        email: byPhone.get(phone)?.email ?? null,
+        // The config wins. An address set there is the one that signs them in, and showing a
+        // stale row's address beside it would be the console lying about who can get in.
+        email: this.admins.emailFor(phone) ?? byPhone.get(phone)?.email ?? null,
+        email_from_config: this.admins.emailFor(phone) !== null,
         root: true,
         granted_by: null,
         granted_at: null,
@@ -116,6 +132,7 @@ export class PlatformOperators {
           phone: row.phone,
           name: row.name,
           email: row.email,
+          email_from_config: false,
           root: false,
           granted_by: row.grantedBy,
           granted_at: row.grantedAt.toISOString(),
@@ -149,9 +166,26 @@ export class PlatformOperators {
     // shape is checked by the schema at the controller; this is the storage form.
     const email = rawEmail === null ? null : normaliseEmail(rawEmail);
 
+    // A root operator whose address is configured cannot have it changed from in here. The config
+    // wins at sign-in, so a write would appear to succeed and change nothing — and their way in
+    // being an environment change is the same rule that keeps their number out of this table.
+    if (this.admins.emailFor(phone) !== null) {
+      throw ApiError.conflict(
+        'That address comes from the deployment config and can only be changed there',
+      );
+    }
+
     if (email) {
-      // Checked before writing so the refusal names the problem. The unique index would catch it
-      // either way, as a constraint violation that says nothing useful to whoever is reading it.
+      // Checked before writing so the refusal names the problem. The unique index would catch the
+      // table case either way, as a constraint violation that says nothing useful to whoever is
+      // reading it — and would not catch the config case at all.
+      const rootOwner = this.admins.phoneForEmail(email);
+      if (rootOwner !== null && rootOwner !== phone) {
+        throw ApiError.conflict(
+          'That address belongs to an operator in the deployment config',
+        );
+      }
+
       const taken = await this.db.client.platformOperator.findFirst({
         where: { email, phone: { not: phone } },
         select: { phone: true },
@@ -185,6 +219,7 @@ export class PlatformOperators {
       phone: row.phone,
       name: row.name,
       email: row.email,
+      email_from_config: false,
       root,
       granted_by: root ? null : row.grantedBy,
       granted_at: root ? null : row.grantedAt.toISOString(),

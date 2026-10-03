@@ -330,10 +330,19 @@ export function LoginForm() {
                   {t('Continue with Google')}
                 </button>
 
+                {/*
+                  No numbers printed here any more.
+
+                  It used to name two seeded accounts, which stopped being true the moment the
+                  seed changed or the data was cleared — and a sign-in page confidently offering a
+                  number that no longer exists is worse than one that offers none. Any number
+                  works in this mode; which ones have data in them is a question for whoever
+                  seeded the database, not for a hardcoded line in the UI.
+                */}
                 {DEV_AUTH_BYPASS && (
                   <p className="rounded-btn border border-pending-line bg-pending-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-pending-fg">
-                    <span className="font-semibold">{t('Developer / demo access.')}</span> {t('No SMS is sent. Try')} <span className="font-mono font-semibold">9000000001</span> (owner) or{' '}
-                    <span className="font-mono font-semibold">9000000003</span> (supervisor).
+                    <span className="font-semibold">{t('Developer / demo access.')}</span>{' '}
+                    {t('No SMS is sent — any mobile number signs in, and an unknown one starts a new account.')}
                   </p>
                 )}
               </form>

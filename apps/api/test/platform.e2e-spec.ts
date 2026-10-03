@@ -548,6 +548,90 @@ describe('platform console', () => {
           .expect(401);
       });
 
+      /*
+       * A root operator's address lives in the deployment config, not in the table.
+       *
+       * `PLATFORM_ADMIN_PHONES` entries may carry one — `91XXXXXXXXXX=someone@gmail.com` — so the
+       * person who owns the deployment can sign in with Google on a brand new install, before
+       * there is any row to grant. One entry is one person: the address resolves to that entry's
+       * number, so the audit trail is keyed by the number whichever way they came in.
+       */
+      describe('a root address from the deployment config', () => {
+        const ROOT_EMAIL = 'owner@example.com';
+
+        beforeAll(() => {
+          process.env['PLATFORM_ADMIN_PHONES'] = `${ADMIN_PHONE}=${ROOT_EMAIL}`;
+        });
+
+        afterAll(() => {
+          process.env['PLATFORM_ADMIN_PHONES'] = ADMIN_PHONE;
+        });
+
+        it('signs the owner in as their number, and as root', async () => {
+          const login = await test
+            .http()
+            .post('/v1/admin/auth/login')
+            .send({ firebase_token: `dev:${ROOT_EMAIL}` })
+            .expect(201);
+          expect(login.body.phone).toBe(ADMIN_PHONE);
+
+          const me = await test
+            .http()
+            .get('/v1/admin/me')
+            .set({ Authorization: `Bearer ${login.body.access_token}` })
+            .expect(200);
+          expect(me.body.phone).toBe(ADMIN_PHONE);
+          expect(me.body.root).toBe(true);
+        });
+
+        it('still takes the number on its own, which the `=` must not have broken', async () => {
+          const login = await test
+            .http()
+            .post('/v1/admin/auth/login')
+            .send({ firebase_token: `dev:${ADMIN_PHONE}` })
+            .expect(201);
+          expect(login.body.phone).toBe(ADMIN_PHONE);
+        });
+
+        it('shows the address on the operator list, marked as coming from the config', async () => {
+          const response = await test.http().get('/v1/admin/operators').set(adminAuth).expect(200);
+          const root = response.body.items.find(
+            (item: { phone: string }) => item.phone === ADMIN_PHONE,
+          );
+          expect(root.email).toBe(ROOT_EMAIL);
+          expect(root.email_from_config).toBe(true);
+        });
+
+        it('refuses to change it from inside the console, where it would do nothing', async () => {
+          // The config wins at sign-in, so a write here would appear to succeed and change
+          // nothing. Their way in is an environment change, like their number.
+          await test
+            .http()
+            .put(`/v1/admin/operators/${ADMIN_PHONE}/email`)
+            .set(adminAuth)
+            .send({ email: 'someone-else@example.com' })
+            .expect(409);
+        });
+
+        it('will not let a granted operator claim the owner’s address', async () => {
+          await test
+            .http()
+            .post('/v1/admin/operators')
+            .set(adminAuth)
+            .send({ phone: '9000000082' })
+            .expect(201);
+
+          await test
+            .http()
+            .put('/v1/admin/operators/919000000082/email')
+            .set(adminAuth)
+            .send({ email: ROOT_EMAIL })
+            .expect(409);
+
+          await test.http().delete('/v1/admin/operators/919000000082').set(adminAuth).expect(204);
+        });
+      });
+
       it('is root-only, like granting: an address is a way in', async () => {
         await test
           .http()
