@@ -111,21 +111,35 @@ export function PlatformLoginForm() {
     setError(null);
     setBusy(true);
     try {
-      if (DEV_AUTH_BYPASS || !isFirebaseConfigured()) {
-        // No popup without Firebase, so development asks for the address directly. This branch is
-        // compiled out of a production bundle, which is why a `prompt` is good enough for it.
+      /*
+       * The real popup whenever Firebase is configured — including in development.
+       *
+       * This used to check `DEV_AUTH_BYPASS` first, which meant a machine with Firebase fully set
+       * up still got a `window.prompt` asking an operator to type their own address. The dev
+       * bypass exists because an SMS costs money and takes a minute; a Google popup costs nothing
+       * and is instant, so there was never a reason to skip it. Firebase being absent is the only
+       * thing that justifies the fallback, so that is the only thing that triggers it.
+       */
+      if (isFirebaseConfigured()) {
+        const credential = await signInWithPopup(firebaseAuth(), new GoogleAuthProvider());
+        await exchange(await credential.user.getIdToken());
+        return;
+      }
+
+      if (DEV_AUTH_BYPASS) {
+        // No Firebase at all, so there is no popup to show. Compiled out of a production bundle,
+        // which is why a `prompt` is good enough for what is left.
         const email = window.prompt('Dev sign-in — Google address to sign in as');
         if (!email) return;
         await exchange(`dev:${email.trim()}`);
         return;
       }
 
-      const credential = await signInWithPopup(firebaseAuth(), new GoogleAuthProvider());
-      await exchange(await credential.user.getIdToken());
+      throw new Error('Google sign-in is not configured on this deployment');
     } catch (cause) {
       // Closing the popup is somebody changing their mind, not an error worth a red box.
       if (isPopupDismissal(cause)) return;
-      setError(cause instanceof Error ? cause.message : 'Could not sign in with Google');
+      setError(googleMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -272,6 +286,30 @@ export function PlatformLoginForm() {
       <div id="platform-recaptcha" ref={recaptchaHost} />
     </div>
   );
+}
+
+/**
+ * Firebase's auth codes, turned into something an operator can act on.
+ *
+ * The raw messages name the SDK rather than the thing to go and fix — `auth/operation-not-allowed`
+ * arrives as "The given sign-in provider is disabled for this Firebase project", which is true and
+ * does not say that the fix is one toggle in the Firebase console. Somebody locked out of their own
+ * platform at the time they most need in should be told where to go.
+ */
+function googleMessage(cause: unknown): string {
+  const code = (cause as { code?: string } | null)?.code;
+  switch (code) {
+    case 'auth/operation-not-allowed':
+      return 'Google sign-in is switched off for this Firebase project. Turn it on under Authentication → Sign-in method, then try again.';
+    case 'auth/unauthorized-domain':
+      return 'This address is not an authorised domain in Firebase. Add it under Authentication → Settings → Authorised domains.';
+    case 'auth/popup-blocked':
+      return 'The browser blocked the sign-in popup. Allow popups for this page and try again.';
+    case 'auth/network-request-failed':
+      return 'Could not reach Google. Check the connection and try again.';
+    default:
+      return cause instanceof Error ? cause.message : 'Could not sign in with Google';
+  }
 }
 
 function isPopupDismissal(cause: unknown): boolean {

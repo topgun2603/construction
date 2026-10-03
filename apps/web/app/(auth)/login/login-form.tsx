@@ -147,18 +147,29 @@ export function LoginForm() {
     setError(null);
     setBusy(true);
     try {
-      if (DEV_AUTH_BYPASS || !isFirebaseConfigured()) {
-        // No popup without Firebase, so development asks for the address directly. `prompt` is
-        // deliberate: this branch is compiled out of a production bundle, and a bespoke dialog for
-        // it would be code nobody but a developer ever sees.
+      /*
+       * The real popup whenever Firebase is configured, development included.
+       *
+       * The dev bypass is there because an SMS costs money and takes a minute. A Google popup
+       * costs nothing and is instant, so skipping it bought nothing and cost a `window.prompt`
+       * asking somebody to type the address they were about to pick from a list.
+       */
+      if (isFirebaseConfigured()) {
+        const credential = await signInWithPopup(firebaseAuth(), new GoogleAuthProvider());
+        await exchange(await credential.user.getIdToken());
+        return;
+      }
+
+      if (DEV_AUTH_BYPASS) {
+        // No Firebase at all, so there is no popup to show. Compiled out of a production bundle,
+        // which is why a `prompt` is good enough for what is left.
         const email = window.prompt('Dev sign-in — Google address to sign in as');
         if (!email) return;
         await exchange(`dev:${email.trim()}`);
         return;
       }
 
-      const credential = await signInWithPopup(firebaseAuth(), new GoogleAuthProvider());
-      await exchange(await credential.user.getIdToken());
+      throw new Error('Google sign-in is not configured on this deployment');
     } catch (cause) {
       // Closing the popup is not an error worth a red box — it is somebody changing their mind.
       if (isPopupDismissal(cause)) return;
