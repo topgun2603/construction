@@ -86,6 +86,13 @@ flutter:
 
   assets:
     - assets/logo.png
+    # The onboarding illustrations and the sign-in hero. Listed one by one rather than as a
+    # directory so that the reference comparison shot sitting beside them does not ship in the APK.
+    - images/onbaoard_1.png
+    - images/onbaoard_2.png
+    - images/onbaoard_3.png
+    - images/onbaoard_4.png
+    - images/hero_bg.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

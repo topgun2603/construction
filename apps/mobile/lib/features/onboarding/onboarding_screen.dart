@@ -25,9 +25,9 @@ class OnboardingFlag {
 }
 
 class _Slide {
-  const _Slide({required this.icon, required this.title, required this.body});
+  const _Slide({required this.image, required this.title, required this.body});
 
-  final IconData icon;
+  final String image;
   final String title;
   final String body;
 }
@@ -38,30 +38,35 @@ class _Slide {
 /// manual, they are standing at a gate wondering whether this is the thing their boss told them to
 /// install. Every claim here is something the app actually does today — an onboarding that promises
 /// features which are not built is how a product loses somebody in the first minute.
+///
+/// The illustrations carry most of the weight, because the first thing somebody decides is whether
+/// this app is *for them*: three men in hi-vis around a tablet says that faster than any sentence.
+/// The file names do not match the slide order — they were drawn before the order was settled — so
+/// the mapping is spelled out here rather than left to be inferred from a number.
 const _slides = <_Slide>[
   _Slide(
-    icon: Icons.how_to_reg_outlined,
+    image: 'images/onbaoard_3.png', // the roll call card
     title: 'Mark the roll call in a minute',
     body:
         'Your crew, grouped by contractor, three big buttons each. The whole day is saved in one '
         'go, so half a roll call can never get stuck on a bad signal.',
   ),
   _Slide(
-    icon: Icons.assignment_outlined,
+    image: 'images/onbaoard_4.png', // the day's report, with photographs
     title: 'File the day before you leave',
     body:
         'What got done, who was on site, what is in the way — and photographs of it. The office '
         'sees it the moment you send it.',
   ),
   _Slide(
-    icon: Icons.local_shipping_outlined,
+    image: 'images/onbaoard_2.png', // a material request, approved or rejected
     title: 'Ask for material, get an answer',
     body:
         'Raise an indent from the site. Whoever approves purchases sees it on their phone and '
         'says yes or no, with a reason.',
   ),
   _Slide(
-    icon: Icons.lock_outline,
+    image: 'images/onbaoard_1.png', // sites, tasks, access and role behind a lock
     title: 'You see your sites, nothing else',
     body:
         'What you can open is decided by the role your company gave you. Wages, budgets and other '
@@ -106,7 +111,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               alignment: Alignment.centerRight,
               child: Padding(
                 padding: const EdgeInsets.only(right: 8, top: 4),
-                child: TextButton(onPressed: _finish, child: Text(t('Skip'))),
+                child: TextButton(
+                  onPressed: _finish,
+                  child: Text(
+                    t('Skip'),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
             ),
             Expanded(
@@ -142,7 +153,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         duration: const Duration(milliseconds: 260),
                         curve: Curves.easeOut,
                       ),
-                child: Text(last ? 'Sign in' : 'Next'),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      last ? t('Get Started') : t('Next'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.arrow_forward_rounded, size: 19),
+                  ],
+                ),
               ),
             ),
           ],
@@ -160,28 +181,41 @@ class _SlideView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 108,
-            height: 108,
-            decoration: const BoxDecoration(color: Palette.accentSoft, shape: BoxShape.circle),
-            child: Icon(slide.icon, size: 48, color: Palette.accent),
+          Expanded(
+            child: Center(
+              /*
+               * `contain`, not `cover`.
+               *
+               * These are illustrations with a soft edge and no safe crop: cropping one to fill a
+               * box cuts a hard-hat off at the brow on a short phone, which reads as a mistake
+               * rather than as a composition. Letting it letterbox costs nothing — the background
+               * behind it is the same white.
+               */
+              child: Image.asset(slide.image, fit: BoxFit.contain),
+            ),
           ),
-          const SizedBox(height: 36),
+          const SizedBox(height: 28),
           Text(
             t(slide.title),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.25),
+            style: const TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              height: 1.25,
+              color: Palette.ink,
+            ),
           ),
           const SizedBox(height: 14),
           Text(
             t(slide.body),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15.5, color: Palette.inkMuted, height: 1.55),
+            style: const TextStyle(fontSize: 15, color: Palette.inkMuted, height: 1.55),
           ),
+          const SizedBox(height: 18),
         ],
       ),
     );

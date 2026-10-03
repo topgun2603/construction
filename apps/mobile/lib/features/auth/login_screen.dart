@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api_client.dart';
 import '../../core/auth_controller.dart';
-import '../../core/env.dart';
 import '../../core/phone.dart';
 import '../../core/google_auth.dart';
 import '../../core/i18n.dart';
@@ -149,51 +148,75 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = ref.watch(phoneAuthProvider);
     final status = ref.watch(authControllerProvider).status;
 
     if (status == AuthStatus.needsOnboarding) return const _OnboardingNotice();
 
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _Wordmark(),
-                  const SizedBox(height: 36),
-                  Text(
-                    _step == _Step.phone ? 'Sign in' : 'Enter the code',
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                      color: Palette.ink,
-                    ),
+      backgroundColor: Palette.surface,
+      /*
+       * `resizeToAvoidBottomInset: false`, with the sheet scrolling instead.
+       *
+       * Letting the keyboard resize the page squashes the hero into a letterbox the moment somebody
+       * taps the number field, and the logo jumping as the keyboard opens is the first thing they
+       * see the app do. The sheet scrolls under the keyboard instead and the header stays put.
+       */
+      resizeToAvoidBottomInset: false,
+      body: Column(
+        children: [
+          const _HeroHeader(),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Palette.surface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  26,
+                  24,
+                  24 + MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        _step == _Step.phone ? t('Sign in') : t('Enter the code'),
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: Palette.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _step == _Step.phone
+                            ? t('Use the mobile number your company added you with.')
+                            : '${t('Sent to')} ${formatIndianPhone(_e164 ?? '')}.',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Palette.inkMuted,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      if (_step == _Step.phone) ..._phoneStep() else ..._codeStep(),
+                      if (_error != null) ...[
+                        const SizedBox(height: 16),
+                        _ErrorBanner(message: _error!),
+                      ],
+                      const SizedBox(height: 16),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _step == _Step.phone
-                        ? 'Use the mobile number your company added you with.'
-                        : 'Sent to ${formatIndianPhone(_e164 ?? '')}.',
-                    style: const TextStyle(fontSize: 15, color: Palette.inkMuted, height: 1.4),
-                  ),
-                  const SizedBox(height: 28),
-                  if (_step == _Step.phone) ..._phoneStep() else ..._codeStep(),
-                  if (_error != null) ...[
-                    const SizedBox(height: 16),
-                    _ErrorBanner(message: _error!),
-                  ],
-                  const SizedBox(height: 24),
-                  if (!auth.sendsRealCode) const _DevModeNote(),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -208,8 +231,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9 +]'))],
       style: const TextStyle(fontSize: 20, letterSpacing: 1.2),
       decoration: const InputDecoration(
-        prefixText: '+91  ',
-        prefixStyle: TextStyle(fontSize: 20, color: Palette.inkMuted),
+        /*
+         * `prefixIcon`, carrying both the icon and the country code.
+         *
+         * `prefixText` is only painted once the field has focus or content, so on first paint the
+         * field read "98765 43210" with no +91 anywhere — somebody typing their number has no way
+         * to know whether the country code is wanted. A `prefixIcon` is always painted.
+         */
+        prefixIcon: _PhonePrefix(),
         hintText: '98765 43210',
         counterText: '',
       ),
@@ -242,8 +271,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       const SizedBox(height: 14),
       OutlinedButton.icon(
         onPressed: _busy ? null : _signInWithGoogle,
-        icon: const Icon(Icons.account_circle_outlined, size: 20),
-        label: Text(t('Continue with Google')),
+        icon: const _GoogleMark(),
+        label: Text(
+          t('Continue with Google'),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Palette.ink),
+        ),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(52),
+          side: const BorderSide(color: Palette.lineStrong),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
     ],
   ];
@@ -305,6 +342,176 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   ];
 }
 
+/// The site behind the wordmark.
+///
+/// A sign-in screen is the one place this app has to say what it is before anybody has used it, and
+/// a building under a crane says it faster than the three words underneath. The image is the same
+/// one the web app opens with, so somebody who has seen the console recognises this as the same
+/// product rather than a second one.
+class _HeroHeader extends StatelessWidget {
+  const _HeroHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    // A share of the screen rather than a fixed height: 300px is half of a small phone and a third
+    // of a tall one, and the sheet below has to keep room for a keyboard either way.
+    final height = MediaQuery.of(context).size.height * 0.34;
+
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('images/hero_bg.png', fit: BoxFit.cover, alignment: Alignment.bottomCenter),
+          /*
+           * A white wash, not a dark one.
+           *
+           * The first attempt put a faint black gradient over the top, which did nothing: the
+           * artwork is pale, the type is dark, and darkening a pale background only closes the gap.
+           * The tagline sat across the concrete of the building and could not be read at all.
+           * Washing the top towards white opens the gap instead, and keeps the illustration's
+           * character where it matters — the crane and the skyline at the bottom.
+           */
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0.0, 0.62, 1.0],
+                colors: [Color(0xF2FFFFFF), Color(0x66FFFFFF), Color(0x00FFFFFF)],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Align(
+              // Towards the top, where the wash is strongest. Centred put the tagline across the
+              // concrete, which is the one part of the picture type cannot survive.
+              alignment: const Alignment(0, -0.45),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const AnimatedLogo(size: 54),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'BUILDR',
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2,
+                      color: Palette.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    t('Sites. People. Materials.\nAll in one place.'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      height: 1.4,
+                      fontWeight: FontWeight.w500,
+                      color: Palette.inkSoft,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The phone icon and `+91`, always visible.
+///
+/// Lives in `prefixIcon` because that is the only slot Flutter paints before the field has focus,
+/// and a country code that appears only once you start typing is one you cannot plan around.
+class _PhonePrefix extends StatelessWidget {
+  const _PhonePrefix();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(width: 14),
+        const Icon(Icons.phone_outlined, size: 19, color: Palette.accent),
+        const SizedBox(width: 9),
+        Text(
+          '+91',
+          style: const TextStyle(
+            fontSize: 19,
+            color: Palette.inkSoft,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(width: 1, height: 22, color: Palette.line),
+        const SizedBox(width: 10),
+      ],
+    );
+  }
+}
+
+/// Google's four-colour G, drawn rather than shipped.
+///
+/// Their brand guidelines require the real mark on a sign-in button — a grey account icon is both
+/// wrong and less recognisable — and four arcs is less weight than another image asset for
+/// something this small.
+class _GoogleMark extends StatelessWidget {
+  const _GoogleMark();
+
+  static const size = 20.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _GooglePainter()),
+    );
+  }
+}
+
+class _GooglePainter extends CustomPainter {
+  static const _blue = Color(0xFF4285F4);
+  static const _red = Color(0xFFEA4335);
+  static const _yellow = Color(0xFFFBBC05);
+  static const _green = Color(0xFF34A853);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = size.width * 0.26;
+    final rect = Rect.fromLTWH(
+      stroke / 2,
+      stroke / 2,
+      size.width - stroke,
+      size.height - stroke,
+    );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.butt;
+
+    // Four quadrants, in Google's own order, starting from the right and going clockwise.
+    canvas.drawArc(rect, -0.35, -1.25, false, paint..color = _red);
+    canvas.drawArc(rect, -1.6, -1.55, false, paint..color = _yellow);
+    canvas.drawArc(rect, -3.15, -1.5, false, paint..color = _green);
+    canvas.drawArc(rect, 1.6, -1.95, false, paint..color = _blue);
+
+    // The bar across the middle of the G.
+    final barPaint = Paint()..color = _blue;
+    canvas.drawRect(
+      Rect.fromLTWH(size.width * 0.5, size.height * 0.37, size.width * 0.5, stroke),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _Wordmark extends StatelessWidget {
   const _Wordmark();
 
@@ -356,35 +563,6 @@ class _ButtonSpinner extends StatelessWidget {
     width: 20,
     child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
   );
-}
-
-/// Says out loud that this build cannot send an SMS. A code box that will never receive anything is
-/// worse than an honest note.
-class _DevModeNote extends StatelessWidget {
-  const _DevModeNote();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Palette.pendingBg, borderRadius: BorderRadius.circular(10)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Development build — no SMS',
-            style: TextStyle(fontWeight: FontWeight.w600, color: Palette.pending, fontSize: 13.5),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Signs in without a code, and only works against an API running with '
-            'DEV_AUTH_BYPASS=true. Talking to ${Env.apiUrl}.',
-            style: const TextStyle(color: Palette.pending, fontSize: 12.5, height: 1.4),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// A verified number that belongs to no company.
