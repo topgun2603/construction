@@ -12,7 +12,11 @@ lib/
 │   ├── api_client.dart     # Dio + bearer token + single-flight refresh
 │   ├── api_providers.dart  # every read and write, in one place
 │   ├── phone_auth.dart     # Firebase OTP, or the development bypass
+│   ├── google_auth.dart    # the account the office already uses on the console
 │   ├── auth_controller.dart# Riverpod: restoring / signed out / signed in
+│   ├── ai_api.dart         # every vendor call, in one place
+│   ├── i18n.dart           # t(), keyed by the English string
+│   ├── i18n_ta.dart        # the Tamil, generated then corrected by hand
 │   └── theme.dart          # the web palette, verbatim
 ├── features/
 │   ├── auth/          # phone → code → session
@@ -28,6 +32,9 @@ lib/
 │   ├── notifications/
 │   └── profile/
 └── shared/            # status pills, empty and error states, map, photo gallery
+    ├── voice_note_button.dart  # speak the report instead of typing it
+    ├── bilingual_field.dart    # type English, file Tamil
+    └── ask_panel.dart          # ask the drawings; ask your numbers
 ```
 
 Navigation is gated on the same permission strings the API enforces, so a client's app is four items
@@ -77,15 +84,27 @@ The build side is done: the Google Services plugin is wired in, release signing 
 `key.properties`, and the app already falls back to the development sign-in when Firebase is not
 configured. What is left needs the Firebase console, which only you can reach.
 
-**1. Register the Android app.** In the existing Firebase project (`construction-40308`), add an
-Android app with the package name exactly:
+**1. Register the Android app.** In the Firebase project (`buildr-4f0a3` — the project moved here
+from `construction-40308` on 2026-10-02, and **fingerprints registered against the old project did
+not come with it**), add an Android app with the package name exactly:
 
 ```
 com.buildr.buildr_mobile
 ```
 
-**2. Give it the signing fingerprints.** Phone auth refuses to send an SMS without them, and the
-failure looks like nothing happening rather than an error. The debug key on this machine is:
+**2. Give it the signing fingerprints.** This is the step that is currently missing, and it is why a
+fresh install says it is not registered with Firebase.
+
+Both phone OTP and "Continue with Google" need them. Phone auth refuses to send an SMS without
+them and the failure looks like nothing happening rather than an error; Google sign-in opens the
+account chooser and then fails. `google-services.json` shows whether they are there — an
+`oauth_client` entry with no `certificate_hash` means they are not:
+
+```bash
+python -c "import json;d=json.load(open('android/app/google-services.json'));print([o.get('android_info',{}).get('certificate_hash') for o in d['client'][0]['oauth_client']])"
+```
+
+The debug key on this machine, confirmed by `:app:signingReport`:
 
 ```
 SHA-1    72:13:13:E2:1D:47:E7:B5:78:E1:B6:25:51:1A:B4:10:3E:A0:0A:24
@@ -103,8 +122,9 @@ cd android && ./gradlew :app:signingReport
 Google Services plugin only when that file exists, so a clone without it still compiles - it just
 signs in the development way.
 
-**4. Enable Phone** under Authentication -> Sign-in method, and check the daily SMS quota suits the
-number of people signing in. Done: phone sign-in is on for `construction-40308`.
+**4. Enable Phone and Google** under Authentication -> Sign-in method, and check the daily SMS quota
+suits the number of people signing in. Both were on for `construction-40308`; confirm both on
+`buildr-4f0a3`, because the app now offers Google alongside the number.
 
 ### Test numbers
 
@@ -181,11 +201,20 @@ the API's own permission check so a button is never offered that the request wou
 
 ## Maps and photos
 
-Maps are OpenStreetMap raster tiles through `flutter_map` — the same source the web app uses, so
-neither needs an API key or a billing account. The card does not pan: at 350px a pin is for
-recognising a place, and a map that swallows scroll gestures inside a scrolling page is worse than
-one that opens properly on tap. Tapping hands the coordinates to whatever map app the phone has via
-a `geo:` URI, falling back to the browser.
+Maps are Google Maps, matching the web app. The volunteer tile server this replaced blocked the app
+once, and a blocked client gets a striped "access blocked" image in place of every tile, for every
+site at the same time.
+
+The key is `MAPS_API_KEY` in `android/local.properties` (gitignored); Gradle injects it into the
+manifest. An Android Maps key ships inside the APK and cannot be hidden, so restrict it in the Cloud
+console to `com.buildr.buildr_mobile` plus the signing SHA-1 — that, not secrecy, is what stops
+somebody else spending it. A checkout with no key still builds; the map renders grey.
+
+The card does not pan: at 350px a pin is for recognising a place, and a map that swallows scroll
+gestures inside a scrolling page is worse than one that opens properly on tap. Both the card and the
+pin picker offer a satellite toggle, which is not a gimmick on a site — an empty plot looks like
+every other empty plot on a street map. Tapping hands the coordinates to whatever map app the phone
+has via a `geo:` URI, falling back to the browser.
 
 Photos are private objects. Every image is fetched through a URL signed for that person for an hour;
 nothing in the app holds a permanent link to somebody's site photographs, and a URL that leaks stops
@@ -217,15 +246,52 @@ signs in and works. The API is equally forgiving — `FcmService` logs a dry run
 service account, so a local stack sends nothing and fails nothing. Turning on real OTP (above) is
 the same setup, so doing it once lights up both.
 
+## Asking, speaking, scanning
+
+Five things go to a model, all through `core/ai_api.dart` so there is one place to see what this app
+sends to a vendor. Every one of them returns a **draft or an answer** — none of them writes:
+
+- **Speak the report.** Two lines in Tamil fills the daily report in: work done, issues, weather and
+  a headcount by trade. The transcript sits above the fields in its own script, because it is the
+  only thing on that screen somebody can check against their own memory. The recording is deleted
+  from the phone once it is text, and from the bucket by the server.
+- **Scan a bill.** Photograph it and the expense form fills in, with the photograph kept attached.
+  Fields it could not read are named rather than left looking complete.
+- **Ask the drawings.** Above the document list, answered from the documents' own text with the page
+  it came from — which is what lets somebody confirm it against the drawing in ten seconds.
+- **Ask your numbers.** The sparkle in the app bar; the phone's answer to the web's ⌘K.
+- **Translate while you type.** On the report's two prose fields. One tap to use it, never a silent
+  swap: an instruction going to a site is the last place for an unreviewed translation.
+
+A spoken "twelve masons" heard as "twenty" has to be a typo somebody catches, not twenty masons in
+the wage bill. That is why every one of these fills a form rather than submitting one.
+
+`RECORD_AUDIO` is asked for at the microphone button, never at launch — a permission prompt nobody
+can connect to something they just did is a permission nobody grants.
+
+## Tamil
+
+`t('Sites')`, keyed by the English string rather than by an invented name, exactly as the web app
+does it. A string with no entry falls back to its own key, which *is* the English, so a gap shows
+English rather than a broken label. Two thirds of `i18n_ta.dart` is shared with
+`apps/web/lib/i18n-ta.ts` and translated once.
+
+`tool/i18n_rewrite.py` does the mechanical half when strings are added. The hazard it exists for is
+`const`: `const Text('Sites')` is a compile-time constant and `t('Sites')` is a function call, and
+the `const` is usually on an ancestor several lines up. The script does not count brackets — it
+wraps, asks the analyser which `const` keywords are now invalid, removes exactly those, and repeats.
+
+The rule it enforces: **the dictionary is consulted at render, never at definition.** A module-level
+`const _slides` is built at load with no language to read, so it keeps its English and the widget
+that renders it translates.
+
 ## What is next
 
-**Indents and expenses, offline.** The roll call, the daily report and its photos all queue on a
-phone with no signal and send themselves when it returns. Raising an indent and recording a bill
-still need a connection — which is the wrong way round, because the basement a supervisor is
-standing in is exactly where they run out of both signal and patience.
-
-Then the rest of the admin the web app has and the phone does not: editing a site and its
-milestones, the people on it, and the settings lists — contractors, materials, team and roles.
+**The voice note needs a signal.** Everything else a supervisor does at the end of a day queues
+offline — the roll call, the report, its photos, indents, expenses and stock movements all send
+themselves when the signal returns. Speaking the report does not: it has to reach a transcriber. The
+basement they are standing in is exactly where that fails, and the fix is to queue the audio and
+transcribe it on arrival rather than refusing at the microphone.
 
 **iOS has never been configured.** There is a Flutter scaffold and no `GoogleService-Info.plist`,
 so sign-in and push do not work there at all.
