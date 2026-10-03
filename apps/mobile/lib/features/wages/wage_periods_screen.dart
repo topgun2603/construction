@@ -52,7 +52,7 @@ class WagePeriodsScreen extends ConsumerWidget {
               return ListView(
                 children: [
                   EmptyNote(
-                    icon: Icons.receipt_long_outlined,
+                    image: 'images/illus_wages.png',
                     title: 'No wage runs yet',
                     body: canGenerate
                         ? 'Generate one for a contractor and a date range. It adds up the roll '

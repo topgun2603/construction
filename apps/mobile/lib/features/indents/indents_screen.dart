@@ -57,7 +57,7 @@ class IndentsScreen extends ConsumerWidget {
               return ListView(
                 children: const [
                   EmptyNote(
-                    icon: Icons.local_shipping_outlined,
+                    image: 'images/illus_deliveries.png',
                     title: 'No indents',
                     body:
                         'An indent is a request for material against a site. Raise one and it goes '

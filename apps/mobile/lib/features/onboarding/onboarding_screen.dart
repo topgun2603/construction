@@ -41,32 +41,30 @@ class _Slide {
 ///
 /// The illustrations carry most of the weight, because the first thing somebody decides is whether
 /// this app is *for them*: three men in hi-vis around a tablet says that faster than any sentence.
-/// The file names do not match the slide order — they were drawn before the order was settled — so
-/// the mapping is spelled out here rather than left to be inferred from a number.
 const _slides = <_Slide>[
   _Slide(
-    image: 'images/onbaoard_3.png', // the roll call card
+    image: 'images/onboarding_rollcall.png',
     title: 'Mark the roll call in a minute',
     body:
         'Your crew, grouped by contractor, three big buttons each. The whole day is saved in one '
         'go, so half a roll call can never get stuck on a bad signal.',
   ),
   _Slide(
-    image: 'images/onbaoard_4.png', // the day's report, with photographs
+    image: 'images/onboarding_report.png',
     title: 'File the day before you leave',
     body:
         'What got done, who was on site, what is in the way — and photographs of it. The office '
         'sees it the moment you send it.',
   ),
   _Slide(
-    image: 'images/onbaoard_2.png', // a material request, approved or rejected
+    image: 'images/onboarding_indent.png',
     title: 'Ask for material, get an answer',
     body:
         'Raise an indent from the site. Whoever approves purchases sees it on their phone and '
         'says yes or no, with a reason.',
   ),
   _Slide(
-    image: 'images/onbaoard_1.png', // sites, tasks, access and role behind a lock
+    image: 'images/onboarding_access.png',
     title: 'You see your sites, nothing else',
     body:
         'What you can open is decided by the role your company gave you. Wages, budgets and other '

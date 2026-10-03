@@ -86,13 +86,21 @@ flutter:
 
   assets:
     - assets/logo.png
-    # The onboarding illustrations and the sign-in hero. Listed one by one rather than as a
-    # directory so that the reference comparison shot sitting beside them does not ship in the APK.
-    - images/onbaoard_1.png
-    - images/onbaoard_2.png
-    - images/onbaoard_3.png
-    - images/onbaoard_4.png
+    # Listed one by one rather than as a directory, so the reference comparison shots sitting
+    # beside them do not ship in the APK. Each name says what the picture is of.
+    - images/onboarding_rollcall.png
+    - images/onboarding_report.png
+    - images/onboarding_indent.png
+    - images/onboarding_access.png
     - images/hero_bg.png
+    - images/illus_contractors.png
+    - images/illus_materials.png
+    - images/illus_team.png
+    - images/illus_roles.png
+    - images/illus_stock_empty.png
+    - images/illus_wages.png
+    - images/illus_deliveries.png
+    - images/illus_reports.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

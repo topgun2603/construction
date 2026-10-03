@@ -124,11 +124,11 @@ class _StockScreenState extends ConsumerState<StockScreen> {
                       return ListView(
                         children: const [
                           EmptyNote(
-                            icon: Icons.inventory_2_outlined,
+                            image: 'images/illus_stock_empty.png',
                             title: 'Nothing booked in',
                             body:
                                 'Material appears here once a delivery is received against an '
-                                'indent, or booked in from the web app.',
+                                'indent, or booked in from this screen.',
                           ),
                         ],
                       );

@@ -52,7 +52,7 @@ class DprScreen extends ConsumerWidget {
               return ListView(
                 children: [
                   EmptyNote(
-                    icon: Icons.assignment_outlined,
+                    image: 'images/illus_reports.png',
                     title: t('No reports yet'),
                     body:
                         'A daily report says what got done, who was on site and what is in the '

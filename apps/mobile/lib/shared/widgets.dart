@@ -134,25 +134,50 @@ class StatusPill extends StatelessWidget {
 
 /// Nothing here, and why. Never a bare "No data".
 class EmptyNote extends StatelessWidget {
-  const EmptyNote({super.key, required this.title, required this.body, this.icon});
+  const EmptyNote({
+    super.key,
+    required this.title,
+    required this.body,
+    this.icon,
+    this.image,
+  });
 
   final String title;
   final String body;
   final IconData? icon;
+
+  /// An illustration, for the few empty states somebody meets early and often.
+  ///
+  /// Opt-in rather than everywhere. An empty list in the middle of a working day is an answer —
+  /// "nothing is waiting on you" — and dressing every one of those up would make the app slower to
+  /// read. It earns its place on the screens a new account lands on first, where the empty state is
+  /// the whole screen and the question is "is this broken, or have I just not done it yet".
+  final String? image;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
     child: Column(
       children: [
-        if (icon != null) ...[
+        if (image != null) ...[
+          // Capped rather than proportional: on a tall phone an unbounded illustration pushes the
+          // sentence that explains it below the fold, which is the one thing it is there to support.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 230, maxWidth: 300),
+            child: Image.asset(image!, fit: BoxFit.contain),
+          ),
+          const SizedBox(height: 18),
+        ] else if (icon != null) ...[
           Icon(icon, size: 34, color: Palette.inkFaint),
           const SizedBox(height: 14),
         ],
         Text(
           title,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: image != null ? 19 : 16,
+            fontWeight: image != null ? FontWeight.w700 : FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
