@@ -63,10 +63,19 @@ class Destination {
   }
 }
 
+/// The destinations, in English.
+///
+/// A top-level `final` in Dart is initialised once, on first access, and cached for the life of the
+/// process. A `t()` call in here is therefore evaluated in whichever language happened to be active
+/// at startup and never changes again — which is precisely how the navigation came to stay Tamil
+/// after somebody chose English.
+///
+/// So the table holds English and the two places that draw it translate. The same rule as
+/// everywhere else: **the dictionary is consulted at render, never at definition.**
 final _destinations = <Destination>[
   Destination(
     id: 'home',
-    label: t('Today'),
+    label: 'Today',
     icon: Icons.home_outlined,
     builder: HomeScreen.new,
     /*
@@ -80,7 +89,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'sites',
-    label: t('Sites'),
+    label: 'Sites',
     icon: Icons.apartment_outlined,
     builder: SitesScreen.new,
     permission: 'projects.view',
@@ -88,7 +97,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'attendance',
-    label: t('Roll call'),
+    label: 'Roll call',
     icon: Icons.how_to_reg_outlined,
     builder: AttendanceScreen.new,
     permission: 'attendance.view',
@@ -96,7 +105,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'dpr',
-    label: t('Reports'),
+    label: 'Reports',
     icon: Icons.assignment_outlined,
     builder: DprScreen.new,
     permission: 'dpr.view',
@@ -104,7 +113,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'documents',
-    label: t('Documents'),
+    label: 'Documents',
     icon: Icons.folder_open_outlined,
     builder: DocumentsScreen.new,
     permission: 'documents.view',
@@ -119,35 +128,35 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'workers',
-    label: t('Workers'),
+    label: 'Workers',
     icon: Icons.groups_outlined,
     builder: WorkersScreen.new,
     permission: 'workers.view',
   ),
   Destination(
     id: 'indents',
-    label: t('Indents'),
+    label: 'Indents',
     icon: Icons.local_shipping_outlined,
     builder: IndentsScreen.new,
     permission: 'indents.raise',
   ),
   Destination(
     id: 'expenses',
-    label: t('Expenses'),
+    label: 'Expenses',
     icon: Icons.receipt_long_outlined,
     builder: ExpensesScreen.new,
     permission: 'expenses.view',
   ),
   Destination(
     id: 'wages',
-    label: t('Wages'),
+    label: 'Wages',
     icon: Icons.receipt_long_outlined,
     builder: WagePeriodsScreen.new,
     permission: 'wages.view',
   ),
   Destination(
     id: 'settings',
-    label: t('Set up'),
+    label: 'Set up',
     icon: Icons.tune,
     builder: SettingsScreen.new,
     // Any one of these opens the hub; the hub itself decides which lists to show.
@@ -155,7 +164,7 @@ final _destinations = <Destination>[
   ),
   Destination(
     id: 'stock',
-    label: t('Stock'),
+    label: 'Stock',
     icon: Icons.inventory_2_outlined,
     builder: StockScreen.new,
     permission: 'stock.view',
@@ -204,7 +213,7 @@ class AppShell extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: _TopBar(title: current.label, me: me),
+      appBar: _TopBar(title: t(current.label), me: me),
       drawer: _Drawer(destinations: allowed, currentId: current.id, me: me),
       /*
        * The bar floats over the content rather than pushing it up, so a list scrolls behind it.
@@ -417,7 +426,7 @@ class _Drawer extends ConsumerWidget {
                         color: destination.id == currentId ? Palette.accent : Palette.inkSoft,
                       ),
                       title: Text(
-                        destination.label,
+                        t(destination.label),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: destination.id == currentId

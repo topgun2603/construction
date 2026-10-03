@@ -43,7 +43,11 @@ PROSE_PARAMS = (
 )
 
 
-DECLARATION = re.compile(r'\s*(?:static\s+)?const\s+\w+\s*=')
+# A declaration whose value is computed once and then cached: `const`, and `final` at top level
+# or as a static. Dart initialises a lazy `final` on first access and never again, so a `t()`
+# inside one freezes whichever language was active at startup — which is how the navigation
+# came to stay Tamil after somebody chose English. Guarding `const` alone was not enough.
+DECLARATION = re.compile(r'\s*(?:static\s+)?(?:const|final)\s+[\w<>, ]*\s*=')
 
 
 def line_starts(source):
