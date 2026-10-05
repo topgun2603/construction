@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { currentAuditActor } from '../audit/audit-context';
 import { PrismaService } from './prisma.service';
 
 /**
@@ -10,6 +11,9 @@ import { PrismaService } from './prisma.service';
  *
  * `SET LOCAL` is scoped to the transaction, so the setting cannot leak onto the
  * next request that happens to reuse the same pooled connection.
+ *
+ * The same statement also sets who is acting (`app.actor_id`, request id, IP, user agent),
+ * which the audit trigger stamps on every row it writes — see `audit-context.ts`.
  */
 export type TenantClient = ReturnType<TenantDb['clientFor']>;
 
@@ -33,7 +37,7 @@ export class TenantDb {
         $allModels: {
           async $allOperations({ args, query }) {
             const [, result] = await prisma.$transaction([
-              setTenant(prisma, tenantId),
+              setContext(prisma, tenantId),
               query(args),
             ]);
             return result;
@@ -54,7 +58,7 @@ export class TenantDb {
     options?: { timeout?: number; maxWait?: number },
   ): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}::text, TRUE)`;
+      await setContext(tx, tenantId);
       return fn(tx);
     }, options);
   }
@@ -63,7 +67,19 @@ export class TenantDb {
 /**
  * `set_config(..., is_local => true)` rather than `SET LOCAL`: it accepts a bound
  * parameter, so the tenant id can never be spliced into SQL as text.
+ *
+ * One statement for the tenant and the audit actor together, so auditing costs no extra
+ * round trip on any transaction.
  */
-function setTenant(prisma: PrismaService, tenantId: string): Prisma.PrismaPromise<number> {
-  return prisma.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}::text, TRUE)`;
+function setContext(
+  client: PrismaService | Prisma.TransactionClient,
+  tenantId: string,
+): Prisma.PrismaPromise<number> {
+  const actor = currentAuditActor();
+  return client.$executeRaw`SELECT
+    set_config('app.tenant_id', ${tenantId}::text, TRUE),
+    set_config('app.actor_id', ${actor.actorId}::text, TRUE),
+    set_config('app.request_id', ${actor.requestId}::text, TRUE),
+    set_config('app.client_ip', ${actor.ip}::text, TRUE),
+    set_config('app.user_agent', ${actor.userAgent}::text, TRUE)`;
 }

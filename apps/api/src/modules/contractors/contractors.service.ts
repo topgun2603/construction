@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  CreateContractorInput,
-  Page,
-  UpdateContractorInput,
-  CursorPagination,
+import {
+  taxRule,
+  type CreateContractorInput,
+  type Page,
+  type UpdateContractorInput,
+  type CursorPagination,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ApiError } from '../../common/errors/api-error';
@@ -16,6 +17,9 @@ export interface ContractorView {
   trade: string | null;
   phone: string | null;
   payment_terms: string;
+  /** GSTIN or TRN, printed on their RA bills when they work as a subcontractor. */
+  tax_id: string | null;
+  address: string | null;
   worker_count: number;
 }
 
@@ -25,6 +29,8 @@ const SELECT = {
   trade: true,
   phone: true,
   paymentTerms: true,
+  taxId: true,
+  address: true,
   _count: { select: { workers: { where: { deletedAt: null } } } },
 } as const;
 
@@ -50,6 +56,8 @@ export class ContractorsService {
         trade: input.trade,
         phone: input.phone,
         paymentTerms: input.payment_terms,
+        taxId: taxIdFor(actor.taxRegime, input.tax_id),
+        address: input.address,
       },
       select: SELECT,
     });
@@ -69,6 +77,8 @@ export class ContractorsService {
         ...(input.trade === undefined ? {} : { trade: input.trade }),
         ...(input.phone === undefined ? {} : { phone: input.phone }),
         ...(input.payment_terms === undefined ? {} : { paymentTerms: input.payment_terms }),
+        ...(input.tax_id === undefined ? {} : { taxId: taxIdFor(actor.taxRegime, input.tax_id) }),
+        ...(input.address === undefined ? {} : { address: input.address }),
       },
       select: SELECT,
     });
@@ -94,12 +104,30 @@ export class ContractorsService {
   }
 }
 
+/**
+ * A contractor's tax number in the company's stored form. Checked against the company's regime —
+ * a GSTIN for an Indian company, a TRN for a UAE one — because a misread digit on a bill is a
+ * credit the company cannot claim. A company under no tax regime keeps it as typed.
+ */
+function taxIdFor(regime: string, raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const rule = taxRule(regime);
+  const id = rule.normaliseId(raw);
+  if (rule.idLabel === null) return id;
+  if (!rule.isValidId(id)) {
+    throw ApiError.validationFailed({ tax_id: raw }, `That is not a valid ${rule.idLabel}`);
+  }
+  return id;
+}
+
 function toView(row: {
   id: string;
   name: string;
   trade: string | null;
   phone: string | null;
   paymentTerms: string;
+  taxId: string | null;
+  address: string | null;
   _count: { workers: number };
 }): ContractorView {
   return {
@@ -108,6 +136,8 @@ function toView(row: {
     trade: row.trade,
     phone: row.phone,
     payment_terms: row.paymentTerms,
+    tax_id: row.taxId,
+    address: row.address,
     worker_count: row._count.workers,
   };
 }

@@ -45,6 +45,8 @@ export const createExpenseSchema = z.object({
   tax_amount: positivePaiseSchema.optional(),
   /** The supplier's tax registration number; checked against the company's regime. */
   supplier_tax_id: z.string().trim().max(30).optional(),
+  /** The line of the site's work breakdown this spend belongs to. Must be one of the site's own. */
+  cost_code_id: uuidSchema.optional(),
   client_id: clientIdSchema.optional(),
 })
   .refine((value) => value.tax_amount === undefined || value.tax_amount <= value.amount, {
@@ -62,6 +64,7 @@ export const updateExpenseSchema = z
     note: z.string().trim().max(1000).nullable().optional(),
     tax_amount: positivePaiseSchema.optional(),
     supplier_tax_id: z.string().trim().max(30).nullable().optional(),
+    cost_code_id: uuidSchema.nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'no fields to update' });
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;

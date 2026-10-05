@@ -66,9 +66,19 @@ export function ExpensesTable({
       accessorKey: 'category',
       header: t('Category'),
       cell: ({ row }) => (
-        <Badge tone="neutral" dot={false}>
-          {t(expenseCategoryLabel(row.original.category))}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge tone="neutral" dot={false}>
+            {t(expenseCategoryLabel(row.original.category))}
+          </Badge>
+          {row.original.cost_code && (
+            <span
+              className="font-mono text-[11.5px] text-ink-muted"
+              title={row.original.cost_code.name}
+            >
+              {row.original.cost_code.code}
+            </span>
+          )}
+        </div>
       ),
     },
     {

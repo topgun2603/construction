@@ -51,6 +51,14 @@ import { SiteApprovals } from './site-approvals';
 import { AskDocuments } from '@/components/ask-documents';
 import { DocumentsList } from '@/components/documents-list';
 import { getT } from '@/lib/i18n-server';
+import type { CostCodeTemplateSummary, CostReport } from '@/lib/cost-code-types';
+import { CostCodesTab } from './cost-codes';
+import type { SubcontractSummary } from '@/lib/subcontract-types';
+import type { Contractor } from '@/lib/api-types';
+import { SubcontractsTable } from '../../subcontracts/subcontracts-table';
+import { NewSubcontractDialog } from '../../subcontracts/new-subcontract-dialog';
+import type { PurchaseOrderSummary } from '@/lib/procurement-types';
+import { SitePurchases } from './site-purchases';
 
 const TABS = [
   'timeline',
@@ -61,6 +69,9 @@ const TABS = [
   'payments',
   'people',
   'materials',
+  'cost',
+  'subcontracts',
+  'purchases',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -233,6 +244,44 @@ export default async function ProjectPage({
   const timeline = schedule(project, todayIso());
   const budget = project.budget_amount ? BigInt(project.budget_amount) : null;
 
+  /*
+   * The breakdown and its budgets (roadmap Phase 2, module 1), fetched only for its own tab.
+   * `cost_codes.view` rather than `expenses.view`: a supervisor records expenses against a line but
+   * what each line was priced at is the builder's margin.
+   */
+  const canSeeCost = me.permissions.includes('cost_codes.view');
+  const [costReport, costTemplates] =
+    active === 'cost' && canSeeCost
+      ? await Promise.all([
+          serverFetch<CostReport>(`/projects/${id}/cost-report`),
+          serverFetch<CostCodeTemplateSummary[]>('/cost-code-templates'),
+        ])
+      : [null, [] as CostCodeTemplateSummary[]];
+
+  // The site's subcontracts (roadmap Phase 2, module 3), fetched only for their own tab.
+  const canSeeSubcontracts =
+    me.permissions.includes('subcontracts.view') || me.permissions.includes('subcontracts.measure');
+  const canLetSubcontracts = me.permissions.includes('subcontracts.manage');
+  const [subcontracts, contractors] =
+    active === 'subcontracts' && canSeeSubcontracts
+      ? await Promise.all([
+          serverFetch<{ items: SubcontractSummary[] }>(`/subcontracts?project_id=${id}`),
+          canLetSubcontracts
+            ? serverFetch<Page<Contractor>>('/contractors?limit=200').catch(() => null)
+            : null,
+        ])
+      : [null, null];
+
+  // Purchase orders (roadmap Phase 2, module 2), fetched only for their own tab. Procurement sits
+  // behind the `materials` module; receivers see the list too, without prices.
+  const canSeePurchases =
+    me.enabled_modules.includes('materials') &&
+    ['procurement.view', 'procurement.receive'].some((p) => me.permissions.includes(p));
+  const purchases =
+    active === 'purchases' && canSeePurchases
+      ? await serverFetch<PurchaseOrderSummary[]>(`/purchase-orders?project_id=${id}`)
+      : [];
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -289,6 +338,9 @@ export default async function ProjectPage({
         showDocuments={hasDocuments}
         showPayments={canSeePayments}
         showApprovals={canSeeApprovals}
+        showCost={canSeeCost}
+        showSubcontracts={canSeeSubcontracts}
+        showPurchases={canSeePurchases}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -393,6 +445,34 @@ export default async function ProjectPage({
           canRequest={me.permissions.includes('approvals.request')}
           canDecide={me.permissions.includes('approvals.decide')}
         />
+      )}
+
+      {active === 'cost' && costReport && (
+        <CostCodesTab
+          projectId={id}
+          projectName={project.name}
+          report={costReport}
+          templates={costTemplates}
+          canManage={me.permissions.includes('cost_codes.manage')}
+        />
+      )}
+
+      {active === 'subcontracts' && subcontracts && (
+        <div className="flex flex-col gap-3">
+          {canLetSubcontracts && (
+            <div className="flex justify-end">
+              <NewSubcontractDialog
+                sites={[{ id, name: project.name }]}
+                contractors={contractors?.items ?? []}
+                fixedSiteId={id}
+              />
+            </div>
+          )}
+          <SubcontractsTable subcontracts={subcontracts.items} showSite={false} />
+        </div>
+      )}
+      {active === 'purchases' && canSeePurchases && (
+        <SitePurchases projectId={id} orders={purchases} />
       )}
 
       {active === 'materials' && (

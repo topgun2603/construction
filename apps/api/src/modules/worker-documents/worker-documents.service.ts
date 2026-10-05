@@ -160,7 +160,8 @@ export class WorkerDocumentsService {
           tenantId: actor.tenantId,
           actorId: actor.userId,
           action: 'worker_document.reveal',
-          entity: 'worker_document',
+          // The table's name, like every trigger-written entry, so the log filters them together.
+          entity: 'worker_documents',
           entityId: id,
         },
       }),

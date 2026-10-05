@@ -54,6 +54,39 @@ export const PERMISSIONS = [
   'expenses.record',
   'expenses.approve',
 
+  /*
+   * Cost codes and budgets. Viewing is the budget and the budget-vs-actual report — what a line was
+   * priced at is the builder's margin, so it is not handed to everybody who records a diesel bill.
+   * Picking a code when recording an expense needs only `expenses.record`.
+   */
+  'cost_codes.view',
+  'cost_codes.manage',
+
+  /*
+   * Subcontracts and progress (RA) billing. Split along the decisions a job actually has: who sees
+   * what a subcontract is worth (the margin again), who writes and changes them, who measures work
+   * on site, who certifies a bill as owed, and who hands the money over.
+   */
+  'subcontracts.view',
+  'subcontracts.manage',
+  'subcontracts.measure',
+  'subcontracts.certify',
+  'subcontracts.pay',
+
+  /*
+   * Procurement (roadmap Phase 2, module 2): suppliers, quotes, purchase orders, goods received
+   * and supplier invoices. Split along the decisions a company separates on purpose — the person
+   * who raises an order should not be the only one who can approve it, the store keeper who signs
+   * for a delivery need not see what it cost, and whoever matches the invoice is accounts.
+   * How much a person may approve is an amount (Settings → Procurement), not a permission.
+   */
+  'vendors.manage',
+  'procurement.view',
+  'procurement.manage',
+  'procurement.approve',
+  'procurement.receive',
+  'procurement.invoices',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -91,6 +124,12 @@ export const PERMISSIONS = [
   'team.manage',
   'roles.manage',
   'tenant.manage',
+  /*
+   * Read the audit log: every change anybody made, with the before and after. Owner-only by
+   * default — it shows salaries, payments and who touched them, which is exactly what makes it
+   * worth having and exactly why it is not every manager's to browse.
+   */
+  'audit.view',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -194,6 +233,75 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Cost codes and budgets',
+    items: [
+      {
+        permission: 'cost_codes.view',
+        label: 'See budgets and the budget-vs-actual report',
+        note: 'What each line was priced at. Anyone who records expenses can still pick a code.',
+      },
+      {
+        permission: 'cost_codes.manage',
+        label: 'Edit cost codes, budgets and templates',
+      },
+    ],
+  },
+  {
+    group: 'Subcontracts',
+    items: [
+      {
+        permission: 'subcontracts.view',
+        label: 'See subcontracts, their bills and statements',
+        note: 'What each subcontract is worth and what has been paid on it',
+      },
+      {
+        permission: 'subcontracts.manage',
+        label: 'Write subcontracts, their rates and variations',
+      },
+      {
+        permission: 'subcontracts.measure',
+        label: 'Measure work done for a running bill',
+        note: 'Enter quantities and back-charges on a draft bill. Without “see subcontracts” the rates and amounts stay hidden.',
+      },
+      {
+        permission: 'subcontracts.certify',
+        label: 'Certify bills, approve variations and release retention',
+        note: 'What a certified bill says is owed becomes cost on the site',
+      },
+      { permission: 'subcontracts.pay', label: 'Record payments to subcontractors' },
+    ],
+  },
+  {
+    group: 'Procurement',
+    items: [
+      { permission: 'vendors.manage', label: 'Add and edit suppliers' },
+      {
+        permission: 'procurement.view',
+        label: 'See quotes and purchase orders',
+        note: 'Includes the prices suppliers quoted',
+      },
+      {
+        permission: 'procurement.manage',
+        label: 'Ask for quotes and raise purchase orders',
+      },
+      {
+        permission: 'procurement.approve',
+        label: 'Approve purchase orders',
+        note: 'Only up to their approval limit, set in Settings → Procurement. Owners have none.',
+      },
+      {
+        permission: 'procurement.receive',
+        label: 'Receive goods against a purchase order',
+        note: 'Books the delivery into site stock',
+      },
+      {
+        permission: 'procurement.invoices',
+        label: 'Record and match supplier invoices',
+        note: 'An approved invoice becomes an expense on the site',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -259,6 +367,11 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
       { permission: 'team.manage', label: 'Invite and remove people' },
       { permission: 'roles.manage', label: 'Create and edit roles' },
       { permission: 'tenant.manage', label: 'Change company details and plan' },
+      {
+        permission: 'audit.view',
+        label: 'Read and export the audit log',
+        note: 'Every change anybody made, including wages and payments',
+      },
     ],
   },
 ];
@@ -305,6 +418,21 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'expenses.view',
     'expenses.record',
     'expenses.approve',
+    // Running a job means owning its breakdown and its budget lines.
+    'cost_codes.view',
+    'cost_codes.manage',
+    // Writes the subcontracts on their jobs, measures them and certifies the bills. Paying is the
+    // books' — the same split as wages, where a manager sees the sheet and accounts pays it.
+    'subcontracts.view',
+    'subcontracts.manage',
+    'subcontracts.measure',
+    'subcontracts.certify',
+    // Buying for the job is running the job — approving only up to the limit the owner sets.
+    'vendors.manage',
+    'procurement.view',
+    'procurement.manage',
+    'procurement.approve',
+    'procurement.receive',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -331,8 +459,14 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Setting the estimate is not — that is the figure their consumption is judged against.
     'stock.view',
     'stock.record',
+    // Signing for a delivery against the order is the same job as signing for it at all. What the
+    // order cost is not theirs to see, so no `procurement.view`.
+    'procurement.receive',
     'expenses.view',
     'expenses.record',
+    // Measures the subcontractor's work on their own site for the running bill. Not the rates or
+    // the bill's money: what a subcontract is worth is the margin, the same as a budget line.
+    'subcontracts.measure',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.
@@ -363,6 +497,17 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'expenses.view',
     'expenses.record',
     'expenses.approve',
+    // Reads the budget report because cost against budget is accounts' question too; setting the
+    // budget is the job's, not the books'.
+    'cost_codes.view',
+    // Reads every subcontract account and pays the certified bills; certifying them is the job's.
+    'subcontracts.view',
+    'subcontracts.pay',
+    // Matching the supplier's invoice to the order and the delivery is the books' job, and so is
+    // keeping supplier tax numbers right. Approving the order itself is not.
+    'vendors.manage',
+    'procurement.view',
+    'procurement.invoices',
     'messages.post',
     'messages.internal',
     'documents.view',

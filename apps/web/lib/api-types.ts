@@ -119,6 +119,9 @@ export interface Contractor {
   trade: string | null;
   phone: string | null;
   payment_terms: string;
+  /** GSTIN or TRN, printed on their RA bills when they work as a subcontractor. */
+  tax_id?: string | null;
+  address?: string | null;
   worker_count: number;
 }
 
@@ -280,6 +283,8 @@ export interface Expense {
   tax_amount: string;
   /** The supplier's tax number (TRN, GSTIN), as checked by the API. */
   supplier_tax_id: string | null;
+  /** The line of the site's breakdown it is booked to; null is unallocated. */
+  cost_code: { id: string; code: string; name: string } | null;
   status: 'pending' | 'approved' | 'rejected';
   submitted_by: { id: string; name: string };
   approved_by: { id: string; name: string } | null;
