@@ -67,9 +67,13 @@ import type {
 import { SiteChangeOrders } from '../../change-orders/site-change-orders';
 import { ClientChangeOrders } from '../../change-orders/client-change-order';
 import { SiteQuality } from './site-quality';
+import type { CostCode } from '@/lib/cost-code-types';
+import type { ScheduleView } from '@/lib/schedule-types';
+import { ScheduleTab } from './schedule/schedule-tab';
 
 const TABS = [
   'timeline',
+  'schedule',
   'reports',
   'conversation',
   'documents',
@@ -96,12 +100,12 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; baseline?: string }>;
 }) {
   const t = await getT();
   const { moneyShort, shortDate, timeOfDay, todayIso } = await getFormat();
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, baseline } = await searchParams;
   const active: TabKey = (TABS as readonly string[]).includes(tab ?? '')
     ? (tab as TabKey)
     : 'timeline';
@@ -319,6 +323,25 @@ export default async function ProjectPage({
     me.permissions.includes('quality.inspect') ||
     me.user.role === 'client';
 
+  // The programme (roadmap Phase 2, module 6), fetched only for its own tab. The pickers in the
+  // task dialog are only needed by someone who can edit the plan.
+  const canSeeSchedule = me.permissions.includes('schedule.view');
+  const canPlanSchedule = me.permissions.includes('schedule.manage');
+  const [scheduleView, scheduleCostCodes, scheduleContractors] =
+    active === 'schedule' && canSeeSchedule
+      ? await Promise.all([
+          serverFetch<ScheduleView>(
+            `/projects/${id}/schedule${baseline ? `?baseline_id=${encodeURIComponent(baseline)}` : ''}`,
+          ),
+          canPlanSchedule
+            ? serverFetch<CostCode[]>(`/projects/${id}/cost-codes`).catch(() => [] as CostCode[])
+            : ([] as CostCode[]),
+          canPlanSchedule
+            ? serverFetch<Page<Contractor>>('/contractors?limit=200').catch(() => null)
+            : null,
+        ])
+      : [null, [] as CostCode[], null];
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -380,6 +403,7 @@ export default async function ProjectPage({
         showPurchases={canSeePurchases}
         showChangeOrders={canSeeChangeOrders || clientSeesChangeOrders}
         showQuality={canSeeQuality}
+        showSchedule={canSeeSchedule}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -441,6 +465,21 @@ export default async function ProjectPage({
 
           <ProjectTimeline projectId={id} milestones={milestones} canEdit={canEditTimeline} />
         </div>
+      )}
+
+      {active === 'schedule' && scheduleView && (
+        <ScheduleTab
+          projectId={id}
+          projectName={project.name}
+          view={scheduleView}
+          pickers={{
+            costCodes: scheduleCostCodes,
+            contractors: (scheduleContractors?.items ?? []).map((c) => ({ id: c.id, name: c.name })),
+            members: canPlanSchedule
+              ? members.map((member) => ({ id: member.user.id, name: member.user.name }))
+              : [],
+          }}
+        />
       )}
 
       {active === 'conversation' && canTalk && (

@@ -108,6 +108,15 @@ export const PERMISSIONS = [
   'quality.manage',
   'quality.verify',
 
+  /*
+   * Scheduling (roadmap Phase 2, module 6). Reading the programme is for everybody running the job;
+   * changing the plan — tasks, links, baselines, imports — is the planner's; reporting how far the
+   * work has got and when it really started is the supervisor's, and does not let them move the plan.
+   */
+  'schedule.view',
+  'schedule.manage',
+  'schedule.progress',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -366,6 +375,21 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Schedule',
+    items: [
+      { permission: 'schedule.view', label: 'See the programme, critical path and look-ahead' },
+      {
+        permission: 'schedule.manage',
+        label: 'Plan the schedule: tasks, links, baselines and imports',
+      },
+      {
+        permission: 'schedule.progress',
+        label: 'Report progress on tasks',
+        note: 'Percent complete and actual start and finish dates. The plan itself stays as it is.',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -507,6 +531,10 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'quality.inspect',
     'quality.manage',
     'quality.verify',
+    // The programme is the project manager's to write and keep.
+    'schedule.view',
+    'schedule.manage',
+    'schedule.progress',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -545,6 +573,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // their own fixes done. Saying a fix is good enough to close stays with the manager.
     'quality.view',
     'quality.inspect',
+    // Works to the programme and says how far it has got; re-planning it is the manager's.
+    'schedule.view',
+    'schedule.progress',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.
@@ -588,6 +619,8 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'procurement.invoices',
     // Reads the register: an approved change order is money the client will be billed.
     'change_orders.view',
+    // When the work happens is when the money goes out and comes in.
+    'schedule.view',
     'messages.post',
     'messages.internal',
     'documents.view',

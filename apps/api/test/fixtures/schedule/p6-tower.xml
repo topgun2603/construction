@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- A trimmed Primavera P6 XML export: an Indian tower's foundations on a six-day week. -->
+<APIBusinessObjects xmlns="http://xmlns.oracle.com/Primavera/P6/V8.3/API/BusinessObjects">
+  <Calendar>
+    <ObjectId>100</ObjectId>
+    <Name>India 6-day</Name>
+    <Type>Global</Type>
+    <HoursPerDay>8</HoursPerDay>
+    <StandardWorkWeek>
+      <StandardWorkHours><DayOfWeek>Sunday</DayOfWeek><WorkTime/></StandardWorkHours>
+      <StandardWorkHours><DayOfWeek>Monday</DayOfWeek><WorkTime><Start>08:00:00</Start><Finish>16:59:00</Finish></WorkTime></StandardWorkHours>
+      <StandardWorkHours><DayOfWeek>Tuesday</DayOfWeek><WorkTime><Start>08:00:00</Start><Finish>16:59:00</Finish></WorkTime></StandardWorkHours>
+      <StandardWorkHours><DayOfWeek>Wednesday</DayOfWeek><WorkTime><Start>08:00:00</Start><Finish>16:59:00</Finish></WorkTime></StandardWorkHours>
+      <StandardWorkHours><DayOfWeek>Thursday</DayOfWeek><WorkTime><Start>08:00:00</Start><Finish>16:59:00</Finish></WorkTime></StandardWorkHours>
+      <StandardWorkHours><DayOfWeek>Friday</DayOfWeek><WorkTime><Start>08:00:00</Start><Finish>16:59:00</Finish></WorkTime></StandardWorkHours>
+      <StandardWorkHours><DayOfWeek>Saturday</DayOfWeek><WorkTime><Start>08:00:00</Start><Finish>16:59:00</Finish></WorkTime></StandardWorkHours>
+    </StandardWorkWeek>
+    <HolidayOrExceptions>
+      <HolidayOrException><Date>2026-08-15T00:00:00</Date><WorkTime/></HolidayOrException>
+    </HolidayOrExceptions>
+  </Calendar>
+  <Project>
+    <ObjectId>1</ObjectId>
+    <Id>TWR-A</Id>
+    <Name>Tower A foundations</Name>
+    <PlannedStartDate>2026-08-03T08:00:00</PlannedStartDate>
+    <DataDate>2026-08-06T08:00:00</DataDate>
+    <ActivityDefaultCalendarObjectId>100</ActivityDefaultCalendarObjectId>
+    <WBS>
+      <ObjectId>10</ObjectId><ParentObjectId>1</ParentObjectId><ProjectObjectId>1</ProjectObjectId>
+      <Code>PIL</Code><Name>Piling</Name><SequenceNumber>1</SequenceNumber>
+    </WBS>
+    <WBS>
+      <ObjectId>11</ObjectId><ParentObjectId>1</ParentObjectId><ProjectObjectId>1</ProjectObjectId>
+      <Code>RFT</Code><Name>Raft</Name><SequenceNumber>2</SequenceNumber>
+    </WBS>
+    <WBS>
+      <ObjectId>12</ObjectId><ParentObjectId>10</ParentObjectId><ProjectObjectId>1</ProjectObjectId>
+      <Code>SPARE</Code><Name>Nothing planned here yet</Name><SequenceNumber>3</SequenceNumber>
+    </WBS>
+    <Activity>
+      <ObjectId>2001</ObjectId><Id>A1000</Id><Name>Mobilisation</Name><WBSObjectId>10</WBSObjectId>
+      <Type>Task Dependent</Type><CalendarObjectId>100</CalendarObjectId>
+      <PlannedDuration>24</PlannedDuration>
+      <PlannedStartDate>2026-08-03T08:00:00</PlannedStartDate><PlannedFinishDate>2026-08-05T16:59:00</PlannedFinishDate>
+      <ActualStartDate>2026-08-03T08:00:00</ActualStartDate><ActualFinishDate>2026-08-05T16:59:00</ActualFinishDate>
+      <PercentComplete>1</PercentComplete>
+    </Activity>
+    <Activity>
+      <ObjectId>2002</ObjectId><Id>A1010</Id><Name>Bored piles</Name><WBSObjectId>10</WBSObjectId>
+      <Type>Task Dependent</Type><CalendarObjectId>100</CalendarObjectId>
+      <PlannedDuration>96</PlannedDuration>
+      <PlannedStartDate>2026-08-06T08:00:00</PlannedStartDate><PlannedFinishDate>2026-08-20T16:59:00</PlannedFinishDate>
+      <ActualStartDate>2026-08-06T08:00:00</ActualStartDate>
+      <PercentComplete>0.4</PercentComplete>
+    </Activity>
+    <Activity>
+      <ObjectId>2003</ObjectId><Id>A1020</Id><Name>Pile caps</Name><WBSObjectId>11</WBSObjectId>
+      <Type>Task Dependent</Type><PlannedDuration>48</PlannedDuration>
+      <PlannedStartDate>2026-08-11T08:00:00</PlannedStartDate><PlannedFinishDate>2026-08-18T16:59:00</PlannedFinishDate>
+      <PercentComplete>0</PercentComplete>
+    </Activity>
+    <Activity>
+      <ObjectId>2004</ObjectId><Id>A1030</Id><Name>Raft concrete</Name><WBSObjectId>11</WBSObjectId>
+      <Type>Task Dependent</Type><PlannedDuration>40</PlannedDuration>
+      <PlannedStartDate>2026-08-26T08:00:00</PlannedStartDate><PlannedFinishDate>2026-08-31T16:59:00</PlannedFinishDate>
+      <PrimaryConstraintType>Start On or After</PrimaryConstraintType><PrimaryConstraintDate>2026-08-26T08:00:00</PrimaryConstraintDate>
+      <PercentComplete>0</PercentComplete>
+    </Activity>
+    <Activity>
+      <ObjectId>2005</ObjectId><Id>A1040</Id><Name>Raft complete</Name><WBSObjectId>11</WBSObjectId>
+      <Type>Finish Milestone</Type><PlannedDuration>0</PlannedDuration>
+      <PlannedFinishDate>2026-08-31T16:59:00</PlannedFinishDate>
+      <PercentComplete>0</PercentComplete>
+    </Activity>
+    <Relationship>
+      <ObjectId>3001</ObjectId><PredecessorActivityObjectId>2001</PredecessorActivityObjectId><SuccessorActivityObjectId>2002</SuccessorActivityObjectId>
+      <Type>Finish to Start</Type><Lag>0</Lag>
+    </Relationship>
+    <Relationship>
+      <ObjectId>3002</ObjectId><PredecessorActivityObjectId>2002</PredecessorActivityObjectId><SuccessorActivityObjectId>2003</SuccessorActivityObjectId>
+      <Type>Start to Start</Type><Lag>32</Lag>
+    </Relationship>
+    <Relationship>
+      <ObjectId>3003</ObjectId><PredecessorActivityObjectId>2003</PredecessorActivityObjectId><SuccessorActivityObjectId>2004</SuccessorActivityObjectId>
+      <Type>Finish to Finish</Type><Lag>8</Lag>
+    </Relationship>
+    <Relationship>
+      <ObjectId>3004</ObjectId><PredecessorActivityObjectId>2004</PredecessorActivityObjectId><SuccessorActivityObjectId>2005</SuccessorActivityObjectId>
+      <Type>Finish to Start</Type><Lag>0</Lag>
+    </Relationship>
+    <Relationship>
+      <ObjectId>3005</ObjectId><PredecessorActivityObjectId>9999</PredecessorActivityObjectId><SuccessorActivityObjectId>2005</SuccessorActivityObjectId>
+      <Type>Finish to Start</Type><Lag>0</Lag>
+    </Relationship>
+  </Project>
+</APIBusinessObjects>

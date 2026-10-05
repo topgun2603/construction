@@ -18,6 +18,7 @@ export function ProjectTabs({
   showPurchases = false,
   showChangeOrders = false,
   showQuality = false,
+  showSchedule = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -46,12 +47,15 @@ export function ProjectTabs({
   showChangeOrders?: boolean;
   /** Quality needs `quality.view` or `.inspect`; a client gets it for their punch list. */
   showQuality?: boolean;
+  /** The Gantt needs `schedule.view`. */
+  showSchedule?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
   const { t } = useLanguage();
   const tabs = [
     { key: 'timeline', label: t('Timeline') },
+    ...(showSchedule ? [{ key: 'schedule', label: t('Schedule') }] : []),
     { key: 'reports', label: t('Daily reports'), count: reportCount },
     ...(showConversation
       ? [{ key: 'conversation', label: t('Conversation'), count: unreadCount }]
