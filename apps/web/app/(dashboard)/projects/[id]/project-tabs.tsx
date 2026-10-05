@@ -16,6 +16,7 @@ export function ProjectTabs({
   showCost = false,
   showSubcontracts = false,
   showPurchases = false,
+  showSafety = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -40,6 +41,8 @@ export function ProjectTabs({
   showSubcontracts?: boolean;
   /** Purchase orders need `procurement.view` or `procurement.receive`. */
   showPurchases?: boolean;
+  /** Safety needs `safety.view`; anybody who can only report does it from the company page. */
+  showSafety?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -60,6 +63,7 @@ export function ProjectTabs({
     ...(showCost ? [{ key: 'cost', label: t('Cost codes') }] : []),
     ...(showSubcontracts ? [{ key: 'subcontracts', label: t('Subcontracts') }] : []),
     ...(showPurchases ? [{ key: 'purchases', label: t('Purchases') }] : []),
+    ...(showSafety ? [{ key: 'safety', label: t('Safety') }] : []),
   ];
 
   return (

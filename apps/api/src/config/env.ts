@@ -237,6 +237,9 @@ const envSchema = z
       .transform((value) => value === 'true'),
     // Workers' documents nearing expiry, on each company's clock: first thing in the morning.
     DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
+    // Permits to work whose time ran out while still open. Every quarter-hour, so the alert lands
+    // within fifteen minutes of the permit lapsing on any company's clock.
+    SAFETY_PERMIT_EXPIRY_CRON: z.string().default('*/15 * * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

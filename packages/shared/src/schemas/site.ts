@@ -136,6 +136,8 @@ const UPLOAD_KINDS = [
   'site_media',
   /** A photo a client or the team attached to a message in the site conversation. */
   'message_attachment',
+  /** Safety evidence: an incident scene, a witness statement, an observation and its close-out. */
+  'safety_photo',
 ] as const;
 
 /**

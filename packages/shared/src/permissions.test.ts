@@ -71,6 +71,9 @@ describe('permission catalogue', () => {
         'procurement.manage',
         'procurement.approve',
         'procurement.receive',
+        'safety.view',
+        'safety.report',
+        'safety.manage',
         'indents.approve',
         'indents.raise',
         'estimates.manage',
@@ -112,6 +115,8 @@ describe('permission catalogue', () => {
         'stock.record',
         'stock.view',
         'subcontracts.measure',
+        'safety.view',
+        'safety.report',
         'workers.view',
       ],
       accounts: [

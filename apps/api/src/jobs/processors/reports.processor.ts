@@ -16,6 +16,7 @@ import { WagePeriodsService } from '../../modules/wage-periods/wage-periods.serv
 import { ForecastsService } from '../../modules/forecasts/forecasts.service';
 import { ChecksService } from '../../modules/checks/checks.service';
 import { WorkerDocumentsService } from '../../modules/worker-documents/worker-documents.service';
+import { SafetyPermitsService } from '../../modules/safety/safety-permits.service';
 import {
   DEFAULT_JOB_OPTIONS,
   QUEUE,
@@ -24,6 +25,7 @@ import {
   type WagePeriodDraftJob,
 } from '../job-types';
 import { TenantRoster } from '../tenant-roster.service';
+import { tickWindow } from '../tenant-clock';
 import { isPeriodEnd, periodStartFor } from '../pay-cycle';
 import type { RequestUser } from '../../common/auth/request-user';
 
@@ -45,6 +47,7 @@ export class ReportsProcessor extends WorkerHost {
     private readonly forecasts: ForecastsService,
     private readonly checks: ChecksService,
     private readonly workerDocuments: WorkerDocumentsService,
+    private readonly safetyPermits: SafetyPermitsService,
   ) {
     super();
   }
@@ -67,6 +70,10 @@ export class ReportsProcessor extends WorkerHost {
         return this.fanOutNightly('document-expiry', env().DOCUMENT_EXPIRY_CRON);
       case 'document-expiry':
         return this.workerDocuments.remindTenant((job.data as { tenantId: string }).tenantId);
+      case 'fan-out-safety-permit-expiry':
+        return this.fanOutPermitExpiry();
+      case 'safety-permit-expiry':
+        return this.safetyPermits.alertExpired((job.data as { tenantId: string }).tenantId);
       case 'leak-checks':
         return this.checks.runTenant((job.data as { tenantId: string }).tenantId);
       case 'site-forecast':
@@ -140,6 +147,26 @@ export class ReportsProcessor extends WorkerHost {
       })),
     );
     this.logger.log({ name, tenants: due.length }, 'Fanned out on company clocks');
+    return { queued: due.length };
+  }
+
+  /**
+   * Expired permits to work, checked for every company whose clock the configured cron fires on —
+   * every quarter-hour by default, so on every company's clock at once. Unlike the nightly jobs the
+   * id is per tick, not per day: a permit lapsing at 14:10 is alerted on the 14:15 tick, not
+   * tomorrow. The alert itself is claimed per permit, so a retried tick cannot send it twice.
+   */
+  private async fanOutPermitExpiry() {
+    const due = await this.roster.dueTenants(env().SAFETY_PERMIT_EXPIRY_CRON);
+    if (due.length === 0) return { queued: 0 };
+    const tick = tickWindow(new Date()).end.getTime();
+    await this.queue.addBulk(
+      due.map((tenant) => ({
+        name: 'safety-permit-expiry',
+        data: { tenantId: tenant.id },
+        opts: { ...DEFAULT_JOB_OPTIONS, jobId: `safety-permit-expiry-${tenant.id}-${tick}` },
+      })),
+    );
     return { queued: due.length };
   }
 
