@@ -67,7 +67,6 @@ import type {
 import { SiteChangeOrders } from '../../change-orders/site-change-orders';
 import { ClientChangeOrders } from '../../change-orders/client-change-order';
 import { SiteQuality } from './site-quality';
-import type { CostCode } from '@/lib/cost-code-types';
 import type { ScheduleView } from '@/lib/schedule-types';
 import { ScheduleTab } from './schedule/schedule-tab';
 import type {
