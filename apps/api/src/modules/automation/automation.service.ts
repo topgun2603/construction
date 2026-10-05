@@ -86,6 +86,14 @@ export class AutomationService {
         effect: null,
         cron: this.config.LEAK_CHECK_CRON,
       },
+      {
+        key: 'document_expiry',
+        name: 'Papers about to lapse',
+        description:
+          'Tells owners and accounts, once per paper, when a worker’s passport, visa, Emirates ID or labour card lapses within 30 days.',
+        effect: null,
+        cron: this.config.DOCUMENT_EXPIRY_CRON,
+      },
     ].map((job) => ({
       ...job,
       // Each job runs on the company's own clock (jobs/tenant-clock.ts), so that is the zone shown.

@@ -18,6 +18,8 @@ export * from './schemas/roles';
 export * from './schemas/tenant';
 export * from './schemas/project';
 export * from './schemas/labour';
+export * from './schemas/worker-documents';
+export * from './schemas/camps';
 export * from './schemas/site';
 export * from './schemas/portal';
 export * from './schemas/billing-client';

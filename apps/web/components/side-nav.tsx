@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  Tent,
   ShieldAlert,
   Banknote,
   Receipt,
@@ -94,6 +95,13 @@ const GROUPS: NavGroup[] = [
         href: '/labour/workers',
         label: 'Workers',
         icon: HardHat,
+        module: 'labour',
+        permission: 'workers.view',
+      },
+      {
+        href: '/labour/camps',
+        label: 'Camps',
+        icon: Tent,
         module: 'labour',
         permission: 'workers.view',
       },

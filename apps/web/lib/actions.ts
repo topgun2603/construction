@@ -17,6 +17,7 @@ import type {
   Approval,
   AttendanceDay,
   Billing,
+  CampResident,
   ClientPayment,
   CompanySettings,
   SiteCheck,
@@ -34,6 +35,7 @@ import type {
   StockMovement,
   WagePeriodDetail,
   Worker,
+  WorkerDocument,
 } from './api-types';
 
 /**
@@ -402,6 +404,102 @@ export async function discardExpense(id: string): Promise<ActionResult> {
  * page: changing what a role may do changes what the team list should be showing about the
  * people on it.
  */
+
+export async function createCamp(input: {
+  name: string;
+  address?: string;
+  capacity?: number;
+  transport_note?: string;
+}): Promise<ActionResult> {
+  const result = await runAction(() => serverFetch('/camps', { method: 'POST', body: input }));
+  if (result.ok) revalidatePath('/labour/camps');
+  return result;
+}
+
+export async function archiveCamp(id: string): Promise<ActionResult> {
+  const result = await runAction(() => serverFetch(`/camps/${id}`, { method: 'DELETE' }));
+  if (result.ok) revalidatePath('/labour/camps');
+  return result;
+}
+
+export async function campResidents(id: string): Promise<ActionResult<CampResident[]>> {
+  return runAction(() => serverFetch<CampResident[]>(`/camps/${id}/residents`));
+}
+
+/** Move workers into a camp; each leaves whatever camp they were in. */
+export async function addCampResidents(id: string, workerIds: string[]): Promise<ActionResult> {
+  const result = await runAction(() =>
+    serverFetch(`/camps/${id}/residents`, { method: 'POST', body: { worker_ids: workerIds } }),
+  );
+  if (result.ok) revalidatePath('/labour/camps');
+  return result;
+}
+
+export async function removeCampResident(id: string, workerId: string): Promise<ActionResult> {
+  const result = await runAction(() =>
+    serverFetch(`/camps/${id}/residents/${workerId}`, { method: 'DELETE' }),
+  );
+  if (result.ok) revalidatePath('/labour/camps');
+  return result;
+}
+
+/** Record a worker's passport, visa, Emirates ID, Iqama or labour card. */
+export async function addWorkerDocument(input: {
+  workerId: string;
+  kind: string;
+  number: string;
+  issued_on?: string;
+  expires_on?: string;
+  s3_key?: string;
+}): Promise<ActionResult<WorkerDocument>> {
+  const { workerId, ...body } = input;
+  const result = await runAction(() =>
+    serverFetch<WorkerDocument>(`/workers/${workerId}/documents`, { method: 'POST', body }),
+  );
+  if (result.ok) {
+    revalidatePath(`/labour/workers/${workerId}`);
+    revalidatePath('/overview');
+  }
+  return result;
+}
+
+/** Renew a document: a new expiry date, which also re-arms its reminder. */
+export async function renewWorkerDocument(input: {
+  id: string;
+  workerId: string;
+  expires_on: string;
+}): Promise<ActionResult<WorkerDocument>> {
+  const result = await runAction(() =>
+    serverFetch<WorkerDocument>(`/worker-documents/${input.id}`, {
+      method: 'PATCH',
+      body: { expires_on: input.expires_on },
+    }),
+  );
+  if (result.ok) {
+    revalidatePath(`/labour/workers/${input.workerId}`);
+    revalidatePath('/overview');
+  }
+  return result;
+}
+
+export async function deleteWorkerDocument(id: string, workerId: string): Promise<ActionResult> {
+  const result = await runAction(() =>
+    serverFetch(`/worker-documents/${id}`, { method: 'DELETE' }),
+  );
+  if (result.ok) revalidatePath(`/labour/workers/${workerId}`);
+  return result;
+}
+
+/** The full number. The API writes down who looked. */
+export async function revealWorkerDocument(id: string): Promise<ActionResult<{ number: string }>> {
+  return runAction(() =>
+    serverFetch<{ number: string }>(`/worker-documents/${id}/reveal`, { method: 'POST' }),
+  );
+}
+
+export async function workerDocumentScanUrl(id: string): Promise<ActionResult<{ url: string | null }>> {
+  return runAction(() => serverFetch<{ url: string | null }>(`/worker-documents/${id}/scan`));
+}
 
 /** Confirm or dismiss a leak or fraud finding. Either way it leaves the open list for good. */
 export async function decideCheck(input: {

@@ -34,4 +34,6 @@ export default async function globalSetup(): Promise<void> {
    * exercises the signature check and the event handling without an account.
    */
   process.env['RAZORPAY_WEBHOOK_SECRET'] = 'test_webhook_secret_value';
+  // A throwaway key, so the worker-documents suite encrypts with something that is not a real one.
+  process.env['DOCUMENT_ENCRYPTION_KEY'] ??= Buffer.alloc(32, 7).toString('base64');
 }

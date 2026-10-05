@@ -206,6 +206,30 @@ const envSchema = z
      * half-configured deployment shows up as a visibly wrong link rather than a silently dead one.
      */
     WEB_BASE_URL: z.string().url().optional(),
+
+    /**
+     * Key for workers' identity-document numbers (passport, Emirates ID, Iqama): 32 random bytes,
+     * base64. Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+     * Unset, the documents feature answers "not configured" rather than store a number in the clear.
+     * Changing it makes every stored number unreadable, so it is rotated by re-encrypting, never
+     * by replacing.
+     */
+    DOCUMENT_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'DOCUMENT_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
+    /**
+     * Ask the bucket to encrypt document scans at rest (SSE-S3, AES256). On for AWS S3 and
+     * Tigris; off for local MinIO, which needs a key server configured before it will accept it.
+     */
+    S3_SERVER_SIDE_ENCRYPTION: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    // Workers' documents nearing expiry, on each company's clock: first thing in the morning.
+    DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

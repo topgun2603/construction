@@ -128,6 +128,8 @@ const UPLOAD_KINDS = [
   'dpr_voice',
   'worker_photo',
   'worker_id_proof',
+  /** A scan of a passport, visa, Emirates ID or labour card. Server-side encrypted where enabled. */
+  'worker_document',
   'bill',
   'document',
   /** Photos and videos of the site itself, as opposed to evidence from one day's report. */

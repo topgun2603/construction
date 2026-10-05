@@ -252,6 +252,8 @@ model Tenant {
   expenses        Expense[]
   siteForecasts   SiteForecast[]
   siteChecks      SiteCheck[]
+  workerDocuments WorkerDocument[]
+  camps           Camp[]
   notifications   Notification[]
   syncLogs        SyncLog[]
   auditLogs       AuditLog[]
@@ -507,6 +509,8 @@ model Worker {
   clientId            String?      @map("client_id") @db.Uuid
   /// Optional link to a `client`-role user for Phase 3 worker self-service.
   portalUserId        String?      @map("portal_user_id") @db.Uuid
+  /// The labour camp the worker lives in (roadmap Phase 1, item 4). Null for local hires.
+  campId              String?      @map("camp_id") @db.Uuid
   createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt           DateTime?    @map("deleted_at") @db.Timestamptz(6)
@@ -519,8 +523,11 @@ model Worker {
   attendance     Attendance[]
   wageLines      WageLine[]
   labourPayments LabourPayment[]
+  documents      WorkerDocument[]
+  camp           Camp?            @relation(fields: [campId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, clientId], map: "workers_tenant_id_client_id_key")
+  @@index([campId])
   @@index([tenantId, contractorId])
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
@@ -1578,4 +1585,54 @@ model SiteCheck {
   @@unique([tenantId, kind, subjectKey])
   @@index([tenantId, status])
   @@map("site_checks")
+}
+
+/// A worker's passport, visa, Emirates ID, Iqama or labour card (roadmap Phase 1, item 3).
+///
+/// The number is encrypted by the API (AES-256-GCM, DOCUMENT_ENCRYPTION_KEY) and stored only as
+/// ciphertext; `numberHint` keeps its last four characters so a list can tell two papers apart.
+/// The expiry date is the point of the table: a lapsed residence visa is a fine for the employer.
+model WorkerDocument {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  workerId     String    @map("worker_id") @db.Uuid
+  /// One of WORKER_DOCUMENT_KINDS in @sitebook/shared.
+  kind         String
+  numberCipher String    @map("number_cipher")
+  numberHint   String    @map("number_hint")
+  issuedOn     DateTime? @map("issued_on") @db.Date
+  expiresOn    DateTime? @map("expires_on") @db.Date
+  s3Key        String?   @map("s3_key")
+  /// When the owners were told it is about to lapse, so they are told once, not every morning.
+  remindedAt   DateTime? @map("reminded_at") @db.Timestamptz(6)
+  createdBy    String    @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, expiresOn])
+  @@index([workerId])
+  @@map("worker_documents")
+}
+
+/// A labour camp, and the bus that serves it (roadmap Phase 1, item 4).
+model Camp {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  name          String
+  address       String?
+  capacity      Int?
+  transportNote String?   @map("transport_note")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  residents Worker[]
+
+  @@index([tenantId])
+  @@map("camps")
 }

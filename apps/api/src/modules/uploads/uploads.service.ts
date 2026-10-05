@@ -64,11 +64,14 @@ export class UploadsService {
 
     const key = this.buildKey(actor, input);
 
+    // Identity papers are encrypted at rest by the bucket where it supports it (S3, Tigris).
+    const encrypt = input.kind === 'worker_document' && this.config.S3_SERVER_SIDE_ENCRYPTION;
     const command = new PutObjectCommand({
       Bucket: this.config.S3_BUCKET,
       Key: key,
       ContentType: input.content_type,
       ContentLength: input.content_length,
+      ...(encrypt ? { ServerSideEncryption: 'AES256' as const } : {}),
     });
 
     const url = await getSignedUrl(this.client, command, { expiresIn: URL_TTL_SECONDS });
@@ -81,6 +84,7 @@ export class UploadsService {
       headers: {
         'Content-Type': input.content_type,
         'Content-Length': String(input.content_length),
+        ...(encrypt ? { 'x-amz-server-side-encryption': 'AES256' } : {}),
       },
     };
   }

@@ -15,6 +15,7 @@ import { BillingService } from '../../modules/billing/billing.service';
 import { WagePeriodsService } from '../../modules/wage-periods/wage-periods.service';
 import { ForecastsService } from '../../modules/forecasts/forecasts.service';
 import { ChecksService } from '../../modules/checks/checks.service';
+import { WorkerDocumentsService } from '../../modules/worker-documents/worker-documents.service';
 import {
   DEFAULT_JOB_OPTIONS,
   QUEUE,
@@ -43,6 +44,7 @@ export class ReportsProcessor extends WorkerHost {
     private readonly billing: BillingService,
     private readonly forecasts: ForecastsService,
     private readonly checks: ChecksService,
+    private readonly workerDocuments: WorkerDocumentsService,
   ) {
     super();
   }
@@ -61,6 +63,10 @@ export class ReportsProcessor extends WorkerHost {
         return this.fanOutNightly('site-forecast', env().SITE_FORECAST_CRON);
       case 'fan-out-leak-checks':
         return this.fanOutNightly('leak-checks', env().LEAK_CHECK_CRON);
+      case 'fan-out-document-expiry':
+        return this.fanOutNightly('document-expiry', env().DOCUMENT_EXPIRY_CRON);
+      case 'document-expiry':
+        return this.workerDocuments.remindTenant((job.data as { tenantId: string }).tenantId);
       case 'leak-checks':
         return this.checks.runTenant((job.data as { tenantId: string }).tenantId);
       case 'site-forecast':
@@ -120,7 +126,10 @@ export class ReportsProcessor extends WorkerHost {
    * A per-company nightly job (forecasts, leak checks) for each company whose own clock just
    * reached `cron` — one job per company and local day, so a retried tick cannot run it twice.
    */
-  private async fanOutNightly(name: 'site-forecast' | 'leak-checks', cron: string) {
+  private async fanOutNightly(
+    name: 'site-forecast' | 'leak-checks' | 'document-expiry',
+    cron: string,
+  ) {
     const due = await this.roster.dueTenants(cron);
     if (due.length === 0) return { queued: 0 };
     await this.queue.addBulk(

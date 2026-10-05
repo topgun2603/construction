@@ -1,4 +1,4 @@
-import type { PaymentMode } from '@sitebook/shared';
+import type { PaymentMode, WorkerDocumentKind } from '@sitebook/shared';
 
 /**
  * Response shapes from the API.
@@ -786,4 +786,45 @@ export interface SiteCheck {
   note: string | null;
   decided_at: string | null;
   created_at: string;
+}
+
+/** `GET /workers/:id/documents` — a passport, visa, Emirates ID, Iqama or labour card. */
+export interface WorkerDocument {
+  id: string;
+  worker_id: string;
+  /** Present on the cross-worker `expiring` list. */
+  worker_name?: string;
+  kind: WorkerDocumentKind;
+  /** Last four characters; the whole number needs `revealWorkerDocument`. */
+  number_hint: string;
+  issued_on: string | null;
+  expires_on: string | null;
+  standing: 'valid' | 'expiring' | 'expired' | 'no_expiry';
+  has_scan: boolean;
+}
+
+/** `GET /camps` — a labour camp, its residents and where they went on the day asked for. */
+export interface Camp {
+  id: string;
+  name: string;
+  address: string | null;
+  capacity: number | null;
+  transport_note: string | null;
+  residents: number;
+  on_site: number;
+  by_site: Array<{ project_id: string; project_name: string; count: number }>;
+}
+
+export interface CampDay {
+  date: string;
+  camps: Camp[];
+  /** Workers on site that day who live in no camp — local hires, or someone not yet housed. */
+  unhoused_on_site: number;
+}
+
+export interface CampResident {
+  id: string;
+  name: string;
+  trade: string | null;
+  status: string;
 }

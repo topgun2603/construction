@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, HardHat } from 'lucide-react';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
-import type { WorkerLedger } from '@/lib/api-types';
+import type { WorkerDocument, WorkerLedger } from '@/lib/api-types';
+import { requireSelf } from '@/lib/session';
 import { titleCase } from '@/lib/format';
 import { getFormat } from '@/lib/format-server';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,7 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { LedgerRange } from './ledger-range';
 import { SelfServiceLink } from './self-service-link';
+import { WorkerPapers } from './worker-papers';
 import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Worker · BUILDR' };
@@ -56,6 +58,11 @@ export default async function WorkerPage({
   }
 
   const { worker } = ledger;
+
+  const [me, papers] = await Promise.all([
+    requireSelf(),
+    serverFetch<{ configured: boolean; items: WorkerDocument[] }>(`/workers/${id}/documents`),
+  ]);
   const outstanding = BigInt(ledger.outstanding);
 
   return (
@@ -93,6 +100,13 @@ export default async function WorkerPage({
         workerId={id}
         workerName={worker.name}
         phone={worker.phone ?? null}
+      />
+
+      <WorkerPapers
+        workerId={id}
+        documents={papers.items}
+        canManage={me.permissions.includes('workers.manage')}
+        unavailable={!papers.configured}
       />
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
