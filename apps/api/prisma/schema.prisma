@@ -4,6 +4,8 @@
 //   * Every tenant-scoped model carries `tenantId` and has an RLS policy created in
 //     the same migration. Child tables (dpr_*, wage_lines, indent_items) carry
 //     `tenantId` too, so RLS protects them directly rather than only via the parent.
+//   * Every tenant table is audited unless it is listed as excluded in migration
+//     20261006000200_full_audit_log: its migration adds `SELECT audit_attach('table');`.
 //   * Money is `BigInt` paise. Never Float, never Decimal.
 //   * Report/attendance dates are `@db.Date`; everything else is `@db.Timestamptz(6)`.
 //   * `clientId` is the device-generated UUID used as the sync idempotency key (Â§8).
@@ -349,7 +351,6 @@ model User {
   submittedExpenses  Expense[]         @relation("expense_submitted_by")
   approvedExpenses   Expense[]         @relation("expense_approved_by")
   notifications      Notification[]
-  auditLogs          AuditLog[]
   workers            Worker[]          @relation("worker_portal_user")
   stockRecorded      StockMovement[]   @relation("stock_recorded_by")
   mediaUploaded      ProjectMedia[]    @relation("media_uploaded_by")
@@ -1267,23 +1268,45 @@ model PlatformOperator {
   @@map("platform_operators")
 }
 
+/// Every create, update and delete on tenant data, plus the business events services name by hand.
+///
+/// Two writers, one table:
+///   * `audit_row_change()` — a Postgres trigger attached to each tenant table with
+///     `SELECT audit_attach('<table>')`. It writes `create` / `update` / `delete` rows with the
+///     changed fields, and cannot be forgotten by a new service or bypassed by a raw query.
+///   * Services, for events a row change cannot express: an approval decision, a reveal of an
+///     encrypted document number (a read), a wage period being finalised. Those keep their dotted
+///     action names (`expense.approved`), and were the whole of this table before.
+///
+/// Who did it, the request id, IP and user agent are filled in by a BEFORE INSERT trigger from the
+/// transaction-local settings `TenantDb` sets beside `app.tenant_id` — so neither writer passes them.
 model AuditLog {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String   @map("tenant_id") @db.Uuid
-  actorId   String?  @map("actor_id") @db.Uuid
-  action    String
-  entity    String
-  entityId  String?  @map("entity_id") @db.Uuid
-  before    Json?    @db.JsonB
-  after     Json?    @db.JsonB
-  requestId String?  @map("request_id")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  /// The user who acted. Deliberately not a foreign key: an audit row must keep naming its actor
+  /// after that person is removed, and must never be rewritten by an ON DELETE SET NULL.
+  actorId       String?  @map("actor_id") @db.Uuid
+  /// user | system (a scheduled job or webhook) | platform (the support console).
+  actorType     String   @default("system") @map("actor_type")
+  action        String
+  entity        String
+  entityId      String?  @map("entity_id") @db.Uuid
+  /// The row's name or title at the time, so a deleted worker still reads as "Ravi" in the log.
+  entityLabel   String?  @map("entity_label")
+  /// For an update, which columns changed; empty for create and delete.
+  changedFields String[] @default([]) @map("changed_fields")
+  before        Json?    @db.JsonB
+  after         Json?    @db.JsonB
+  requestId     String?  @map("request_id")
+  ip            String?
+  userAgent     String?  @map("user_agent")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  actor  User?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, entity, entityId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, actorId, createdAt])
   @@map("audit_logs")
 }
 

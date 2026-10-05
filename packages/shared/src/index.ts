@@ -22,6 +22,7 @@ export * from './schemas/labour';
 export * from './schemas/worker-documents';
 export * from './schemas/camps';
 export * from './schemas/cost-codes';
+export * from './schemas/audit';
 export * from './schemas/site';
 export * from './schemas/portal';
 export * from './schemas/billing-client';

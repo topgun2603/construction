@@ -99,6 +99,12 @@ export const PERMISSIONS = [
   'team.manage',
   'roles.manage',
   'tenant.manage',
+  /*
+   * Read the audit log: every change anybody made, with the before and after. Owner-only by
+   * default — it shows salaries, payments and who touched them, which is exactly what makes it
+   * worth having and exactly why it is not every manager's to browse.
+   */
+  'audit.view',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -281,6 +287,11 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
       { permission: 'team.manage', label: 'Invite and remove people' },
       { permission: 'roles.manage', label: 'Create and edit roles' },
       { permission: 'tenant.manage', label: 'Change company details and plan' },
+      {
+        permission: 'audit.view',
+        label: 'Read and export the audit log',
+        note: 'Every change anybody made, including wages and payments',
+      },
     ],
   },
 ];
