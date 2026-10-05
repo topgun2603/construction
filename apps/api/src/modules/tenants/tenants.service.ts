@@ -40,6 +40,8 @@ export interface TenantView {
   tax_regime: string;
   /** True once any amount is stored in `currency`; the settings page then shows it read-only. */
   currency_locked: boolean;
+  wps_employer_id: string | null;
+  wps_bank_code: string | null;
 }
 
 @Injectable()
@@ -183,6 +185,8 @@ export class TenantsService {
         data: {
           ...(input.name === undefined ? {} : { name: input.name }),
           ...(input.logo_url === undefined ? {} : { logoUrl: input.logo_url }),
+          ...(input.wps_employer_id === undefined ? {} : { wpsEmployerId: input.wps_employer_id }),
+          ...(input.wps_bank_code === undefined ? {} : { wpsBankCode: input.wps_bank_code }),
           ...tenantLocaleData(input),
         },
         select: selectTenant,
@@ -357,6 +361,8 @@ const selectTenant = {
   plan: true,
   enabledModules: true,
   status: true,
+  wpsEmployerId: true,
+  wpsBankCode: true,
   ...selectTenantLocale,
 } as const;
 
@@ -367,6 +373,8 @@ type TenantRow = TenantLocaleRow & {
   plan: string;
   enabledModules: string[];
   status: string;
+  wpsEmployerId: string | null;
+  wpsBankCode: string | null;
 };
 
 function toView(tenant: TenantRow, currencyLocked = false): TenantView {
@@ -379,6 +387,8 @@ function toView(tenant: TenantRow, currencyLocked = false): TenantView {
     status: tenant.status,
     ...tenantLocaleView(tenant),
     currency_locked: currencyLocked,
+    wps_employer_id: tenant.wpsEmployerId,
+    wps_bank_code: tenant.wpsBankCode,
   };
 }
 

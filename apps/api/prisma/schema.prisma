@@ -226,6 +226,10 @@ model Tenant {
   locale             String       @default("en-IN")
   /// One of TAX_REGIMES in @sitebook/shared.
   taxRegime          String       @default("gst_in") @map("tax_regime")
+  /// UAE Wage Protection System: the 13-digit MOL establishment id and the routing code of the
+  /// bank or exchange house that pays the salaries. Both appear in every salary file (SIF).
+  wpsEmployerId      String?      @map("wps_employer_id")
+  wpsBankCode        String?      @map("wps_bank_code")
   status             TenantStatus @default(active)
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -509,6 +513,18 @@ model Worker {
   clientId            String?      @map("client_id") @db.Uuid
   /// Optional link to a `client`-role user for Phase 3 worker self-service.
   portalUserId        String?      @map("portal_user_id") @db.Uuid
+  /// daily | monthly (roadmap Phase 1, item 2). A monthly worker's dailyWage is kept at fixed/30
+  /// so reports that price a roll-call day stay right; the wage period uses the salary itself.
+  payBasis            String       @default("daily") @map("pay_basis")
+  basicSalary         BigInt?      @map("basic_salary")
+  housingAllowance    BigInt       @default(0) @map("housing_allowance")
+  transportAllowance  BigInt       @default(0) @map("transport_allowance")
+  foodAllowance       BigInt       @default(0) @map("food_allowance")
+  /// UAE Wage Protection System: the 14-digit MOL personal number, the routing code of the
+  /// worker's bank or exchange house, and the IBAN or salary card number the salary goes to.
+  wpsPersonId         String?      @map("wps_person_id")
+  wpsAgentCode        String?      @map("wps_agent_code")
+  wpsAccount          String?      @map("wps_account")
   /// The labour camp the worker lives in (roadmap Phase 1, item 4). Null for local hires.
   campId              String?      @map("camp_id") @db.Uuid
   createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -772,6 +788,10 @@ model WageLine {
   advancesDeducted BigInt  @default(0) @map("advances_deducted")
   netPayable       BigInt  @default(0) @map("net_payable")
   paidAmount       BigInt  @default(0) @map("paid_amount")
+  /// Gross split for a salary file: day wages or salary (fixed) and overtime (variable).
+  fixedAmount      BigInt  @default(0) @map("fixed_amount")
+  variableAmount   BigInt  @default(0) @map("variable_amount")
+  leaveDays        Decimal @default(0) @map("leave_days") @db.Decimal(4, 1)
   note             String?
 
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)

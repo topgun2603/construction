@@ -26,7 +26,17 @@ function buildColumns(t: Translator, { money }: Format): ColumnDef<WageLine>[] {
     header: t('Days'),
     meta: { align: 'right' },
     sortingFn: (a, b) => Number(a.original.days_present) - Number(b.original.days_present),
-    cell: ({ row }) => <span className="font-mono">{row.original.days_present}</span>,
+    cell: ({ row }) => (
+      <div className="flex flex-col items-end">
+        <span className="font-mono">{row.original.days_present}</span>
+        {/* A monthly worker's pay is reduced by leave, so say how much was taken. */}
+        {row.original.pay_basis === 'monthly' && Number(row.original.leave_days) > 0 && (
+          <span className="font-mono text-[12px] text-ink-muted">
+            {row.original.leave_days} {t('leave')}
+          </span>
+        )}
+      </div>
+    ),
   },
   {
     accessorKey: 'overtime_hours',
@@ -41,7 +51,19 @@ function buildColumns(t: Translator, { money }: Format): ColumnDef<WageLine>[] {
     header: t('Gross'),
     meta: { align: 'right' },
     sortingFn: (a, b) => Number(BigInt(a.original.gross_amount) - BigInt(b.original.gross_amount)),
-    cell: ({ row }) => <span className="font-mono">{money(row.original.gross_amount)}</span>,
+    cell: ({ row }) => (
+      <div className="flex flex-col items-end">
+        <span className="font-mono">{money(row.original.gross_amount)}</span>
+        {/* Only a salaried line has two parts worth telling apart: salary, and overtime on top. */}
+        {row.original.pay_basis === 'monthly' && (
+          <span className="font-mono text-[12px] text-ink-muted">
+            {money(row.original.fixed_amount)} {t('salary')}
+            {BigInt(row.original.variable_amount) > 0n &&
+              ` + ${money(row.original.variable_amount)}`}
+          </span>
+        )}
+      </div>
+    ),
   },
   {
     accessorKey: 'advances_deducted',

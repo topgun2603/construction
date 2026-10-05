@@ -3,6 +3,7 @@ import {
   attendanceEarning,
   netPayable,
   outstandingBalance,
+  monthlyWageLine,
   wageLineTotals,
   type AttendanceEarningInput,
 } from './earnings';
@@ -62,6 +63,10 @@ describe('wageLineTotals', () => {
     expect(totals.overtimeHours).toBe('3.5');
     // 4 full days + 1 half day = 4.5 × ₹650 = ₹2925; 3.5 h × ₹80 = ₹280
     expect(totals.grossAmount).toBe(292500n + 28000n);
+    // Split for a salary file: day wages fixed, overtime variable; one absence and a half day.
+    expect(totals.fixedAmount).toBe(292500n);
+    expect(totals.variableAmount).toBe(28000n);
+    expect(totals.leaveDays).toBe('1.5');
   });
 
   it('returns zeroes for an empty period', () => {
@@ -69,7 +74,41 @@ describe('wageLineTotals', () => {
       daysPresent: '0.0',
       overtimeHours: '0.0',
       grossAmount: 0n,
+      fixedAmount: 0n,
+      variableAmount: 0n,
+      leaveDays: '0.0',
     });
+  });
+});
+
+describe('monthlyWageLine', () => {
+  // AED 2,000 basic + 600 housing + 200 transport + 200 food = AED 3,000 a month, in fils.
+  const pay = { basic: 200_000n, housing: 60_000n, transport: 20_000n, food: 20_000n };
+  const october = { start: '2026-10-01', end: '2026-10-31' };
+
+  it('pays the full month when nobody was marked absent, rest days included', () => {
+    const line = monthlyWageLine(pay, october, [row('present'), row('present')]);
+    expect(line.fixedAmount).toBe(300_000n);
+    expect(line.grossAmount).toBe(300_000n);
+    expect(line.leaveDays).toBe('0.0');
+  });
+
+  it('takes a thirtieth off for each absent day, half for a half day', () => {
+    const line = monthlyWageLine(pay, october, [row('absent'), row('half_day'), row('present')]);
+    // 1.5 days × 3,000 / 30 = 150 off.
+    expect(line.fixedAmount).toBe(300_000n - 15_000n);
+    expect(line.leaveDays).toBe('1.5');
+  });
+
+  it('pays overtime on top, at the rate frozen on each row', () => {
+    const line = monthlyWageLine(pay, october, [row('present', '2')]);
+    expect(line.variableAmount).toBe(16_000n);
+    expect(line.grossAmount).toBe(300_000n + 16_000n);
+  });
+
+  it('pays a share of the month for a shorter period', () => {
+    const line = monthlyWageLine(pay, { start: '2026-10-01', end: '2026-10-15' }, []);
+    expect(line.fixedAmount).toBe((300_000n * 15n) / 31n);
   });
 });
 

@@ -15,6 +15,7 @@ import { StatTile } from '@/components/stat-tile';
 import { LedgerRange } from './ledger-range';
 import { SelfServiceLink } from './self-service-link';
 import { WorkerPapers } from './worker-papers';
+import { WorkerPay } from './worker-pay';
 import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Worker · BUILDR' };
@@ -101,6 +102,8 @@ export default async function WorkerPage({
         workerName={worker.name}
         phone={worker.phone ?? null}
       />
+
+      <WorkerPay worker={worker} canManage={me.permissions.includes('workers.manage')} />
 
       <WorkerPapers
         workerId={id}

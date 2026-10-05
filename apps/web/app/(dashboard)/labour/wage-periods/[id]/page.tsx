@@ -5,12 +5,14 @@ import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
 import type { WagePeriodDetail } from '@/lib/api-types';
 import { getFormat } from '@/lib/format-server';
+import { requireSelf } from '@/lib/session';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { PeriodActions } from './period-actions';
 import { LinesTable } from './lines-table';
+import { WpsPanel } from './wps-panel';
 import { getT } from '@/lib/i18n-server';
 
 const STATUS_TONE: Record<WagePeriodDetail['status'], Tone> = {
@@ -21,8 +23,9 @@ const STATUS_TONE: Record<WagePeriodDetail['status'], Tone> = {
 
 export default async function WagePeriodPage({ params }: { params: Promise<{ id: string }> }) {
   const t = await getT();
-  const { money, shortDate } = await getFormat();
+  const { money, shortDate, settings } = await getFormat();
   const { id } = await params;
+  const me = await requireSelf();
 
   let period: WagePeriodDetail;
   try {
@@ -97,6 +100,11 @@ export default async function WagePeriodPage({ params }: { params: Promise<{ id:
             <Link href={`/reports/wage-sheet/${period.id}`}>{t('Open wage sheet')}</Link>
           </Button>
         </Card>
+      )}
+
+      {/* WPS is the UAE's salary channel, so the file is offered to companies paying in dirhams. */}
+      {settings.currency === 'AED' && me.permissions.includes('wages.pay') && (
+        <WpsPanel periodId={period.id} />
       )}
 
       <LinesTable lines={period.lines} />

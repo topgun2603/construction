@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type {
   AskDocumentsResult,
+  PayBasis,
   PaymentMode,
   ScanBillResult,
   TranslateInput,
@@ -34,6 +35,7 @@ import type {
   StartedSubscription,
   StockMovement,
   WagePeriodDetail,
+  WpsFile,
   Worker,
   WorkerDocument,
 } from './api-types';
@@ -124,17 +126,45 @@ export async function createWorker(input: {
   phone?: string;
   contractor_id?: string | null;
   skill_level: string;
-  daily_wage: string;
+  /** Required for a daily worker; omitted for a monthly one, whose day rate the API derives. */
+  daily_wage?: string;
   overtime_rate_per_hour: string;
   project_id?: string;
   from_date?: string;
-}): Promise<ActionResult<Worker>> {
+} & WorkerPayInput): Promise<ActionResult<Worker>> {
   const result = await runAction(() =>
     serverFetch<Worker>('/workers', { method: 'POST', body: input }),
   );
   if (result.ok) {
     revalidatePath('/labour/workers');
     revalidatePath('/labour/attendance');
+  }
+  return result;
+}
+
+/** Pay basis, salary and UAE WPS details — the fields a create and `updateWorkerPay` share. */
+type WorkerPayInput = {
+  pay_basis?: PayBasis;
+  basic_salary?: string;
+  housing_allowance?: string;
+  transport_allowance?: string;
+  food_allowance?: string;
+  wps_person_id?: string;
+  wps_agent_code?: string;
+  wps_account?: string;
+};
+
+/** How a worker is paid, and the WPS details a UAE salary file needs. Applies going forward. */
+export async function updateWorkerPay(
+  workerId: string,
+  input: WorkerPayInput & { daily_wage?: string },
+): Promise<ActionResult<Worker>> {
+  const result = await runAction(() =>
+    serverFetch<Worker>(`/workers/${workerId}`, { method: 'PATCH', body: input }),
+  );
+  if (result.ok) {
+    revalidatePath(`/labour/workers/${workerId}`);
+    revalidatePath('/labour/workers');
   }
   return result;
 }
@@ -312,6 +342,11 @@ export async function amendIndentReceipt(input: {
  * Both revalidate the list as well as the period: discarding removes a row from it, and
  * reopening changes the status badge the list shows.
  */
+/** The UAE WPS salary file for a period, or the reasons it cannot be made yet. Reads only. */
+export async function wpsFile(periodId: string): Promise<ActionResult<WpsFile>> {
+  return runAction(() => serverFetch<WpsFile>(`/wage-periods/${periodId}/wps`));
+}
+
 export async function discardWagePeriod(id: string): Promise<ActionResult> {
   const result = await runAction(() => serverFetch(`/wage-periods/${id}`, { method: 'DELETE' }));
   if (result.ok) revalidatePath('/labour/wage-periods');
@@ -559,6 +594,9 @@ export async function updateCompanySettings(input: {
   timezone: string;
   locale: string;
   tax_regime: string;
+  /** UAE WPS ids; null clears one. Left out, they are not touched. */
+  wps_employer_id?: string | null;
+  wps_bank_code?: string | null;
 }): Promise<ActionResult<CompanySettings>> {
   const result = await runAction(() =>
     serverFetch<CompanySettings>('/tenants/current', { method: 'PATCH', body: input }),

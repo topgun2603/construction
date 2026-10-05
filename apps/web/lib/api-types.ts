@@ -1,4 +1,4 @@
-import type { PaymentMode, WorkerDocumentKind } from '@sitebook/shared';
+import type { PayBasis, PaymentMode, WorkerDocumentKind } from '@sitebook/shared';
 
 /**
  * Response shapes from the API.
@@ -135,6 +135,19 @@ export interface Worker {
   overtime_rate_per_hour: string;
   photo_s3_key: string | null;
   client_id: string | null;
+  /** `daily` is paid per day attended; `monthly` is paid the salary below, prorated for absences. */
+  pay_basis: PayBasis;
+  /** Monthly workers only. For them `daily_wage` is derived: fixed monthly pay over thirty. */
+  basic_salary: string | null;
+  housing_allowance: string;
+  transport_allowance: string;
+  food_allowance: string;
+  /** UAE WPS: the 14-digit MOL personal number on the labour card. */
+  wps_person_id: string | null;
+  /** UAE WPS: routing code of the worker's bank or exchange house. */
+  wps_agent_code: string | null;
+  /** UAE WPS: IBAN or salary card number. */
+  wps_account: string | null;
 }
 
 export interface AttendanceRow {
@@ -191,9 +204,29 @@ export interface WageLine {
   paid_amount: string;
   outstanding: string;
   note: string | null;
+  /** Salary and allowances for a monthly worker; zero for a daily one. */
+  fixed_amount: string;
+  /** Day wages and overtime. */
+  variable_amount: string;
+  /** Days of the period a monthly worker was absent, e.g. `'1.5'`. */
+  leave_days: string;
+  pay_basis: PayBasis;
 }
 
 export type WagePeriodDetail = WagePeriod & { lines: WageLine[] };
+
+/** `GET /wage-periods/:id/wps` — the UAE WPS salary file, or why it cannot be made yet. */
+export interface WpsFile {
+  ready: boolean;
+  /** Company- or period-level blockers; while any remain, `content` is null. */
+  problems: string[];
+  /** Workers left out of the file for want of their WPS details. */
+  missing: Array<{ worker_id: string; worker_name: string; missing: string[] }>;
+  file_name: string | null;
+  /** The SIF text, to save as `file_name`. */
+  content: string | null;
+  included: number;
+}
 
 export interface LabourPayment {
   id: string;
@@ -446,6 +479,10 @@ export interface CompanySettings {
   tax_regime: string;
   /** True once any amount is stored in `currency`, which then cannot change. */
   currency_locked: boolean;
+  /** UAE WPS: the 13-digit MOL establishment id printed on every salary file. */
+  wps_employer_id: string | null;
+  /** UAE WPS: routing code of the bank or exchange house that pays the salaries. */
+  wps_bank_code: string | null;
 }
 
 export interface Role {

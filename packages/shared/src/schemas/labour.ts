@@ -34,22 +34,69 @@ export type UpdateContractorInput = z.infer<typeof updateContractorSchema>;
 
 // --- workers ---------------------------------------------------------------
 
-export const createWorkerSchema = z.object({
-  name: z.string().trim().min(1).max(160),
-  phone: phoneSchema.optional(),
-  trade: z.string().trim().min(1).max(80).optional(),
-  contractor_id: uuidSchema.nullable().optional(),
-  skill_level: z.enum(SKILL_LEVELS).default('unskilled'),
-  daily_wage: positivePaiseSchema,
-  overtime_rate_per_hour: positivePaiseSchema.default(0n),
-  id_proof_s3_key: z.string().max(512).optional(),
-  photo_s3_key: z.string().max(512).optional(),
-  /** Device-generated id when the supervisor added this worker offline. */
-  client_id: clientIdSchema.optional(),
-  /** Optional first site assignment, so the roll call sees them immediately. */
-  project_id: uuidSchema.optional(),
-  from_date: isoDateSchema.optional(),
-});
+export const PAY_BASES = ['daily', 'monthly'] as const;
+export type PayBasis = (typeof PAY_BASES)[number];
+
+/**
+ * A monthly-salaried worker's pay and the UAE WPS details a salary file needs (roadmap Phase 1,
+ * items 1 and 2). All optional: a daily-wage worker in India has none of them.
+ */
+const payAndWpsFields = {
+  pay_basis: z.enum(PAY_BASES).optional(),
+  basic_salary: positivePaiseSchema.optional(),
+  housing_allowance: positivePaiseSchema.optional(),
+  transport_allowance: positivePaiseSchema.optional(),
+  food_allowance: positivePaiseSchema.optional(),
+  /** The 14-digit MOL personal number on the labour card. */
+  wps_person_id: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{14}$/, 'the MOL personal number is 14 digits')
+    .optional(),
+  /** Routing code of the worker's bank or exchange house. */
+  wps_agent_code: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{9}$/, 'a routing code is 9 digits')
+    .optional(),
+  /** IBAN or salary card number. */
+  wps_account: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[0-9A-Z]{8,34}$/, 'an IBAN or card number is letters and digits')
+    .optional(),
+};
+
+export const createWorkerSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    phone: phoneSchema.optional(),
+    trade: z.string().trim().min(1).max(80).optional(),
+    contractor_id: uuidSchema.nullable().optional(),
+    skill_level: z.enum(SKILL_LEVELS).default('unskilled'),
+    /** Required for a daily worker; worked out from the salary (fixed / 30) for a monthly one. */
+    daily_wage: positivePaiseSchema.optional(),
+    overtime_rate_per_hour: positivePaiseSchema.default(0n),
+    id_proof_s3_key: z.string().max(512).optional(),
+    photo_s3_key: z.string().max(512).optional(),
+    ...payAndWpsFields,
+    /** Device-generated id when the supervisor added this worker offline. */
+    client_id: clientIdSchema.optional(),
+    /** Optional first site assignment, so the roll call sees them immediately. */
+    project_id: uuidSchema.optional(),
+    from_date: isoDateSchema.optional(),
+  })
+  .refine(
+    (value) =>
+      value.pay_basis === 'monthly'
+        ? value.basic_salary !== undefined
+        : value.daily_wage !== undefined,
+    {
+      message: 'a daily worker needs a daily wage, and a monthly one a basic salary',
+      path: ['daily_wage'],
+    },
+  );
 export type CreateWorkerInput = z.infer<typeof createWorkerSchema>;
 
 export const updateWorkerSchema = z
@@ -64,6 +111,7 @@ export const updateWorkerSchema = z
     status: z.enum(WORKER_STATUSES).optional(),
     id_proof_s3_key: z.string().max(512).nullable().optional(),
     photo_s3_key: z.string().max(512).nullable().optional(),
+    ...payAndWpsFields,
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'no fields to update' });
 export type UpdateWorkerInput = z.infer<typeof updateWorkerSchema>;
@@ -227,13 +275,10 @@ export const attendanceRegisterQuerySchema = z
     message: 'from must not be after to',
     path: ['from'],
   })
-  .refine(
-    (value) => daysBetweenInclusive(value.from, value.to) <= ATTENDANCE_REGISTER_MAX_DAYS,
-    {
-      message: `the register covers at most ${ATTENDANCE_REGISTER_MAX_DAYS} days at a time`,
-      path: ['to'],
-    },
-  );
+  .refine((value) => daysBetweenInclusive(value.from, value.to) <= ATTENDANCE_REGISTER_MAX_DAYS, {
+    message: `the register covers at most ${ATTENDANCE_REGISTER_MAX_DAYS} days at a time`,
+    path: ['to'],
+  });
 export type AttendanceRegisterQuery = z.infer<typeof attendanceRegisterQuerySchema>;
 
 /**

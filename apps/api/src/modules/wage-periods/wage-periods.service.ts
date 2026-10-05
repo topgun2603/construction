@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import {
+  buildSif,
+  daysBetweenInclusive,
   isoDateToUtcDate,
+  missingWpsDetails,
   netPayable,
   utcDateToIsoDate,
+  monthlyWageLine,
   wageLineTotals,
   type GenerateWagePeriodInput,
   type ListWagePeriodsQuery,
@@ -37,6 +41,119 @@ export class WagePeriodsService {
     private readonly tenantDb: TenantDb,
     private readonly jobs: JobQueueService,
   ) {}
+
+  /**
+   * The UAE WPS salary file for a finalised period (roadmap Phase 1, item 1).
+   *
+   * Workers missing their WPS details are listed rather than silently left out, and nothing is
+   * produced while the company itself lacks an employer id or bank code — a salary file the bank
+   * rejects at midnight before payday is worse than one that was never offered.
+   *
+   * Amounts are what is actually transferred: the net after advances, with overtime as the
+   * variable part and the rest as fixed.
+   */
+  async wpsFile(actor: RequestUser, id: string) {
+    return this.tenantDb.transaction(actor.tenantId, async (tx) => {
+      const [tenant, period] = await Promise.all([
+        tx.tenant.findUnique({
+          where: { id: actor.tenantId },
+          select: { currency: true, timezone: true, wpsEmployerId: true, wpsBankCode: true },
+        }),
+        tx.wagePeriod.findUnique({
+          where: { id },
+          select: { status: true, periodStart: true, periodEnd: true },
+        }),
+      ]);
+      if (!period) throw ApiError.notFound('Wage period');
+
+      const problems: string[] = [];
+      if (tenant?.currency !== 'AED')
+        problems.push('WPS salary files are for companies paying in AED.');
+      if (!tenant?.wpsEmployerId)
+        problems.push('Add the MOL establishment id in Settings → Company.');
+      if (!tenant?.wpsBankCode)
+        problems.push('Add the paying bank’s routing code in Settings → Company.');
+      if (period.status === 'open')
+        problems.push('Finalise the period first; an open period can still change.');
+
+      const lines = await tx.wageLine.findMany({
+        where: { wagePeriodId: id, netPayable: { gt: 0n } },
+        orderBy: { worker: { name: 'asc' } },
+        select: {
+          netPayable: true,
+          variableAmount: true,
+          leaveDays: true,
+          worker: {
+            select: {
+              id: true,
+              name: true,
+              wpsPersonId: true,
+              wpsAgentCode: true,
+              wpsAccount: true,
+            },
+          },
+        },
+      });
+
+      const missing = lines
+        .map((line) => ({
+          worker_id: line.worker.id,
+          worker_name: line.worker.name,
+          missing: missingWpsDetails(line.worker),
+        }))
+        .filter((row) => row.missing.length > 0);
+      const payable = lines.filter((line) => missingWpsDetails(line.worker).length === 0);
+
+      if (problems.length > 0) {
+        return { ready: false, problems, missing, file_name: null, content: null, included: 0 };
+      }
+
+      const start = utcDateToIsoDate(period.periodStart);
+      const end = utcDateToIsoDate(period.periodEnd);
+      const now = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tenant!.timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).formatToParts(new Date());
+      const part = (type: string) => now.find((entry) => entry.type === type)?.value ?? '00';
+
+      const sif = buildSif({
+        employerId: tenant!.wpsEmployerId!,
+        bankCode: tenant!.wpsBankCode!,
+        createdDate: `${part('year')}-${part('month')}-${part('day')}`,
+        createdTime: `${part('hour')}${part('minute')}`,
+        salaryMonth: `${end.slice(5, 7)}${end.slice(0, 4)}`,
+        reference: `Wages ${start} to ${end}`,
+        employees: payable.map((line) => {
+          const variable =
+            line.variableAmount < line.netPayable ? line.variableAmount : line.netPayable;
+          return {
+            personId: line.worker.wpsPersonId!,
+            agentCode: line.worker.wpsAgentCode!,
+            account: line.worker.wpsAccount!,
+            payStart: start,
+            payEnd: end,
+            daysInPeriod: daysBetweenInclusive(start, end),
+            fixed: line.netPayable - variable,
+            variable,
+            leaveDays: oneDecimal(line.leaveDays),
+          };
+        }),
+      });
+      return {
+        ready: missing.length === 0,
+        problems,
+        missing,
+        file_name: sif.fileName,
+        content: sif.content,
+        included: payable.length,
+      };
+    });
+  }
 
   async list(actor: RequestUser, query: ListWagePeriodsQuery): Promise<Page<WagePeriodView>> {
     const rows = await this.tenantDb.clientFor(actor.tenantId).wagePeriod.findMany({
@@ -141,6 +258,26 @@ export class WagePeriodsService {
         grouped.set(row.workerId, list);
       }
 
+      // Salaried workers are owed their month whether or not the roll call has a row for them,
+      // so every active one in the group gets a line (roadmap Phase 1, item 2).
+      const salaried = await tx.worker.findMany({
+        where: {
+          contractorId: input.contractor_id,
+          payBasis: 'monthly',
+          status: 'active',
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          basicSalary: true,
+          housingAllowance: true,
+          transportAllowance: true,
+          foodAllowance: true,
+        },
+      });
+      const salaryOf = new Map(salaried.map((worker) => [worker.id, worker]));
+      for (const worker of salaried) if (!grouped.has(worker.id)) grouped.set(worker.id, []);
+
       // Advances not yet attached to any period are the ones available to deduct.
       const openAdvances = await tx.labourPayment.findMany({
         where: {
@@ -168,14 +305,25 @@ export class WagePeriodsService {
       let totalAdvances = 0n;
 
       for (const [workerId, workerRows] of grouped) {
-        const totals = wageLineTotals(
-          workerRows.map((row) => ({
-            status: row.status,
-            overtimeHours: row.overtimeHours.toString(),
-            wageSnapshot: row.wageSnapshot,
-            overtimeRateSnapshot: row.overtimeRateSnapshot,
-          })),
-        );
+        const earningRows = workerRows.map((row) => ({
+          status: row.status,
+          overtimeHours: row.overtimeHours.toString(),
+          wageSnapshot: row.wageSnapshot,
+          overtimeRateSnapshot: row.overtimeRateSnapshot,
+        }));
+        const salary = salaryOf.get(workerId);
+        const totals = salary
+          ? monthlyWageLine(
+              {
+                basic: salary.basicSalary ?? 0n,
+                housing: salary.housingAllowance,
+                transport: salary.transportAllowance,
+                food: salary.foodAllowance,
+              },
+              { start: input.period_start, end: input.period_end },
+              earningRows,
+            )
+          : wageLineTotals(earningRows);
         const { advancesDeducted, netPayable: net } = netPayable(
           totals.grossAmount,
           advanceByWorker.get(workerId) ?? 0n,
@@ -193,6 +341,9 @@ export class WagePeriodsService {
             daysPresent: totals.daysPresent,
             overtimeHours: totals.overtimeHours,
             grossAmount: totals.grossAmount,
+            fixedAmount: totals.fixedAmount,
+            variableAmount: totals.variableAmount,
+            leaveDays: totals.leaveDays,
             advancesDeducted,
             netPayable: net,
           },
@@ -200,6 +351,9 @@ export class WagePeriodsService {
             daysPresent: totals.daysPresent,
             overtimeHours: totals.overtimeHours,
             grossAmount: totals.grossAmount,
+            fixedAmount: totals.fixedAmount,
+            variableAmount: totals.variableAmount,
+            leaveDays: totals.leaveDays,
             advancesDeducted,
             netPayable: net,
           },
@@ -521,11 +675,14 @@ const LINE_SELECT = {
   daysPresent: true,
   overtimeHours: true,
   grossAmount: true,
+  fixedAmount: true,
+  variableAmount: true,
+  leaveDays: true,
   advancesDeducted: true,
   netPayable: true,
   paidAmount: true,
   note: true,
-  worker: { select: { name: true, trade: true, phone: true } },
+  worker: { select: { name: true, trade: true, phone: true, payBasis: true } },
 } as const;
 
 function toPeriodView(row: {
@@ -562,11 +719,14 @@ function toLineView(row: {
   daysPresent: { toFixed(digits: number): string };
   overtimeHours: { toFixed(digits: number): string };
   grossAmount: bigint;
+  fixedAmount: bigint;
+  variableAmount: bigint;
+  leaveDays: { toFixed(digits: number): string };
   advancesDeducted: bigint;
   netPayable: bigint;
   paidAmount: bigint;
   note: string | null;
-  worker: { name: string; trade: string | null; phone: string | null };
+  worker: { name: string; trade: string | null; phone: string | null; payBasis: string };
 }) {
   return {
     id: row.id,
@@ -577,6 +737,10 @@ function toLineView(row: {
     days_present: oneDecimal(row.daysPresent),
     overtime_hours: oneDecimal(row.overtimeHours),
     gross_amount: row.grossAmount,
+    fixed_amount: row.fixedAmount,
+    variable_amount: row.variableAmount,
+    leave_days: oneDecimal(row.leaveDays),
+    pay_basis: row.worker.payBasis,
     advances_deducted: row.advancesDeducted,
     net_payable: row.netPayable,
     paid_amount: row.paidAmount,

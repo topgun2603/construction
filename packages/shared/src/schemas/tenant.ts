@@ -31,6 +31,20 @@ export const updateTenantSchema = z
   .object({
     name: z.string().trim().min(2).max(160).optional(),
     logo_url: z.string().url().max(2048).nullable().optional(),
+    /** UAE WPS: the 13-digit MOL establishment id, printed on every salary file. */
+    wps_employer_id: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{13}$/, 'the MOL establishment id is 13 digits')
+      .nullable()
+      .optional(),
+    /** UAE WPS: routing code of the bank or exchange house that pays the salaries. */
+    wps_bank_code: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{9}$/, 'a routing code is 9 digits')
+      .nullable()
+      .optional(),
   })
   /*
    * Every locale setting, `currency` included — but the service refuses a currency change once

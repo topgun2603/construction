@@ -3,10 +3,12 @@ import {
   attendanceEarning,
   isoDateToUtcDate,
   outstandingBalance,
+  SALARY_DAYS_PER_MONTH,
   utcDateToIsoDate,
   type AssignWorkerInput,
   type CreateWorkerInput,
   type ListWorkersQuery,
+  type PayBasis,
   type Page,
   type UpdateWorkerInput,
 } from '@sitebook/shared';
@@ -33,6 +35,14 @@ export interface WorkerView {
   overtime_rate_per_hour: bigint;
   photo_s3_key: string | null;
   client_id: string | null;
+  pay_basis: string;
+  basic_salary: bigint | null;
+  housing_allowance: bigint;
+  transport_allowance: bigint;
+  food_allowance: bigint;
+  wps_person_id: string | null;
+  wps_agent_code: string | null;
+  wps_account: string | null;
 }
 
 const SELECT = {
@@ -47,8 +57,83 @@ const SELECT = {
   overtimeRatePerHour: true,
   photoS3Key: true,
   clientId: true,
+  payBasis: true,
+  basicSalary: true,
+  housingAllowance: true,
+  transportAllowance: true,
+  foodAllowance: true,
+  wpsPersonId: true,
+  wpsAgentCode: true,
+  wpsAccount: true,
   contractor: { select: { name: true } },
 } as const;
+
+type PayInput = Pick<
+  UpdateWorkerInput,
+  | 'daily_wage'
+  | 'pay_basis'
+  | 'basic_salary'
+  | 'housing_allowance'
+  | 'transport_allowance'
+  | 'food_allowance'
+  | 'wps_person_id'
+  | 'wps_agent_code'
+  | 'wps_account'
+>;
+
+type CurrentPay = {
+  payBasis: string;
+  basicSalary: bigint | null;
+  housingAllowance: bigint;
+  transportAllowance: bigint;
+  foodAllowance: bigint;
+  dailyWage: bigint;
+};
+
+/**
+ * Pay fields for a create or update (roadmap Phase 1, item 2).
+ *
+ * A monthly worker's day rate is not typed in: it is the fixed monthly pay over thirty, kept in
+ * step whenever any part of the salary changes. The roll call freezes that rate onto each row, so
+ * the dashboards and forecasts that price a day of labour stay right for salaried crews, while the
+ * wage period pays the salary itself (`monthlyWageLine`).
+ */
+function payData(input: PayInput, current: CurrentPay | null) {
+  const basis = input.pay_basis ?? (current?.payBasis as PayBasis | undefined) ?? 'daily';
+  const basic = input.basic_salary ?? current?.basicSalary ?? null;
+  const housing = input.housing_allowance ?? current?.housingAllowance ?? 0n;
+  const transport = input.transport_allowance ?? current?.transportAllowance ?? 0n;
+  const food = input.food_allowance ?? current?.foodAllowance ?? 0n;
+
+  if (basis === 'monthly' && basic === null) {
+    throw ApiError.validationFailed(
+      { basic_salary: 'required' },
+      'A monthly worker needs a basic salary',
+    );
+  }
+  const dailyWage =
+    basis === 'monthly'
+      ? (basic! + housing + transport + food) / SALARY_DAYS_PER_MONTH
+      : (input.daily_wage ?? current?.dailyWage);
+  if (dailyWage === undefined) {
+    throw ApiError.validationFailed(
+      { daily_wage: 'required' },
+      'A daily worker needs a daily wage',
+    );
+  }
+
+  return {
+    payBasis: basis,
+    basicSalary: basic,
+    housingAllowance: housing,
+    transportAllowance: transport,
+    foodAllowance: food,
+    dailyWage,
+    ...(input.wps_person_id === undefined ? {} : { wpsPersonId: input.wps_person_id }),
+    ...(input.wps_agent_code === undefined ? {} : { wpsAgentCode: input.wps_agent_code }),
+    ...(input.wps_account === undefined ? {} : { wpsAccount: input.wps_account }),
+  };
+}
 
 @Injectable()
 export class WorkersService {
@@ -139,7 +224,7 @@ export class WorkersService {
           trade: input.trade,
           contractorId: input.contractor_id ?? null,
           skillLevel: input.skill_level,
-          dailyWage: input.daily_wage,
+          ...payData(input, null),
           overtimeRatePerHour: input.overtime_rate_per_hour,
           idProofS3Key: input.id_proof_s3_key,
           photoS3Key: input.photo_s3_key,
@@ -171,7 +256,15 @@ export class WorkersService {
     return this.tenantDb.transaction(actor.tenantId, async (tx) => {
       const existing = await tx.worker.findFirst({
         where: { id, deletedAt: null },
-        select: { id: true },
+        select: {
+          id: true,
+          payBasis: true,
+          basicSalary: true,
+          housingAllowance: true,
+          transportAllowance: true,
+          foodAllowance: true,
+          dailyWage: true,
+        },
       });
       if (!existing) throw ApiError.notFound('Worker');
 
@@ -187,7 +280,7 @@ export class WorkersService {
           ...(input.trade === undefined ? {} : { trade: input.trade }),
           ...(input.contractor_id === undefined ? {} : { contractorId: input.contractor_id }),
           ...(input.skill_level === undefined ? {} : { skillLevel: input.skill_level }),
-          ...(input.daily_wage === undefined ? {} : { dailyWage: input.daily_wage }),
+          ...payData(input, existing),
           ...(input.overtime_rate_per_hour === undefined
             ? {}
             : { overtimeRatePerHour: input.overtime_rate_per_hour }),
@@ -408,7 +501,9 @@ export class WorkersService {
       });
     }
 
-    entries.sort((a, b) => (a.date === b.date ? a.kind.localeCompare(b.kind) : a.date < b.date ? -1 : 1));
+    entries.sort((a, b) =>
+      a.date === b.date ? a.kind.localeCompare(b.kind) : a.date < b.date ? -1 : 1,
+    );
 
     let running = 0n;
     const timeline = entries.map((entry) => {
@@ -458,6 +553,14 @@ function toView(row: {
   overtimeRatePerHour: bigint;
   photoS3Key: string | null;
   clientId: string | null;
+  payBasis: string;
+  basicSalary: bigint | null;
+  housingAllowance: bigint;
+  transportAllowance: bigint;
+  foodAllowance: bigint;
+  wpsPersonId: string | null;
+  wpsAgentCode: string | null;
+  wpsAccount: string | null;
   contractor: { name: string } | null;
 }): WorkerView {
   return {
@@ -473,5 +576,13 @@ function toView(row: {
     overtime_rate_per_hour: row.overtimeRatePerHour,
     photo_s3_key: row.photoS3Key,
     client_id: row.clientId,
+    pay_basis: row.payBasis,
+    basic_salary: row.basicSalary,
+    housing_allowance: row.housingAllowance,
+    transport_allowance: row.transportAllowance,
+    food_allowance: row.foodAllowance,
+    wps_person_id: row.wpsPersonId,
+    wps_agent_code: row.wpsAgentCode,
+    wps_account: row.wpsAccount,
   };
 }

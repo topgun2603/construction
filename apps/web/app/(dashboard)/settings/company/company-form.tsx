@@ -11,6 +11,7 @@ import { createFormat } from '@/lib/format';
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import {
   Select,
@@ -64,11 +65,19 @@ export function CompanyForm({ company, canEdit }: { company: CompanySettings; ca
     locale: company.locale,
     tax_regime: company.tax_regime,
   });
+  // UAE WPS ids, kept apart from the locale settings the preview formats with.
+  const [wps, setWps] = useState({
+    employer: company.wps_employer_id ?? '',
+    bank: company.wps_bank_code ?? '',
+  });
 
   const locked = company.currency_locked;
-  const changed = (Object.keys(settings) as (keyof Settings)[]).some(
-    (key) => settings[key] !== company[key],
-  );
+  const uae = settings.country === 'AE';
+  const changed =
+    (Object.keys(settings) as (keyof Settings)[]).some((key) => settings[key] !== company[key]) ||
+    (uae &&
+      (wps.employer.trim() !== (company.wps_employer_id ?? '') ||
+        wps.bank.trim() !== (company.wps_bank_code ?? '')));
 
   const options = useMemo(() => {
     const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
@@ -130,7 +139,13 @@ export function CompanyForm({ company, canEdit }: { company: CompanySettings; ca
   function save() {
     setError(null);
     start(async () => {
-      const result = await updateCompanySettings(settings);
+      const result = await updateCompanySettings({
+        ...settings,
+        // Sent only for a UAE company; a blank field clears the id.
+        ...(uae
+          ? { wps_employer_id: wps.employer.trim() || null, wps_bank_code: wps.bank.trim() || null }
+          : {}),
+      });
       if (!result.ok) {
         setError(result.error ?? t('Could not save'));
         return;
@@ -238,6 +253,53 @@ export function CompanyForm({ company, canEdit }: { company: CompanySettings; ca
           </Select>
         </Field>
       </div>
+
+      {uae && (
+        <div className="flex flex-col gap-3 border-t border-line-soft pt-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+              {t('WPS salary files')}
+            </span>
+            <span className="text-[13px] text-ink-muted">
+              {t('Printed on every salary file you hand to the bank. Both are needed to make one.')}
+            </span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={t('MOL establishment id')}
+              htmlFor="wps_employer_id"
+              optional
+              hint={t('13 digits')}
+            >
+              <Input
+                id="wps_employer_id"
+                inputMode="numeric"
+                pattern="[0-9]{13}"
+                maxLength={13}
+                value={wps.employer}
+                onChange={(event) => setWps((current) => ({ ...current, employer: event.target.value }))}
+                disabled={!canEdit}
+              />
+            </Field>
+            <Field
+              label={t('Paying bank routing code')}
+              htmlFor="wps_bank_code"
+              optional
+              hint={t('9 digits')}
+            >
+              <Input
+                id="wps_bank_code"
+                inputMode="numeric"
+                pattern="[0-9]{9}"
+                maxLength={9}
+                value={wps.bank}
+                onChange={(event) => setWps((current) => ({ ...current, bank: event.target.value }))}
+                disabled={!canEdit}
+              />
+            </Field>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1 rounded-btn bg-canvas px-4 py-3">
         <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">

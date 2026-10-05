@@ -30,6 +30,7 @@ export * from './schemas/document-qa';
 export * from './schemas/translate';
 export * from './gstin';
 export * from './tax';
+export * from './wps';
 export * from './indian-date';
 export * from './schemas/bill-scan';
 export * from './schemas/expenses';
