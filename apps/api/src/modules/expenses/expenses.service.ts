@@ -21,7 +21,7 @@ import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
-import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { BillReader } from '../ai/bill-reader.service';
 import { UploadsService } from '../uploads/uploads.service';
 
@@ -38,6 +38,7 @@ const SELECT = {
   note: true,
   taxAmount: true,
   supplierTaxId: true,
+  costCode: { select: { id: true, code: true, name: true } },
   status: true,
   approvedAt: true,
   createdAt: true,
@@ -169,6 +170,7 @@ export class ExpensesService {
         if (existing) return toView(existing);
       }
 
+      const costCodeId = await costCodeOn(tx, input.project_id, input.cost_code_id);
       const expense = await tx.expense.create({
         data: {
           tenantId: actor.tenantId,
@@ -180,6 +182,7 @@ export class ExpensesService {
           note: input.note,
           taxAmount: input.tax_amount ?? 0n,
           supplierTaxId: supplierTaxId(actor, input.supplier_tax_id),
+          costCodeId,
           submittedBy: actor.userId,
           clientId: input.client_id,
         },
@@ -221,9 +224,15 @@ export class ExpensesService {
         );
       }
 
+      const costCodeId =
+        input.cost_code_id === undefined
+          ? undefined
+          : await costCodeOn(tx, expense.projectId, input.cost_code_id);
+
       const updated = await tx.expense.update({
         where: { id },
         data: {
+          ...(costCodeId === undefined ? {} : { costCodeId }),
           ...(input.amount === undefined ? {} : { amount: input.amount }),
           ...(input.category === undefined ? {} : { category: input.category }),
           ...(input.spent_on === undefined ? {} : { spentOn: isoDateToUtcDate(input.spent_on) }),
@@ -377,6 +386,7 @@ function toView(row: {
   note: string | null;
   taxAmount: bigint;
   supplierTaxId: string | null;
+  costCode: { id: string; code: string; name: string } | null;
   status: string;
   approvedAt: Date | null;
   createdAt: Date;
@@ -396,6 +406,9 @@ function toView(row: {
     note: row.note,
     tax_amount: row.taxAmount,
     supplier_tax_id: row.supplierTaxId,
+    cost_code: row.costCode
+      ? { id: row.costCode.id, code: row.costCode.code, name: row.costCode.name }
+      : null,
     status: row.status,
     submitted_by: { id: row.submitter.id, name: row.submitter.name },
     approved_by: row.approver ? { id: row.approver.id, name: row.approver.name } : null,
@@ -419,4 +432,27 @@ function supplierTaxId(actor: RequestUser, raw: string | null | undefined): stri
     throw ApiError.validationFailed({ supplier_tax_id: 'invalid' }, `That is not a valid ${label}`);
   }
   return id;
+}
+
+/**
+ * A cost code to book this expense to: one of the site's own, or none. A code from another site is
+ * refused rather than accepted — it would put this site's spend on somebody else's budget report.
+ */
+async function costCodeOn(
+  tx: TenantTx,
+  projectId: string,
+  costCodeId: string | null | undefined,
+): Promise<string | null> {
+  if (!costCodeId) return null;
+  const code = await tx.costCode.findFirst({
+    where: { id: costCodeId, projectId },
+    select: { id: true },
+  });
+  if (!code) {
+    throw ApiError.validationFailed(
+      { cost_code_id: 'not a cost code on this site' },
+      'That cost code is not one of this site’s',
+    );
+  }
+  return code.id;
 }

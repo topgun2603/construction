@@ -1,11 +1,19 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { Loader2, Receipt, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
-import { EXPENSE_CATEGORIES, expenseCategoryLabel, taxIncluded, taxRule } from '@sitebook/shared';
+import {
+  COST_CODE_INDENT,
+  EXPENSE_CATEGORIES,
+  expenseCategoryLabel,
+  taxIncluded,
+  taxRule,
+} from '@sitebook/shared';
 import { presignUpload, recordExpense, scanBill } from '@/lib/actions';
+import { costCodeOptions } from '@/lib/cost-code-actions';
+import type { CostCode } from '@/lib/cost-code-types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -33,6 +41,26 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
   const [category, setCategory] = useState<string>('materials');
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+
+  /*
+   * The site's cost codes, read when the dialog opens or the site changes — a code belongs to one
+   * site, so the list has to follow the site picker. Optional: a site nobody has broken down yet
+   * shows no picker, and an uncoded expense is "Unallocated" on the budget report, not lost.
+   */
+  const [codes, setCodes] = useState<CostCode[]>([]);
+  const [costCodeId, setCostCodeId] = useState('');
+  useEffect(() => {
+    setCostCodeId('');
+    setCodes([]);
+    if (!open || !projectId) return;
+    let live = true;
+    void costCodeOptions(projectId).then((result) => {
+      if (live && result.ok && result.data) setCodes(result.data);
+    });
+    return () => {
+      live = false;
+    };
+  }, [open, projectId]);
 
   // VAT or GST inside the amount, and who charged it. Only offered under a regime that has a tax;
   // the API checks the supplier's number against that regime and says plainly when it is not one.
@@ -178,6 +206,7 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
         ...(billKey ? { bill_s3_key: billKey } : {}),
         ...(taxMinor ? { tax_amount: taxMinor } : {}),
         ...(taxId ? { supplier_tax_id: taxId } : {}),
+        ...(costCodeId ? { cost_code_id: costCodeId } : {}),
       });
       if (!result.ok) {
         setError(result.error ?? 'Could not record the expense');
@@ -296,6 +325,28 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
               <Input id="spent_on" name="spent_on" type="date" defaultValue={todayIso()} required />
             </Field>
           </div>
+
+          {codes.length > 0 && (
+            <Field label={t('Cost code')} optional hint={t('The line of the site’s budget this belongs to')}>
+              <Select
+                value={costCodeId || 'none'}
+                onValueChange={(value) => setCostCodeId(value === 'none' ? '' : value)}
+              >
+                <SelectTrigger aria-label={t('Cost code')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('Not coded')}</SelectItem>
+                  {codes.map((code) => (
+                    <SelectItem key={code.id} value={code.id}>
+                      {COST_CODE_INDENT.repeat(code.depth)}
+                      {code.code} {code.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
 
           {rule.taxName && (
             <div className="grid gap-4 sm:grid-cols-2">

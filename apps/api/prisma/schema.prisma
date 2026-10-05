@@ -237,33 +237,36 @@ model Tenant {
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  users           User[]
-  refreshTokens   RefreshToken[]
-  projects        Project[]
-  projectMembers  ProjectMember[]
-  milestones      Milestone[]
-  contractors     Contractor[]
-  workers         Worker[]
-  workerProjects  WorkerProject[]
-  dailyReports    DailyReport[]
-  dprActivities   DprActivity[]
-  dprPhotos       DprPhoto[]
-  dprManpower     DprManpower[]
-  attendance      Attendance[]
-  wagePeriods     WagePeriod[]
-  wageLines       WageLine[]
-  labourPayments  LabourPayment[]
-  materials       Material[]
-  materialIndents MaterialIndent[]
-  indentItems     IndentItem[]
-  expenses        Expense[]
-  siteForecasts   SiteForecast[]
-  siteChecks      SiteCheck[]
-  workerDocuments WorkerDocument[]
-  camps           Camp[]
-  notifications   Notification[]
-  syncLogs        SyncLog[]
-  auditLogs       AuditLog[]
+  users                 User[]
+  refreshTokens         RefreshToken[]
+  projects              Project[]
+  projectMembers        ProjectMember[]
+  milestones            Milestone[]
+  contractors           Contractor[]
+  workers               Worker[]
+  workerProjects        WorkerProject[]
+  dailyReports          DailyReport[]
+  dprActivities         DprActivity[]
+  dprPhotos             DprPhoto[]
+  dprManpower           DprManpower[]
+  attendance            Attendance[]
+  wagePeriods           WagePeriod[]
+  wageLines             WageLine[]
+  labourPayments        LabourPayment[]
+  materials             Material[]
+  materialIndents       MaterialIndent[]
+  indentItems           IndentItem[]
+  expenses              Expense[]
+  siteForecasts         SiteForecast[]
+  siteChecks            SiteCheck[]
+  workerDocuments       WorkerDocument[]
+  camps                 Camp[]
+  costCodes             CostCode[]
+  costCodeTemplates     CostCodeTemplate[]
+  costCodeTemplateItems CostCodeTemplateItem[]
+  notifications         Notification[]
+  syncLogs              SyncLog[]
+  auditLogs             AuditLog[]
 
   roles Role[]
 
@@ -429,6 +432,7 @@ model Project {
   materialEstimates MaterialEstimate[]
   stockMovements    StockMovement[]
   media             ProjectMedia[]
+  costCodes         CostCode[]
 
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
@@ -1000,6 +1004,9 @@ model Expense {
   taxAmount     BigInt        @default(0) @map("tax_amount")
   /// The supplier's tax registration number, checked against the company's regime.
   supplierTaxId String?       @map("supplier_tax_id")
+  /// The line of the site's work breakdown this spend is booked to (roadmap Phase 2, module 1).
+  /// Null is "unallocated": the budget report shows it as its own line rather than losing it.
+  costCodeId    String?       @map("cost_code_id") @db.Uuid
   note          String?
   status        ExpenseStatus @default(pending)
   submittedBy   String        @map("submitted_by") @db.Uuid
@@ -1011,16 +1018,18 @@ model Expense {
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
-  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  submitter User    @relation("expense_submitted_by", fields: [submittedBy], references: [id], onDelete: Restrict)
-  approver  User?   @relation("expense_approved_by", fields: [approvedBy], references: [id], onDelete: SetNull)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  submitter User      @relation("expense_submitted_by", fields: [submittedBy], references: [id], onDelete: Restrict)
+  approver  User?     @relation("expense_approved_by", fields: [approvedBy], references: [id], onDelete: SetNull)
+  costCode  CostCode? @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, clientId], map: "expenses_tenant_id_client_id_key")
   @@index([tenantId, status])
   @@index([tenantId, spentOn])
   @@index([projectId, spentOn])
   @@index([tenantId, updatedAt])
+  @@index([costCodeId])
   @@map("expenses")
 }
 
@@ -1686,4 +1695,78 @@ model StripeIdentity {
 
   @@index([tenantId])
   @@map("stripe_identities")
+}
+
+/// One line of a site's work breakdown structure, and its budget (roadmap Phase 2, module 1).
+///
+/// The thing every later module posts against: expenses now, purchase orders and subcontracts
+/// next. A tree through `parentId`; a parent may carry a budget of its own as well as its
+/// children's. Hard-deleted, and only when nothing is posted to it and it has no children —
+/// a code with history is renamed, not removed.
+model CostCode {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  projectId     String   @map("project_id") @db.Uuid
+  parentId      String?  @map("parent_id") @db.Uuid
+  /// `03.20` — unique within the site.
+  code          String
+  name          String
+  /// What the line is measured in, when it is measured: m3, m2, kg, nos.
+  unit          String?
+  /// Minor units, like every other amount.
+  budget        BigInt   @default(0)
+  /// Labour on the site lands on this line unless it is booked elsewhere. At most one per site.
+  labourDefault Boolean  @default(false) @map("labour_default")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent   CostCode?  @relation("cost_code_tree", fields: [parentId], references: [id], onDelete: SetNull)
+  children CostCode[] @relation("cost_code_tree")
+  expenses Expense[]
+
+  @@unique([projectId, code])
+  @@index([tenantId])
+  @@index([parentId])
+  @@map("cost_codes")
+}
+
+/// A company's own work breakdown template, copied into a site to start its cost codes.
+///
+/// The built-in standard template is code (`STANDARD_WBS` in @sitebook/shared), not rows: every
+/// company gets it without a migration writing into every tenant, and it can be improved later
+/// without touching anybody's copy.
+model CostCodeTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  CostCodeTemplateItem[]
+
+  @@index([tenantId])
+  @@map("cost_code_templates")
+}
+
+/// A line of a template. The tree is by code (`parentCode`), because a template is copied by code
+/// and edited as a list — there are no ids anything else points at.
+model CostCodeTemplateItem {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  templateId String  @map("template_id") @db.Uuid
+  code       String
+  name       String
+  parentCode String? @map("parent_code")
+  unit       String?
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template CostCodeTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, code])
+  @@index([tenantId])
+  @@map("cost_code_template_items")
 }

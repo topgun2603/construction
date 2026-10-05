@@ -9,6 +9,7 @@ export * from './money';
 export * from './dates';
 export * from './earnings';
 export * from './forecast';
+export * from './cost-codes';
 export * from './whatsapp';
 
 export * from './schemas/common';
@@ -20,6 +21,7 @@ export * from './schemas/project';
 export * from './schemas/labour';
 export * from './schemas/worker-documents';
 export * from './schemas/camps';
+export * from './schemas/cost-codes';
 export * from './schemas/site';
 export * from './schemas/portal';
 export * from './schemas/billing-client';

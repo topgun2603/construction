@@ -51,6 +51,8 @@ import { SiteApprovals } from './site-approvals';
 import { AskDocuments } from '@/components/ask-documents';
 import { DocumentsList } from '@/components/documents-list';
 import { getT } from '@/lib/i18n-server';
+import type { CostCodeTemplateSummary, CostReport } from '@/lib/cost-code-types';
+import { CostCodesTab } from './cost-codes';
 
 const TABS = [
   'timeline',
@@ -61,6 +63,7 @@ const TABS = [
   'payments',
   'people',
   'materials',
+  'cost',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -233,6 +236,20 @@ export default async function ProjectPage({
   const timeline = schedule(project, todayIso());
   const budget = project.budget_amount ? BigInt(project.budget_amount) : null;
 
+  /*
+   * The breakdown and its budgets (roadmap Phase 2, module 1), fetched only for its own tab.
+   * `cost_codes.view` rather than `expenses.view`: a supervisor records expenses against a line but
+   * what each line was priced at is the builder's margin.
+   */
+  const canSeeCost = me.permissions.includes('cost_codes.view');
+  const [costReport, costTemplates] =
+    active === 'cost' && canSeeCost
+      ? await Promise.all([
+          serverFetch<CostReport>(`/projects/${id}/cost-report`),
+          serverFetch<CostCodeTemplateSummary[]>('/cost-code-templates'),
+        ])
+      : [null, [] as CostCodeTemplateSummary[]];
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -289,6 +306,7 @@ export default async function ProjectPage({
         showDocuments={hasDocuments}
         showPayments={canSeePayments}
         showApprovals={canSeeApprovals}
+        showCost={canSeeCost}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -392,6 +410,16 @@ export default async function ProjectPage({
           sharedDocuments={shareable}
           canRequest={me.permissions.includes('approvals.request')}
           canDecide={me.permissions.includes('approvals.decide')}
+        />
+      )}
+
+      {active === 'cost' && costReport && (
+        <CostCodesTab
+          projectId={id}
+          projectName={project.name}
+          report={costReport}
+          templates={costTemplates}
+          canManage={me.permissions.includes('cost_codes.manage')}
         />
       )}
 

@@ -280,6 +280,8 @@ export interface Expense {
   tax_amount: string;
   /** The supplier's tax number (TRN, GSTIN), as checked by the API. */
   supplier_tax_id: string | null;
+  /** The line of the site's breakdown it is booked to; null is unallocated. */
+  cost_code: { id: string; code: string; name: string } | null;
   status: 'pending' | 'approved' | 'rejected';
   submitted_by: { id: string; name: string };
   approved_by: { id: string; name: string } | null;

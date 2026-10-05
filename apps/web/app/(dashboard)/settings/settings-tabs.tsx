@@ -11,6 +11,7 @@ const TABS = [
   { href: '/settings/roles', label: 'Roles' },
   { href: '/settings/contractors', label: 'Contractors' },
   { href: '/settings/materials', label: 'Materials' },
+  { href: '/settings/cost-codes', label: 'Cost codes' },
   { href: '/settings/automation', label: 'Automation' },
 ];
 

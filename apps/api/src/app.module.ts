@@ -23,6 +23,7 @@ import { ForecastsModule } from './modules/forecasts/forecasts.module';
 import { ChecksModule } from './modules/checks/checks.module';
 import { WorkerDocumentsModule } from './modules/worker-documents/worker-documents.module';
 import { CampsModule } from './modules/camps/camps.module';
+import { CostCodesModule } from './modules/cost-codes/cost-codes.module';
 import { DprModule } from './modules/dpr/dpr.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { GeocodeModule } from './modules/geocode/geocode.module';
@@ -109,6 +110,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     ChecksModule,
     WorkerDocumentsModule,
     CampsModule,
+    CostCodesModule,
     ReportsModule,
     StockModule,
     SyncModule,

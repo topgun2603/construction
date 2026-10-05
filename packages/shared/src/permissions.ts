@@ -54,6 +54,14 @@ export const PERMISSIONS = [
   'expenses.record',
   'expenses.approve',
 
+  /*
+   * Cost codes and budgets. Viewing is the budget and the budget-vs-actual report — what a line was
+   * priced at is the builder's margin, so it is not handed to everybody who records a diesel bill.
+   * Picking a code when recording an expense needs only `expenses.record`.
+   */
+  'cost_codes.view',
+  'cost_codes.manage',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -194,6 +202,20 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Cost codes and budgets',
+    items: [
+      {
+        permission: 'cost_codes.view',
+        label: 'See budgets and the budget-vs-actual report',
+        note: 'What each line was priced at. Anyone who records expenses can still pick a code.',
+      },
+      {
+        permission: 'cost_codes.manage',
+        label: 'Edit cost codes, budgets and templates',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -305,6 +327,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'expenses.view',
     'expenses.record',
     'expenses.approve',
+    // Running a job means owning its breakdown and its budget lines.
+    'cost_codes.view',
+    'cost_codes.manage',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -363,6 +388,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'expenses.view',
     'expenses.record',
     'expenses.approve',
+    // Reads the budget report because cost against budget is accounts' question too; setting the
+    // budget is the job's, not the books'.
+    'cost_codes.view',
     'messages.post',
     'messages.internal',
     'documents.view',

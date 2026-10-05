@@ -412,6 +412,8 @@ export async function recordExpense(input: {
   tax_amount?: string;
   /** The supplier's TRN or GSTIN; the API checks it against the company's regime. */
   supplier_tax_id?: string;
+  /** One of the site's cost codes; the API refuses a code from another site. */
+  cost_code_id?: string;
 }): Promise<ActionResult> {
   const result = await runAction(() => serverFetch('/expenses', { method: 'POST', body: input }));
   if (result.ok) {
