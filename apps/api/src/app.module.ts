@@ -26,6 +26,7 @@ import { WorkerDocumentsModule } from './modules/worker-documents/worker-documen
 import { CampsModule } from './modules/camps/camps.module';
 import { CostCodesModule } from './modules/cost-codes/cost-codes.module';
 import { SubcontractsModule } from './modules/subcontracts/subcontracts.module';
+import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { DprModule } from './modules/dpr/dpr.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
@@ -116,6 +117,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     CampsModule,
     CostCodesModule,
     SubcontractsModule,
+    SchedulingModule,
     ProcurementModule,
     AuditModule,
     ReportsModule,

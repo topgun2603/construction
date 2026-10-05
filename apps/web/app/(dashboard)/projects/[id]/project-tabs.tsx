@@ -16,6 +16,7 @@ export function ProjectTabs({
   showCost = false,
   showSubcontracts = false,
   showPurchases = false,
+  showSchedule = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -40,12 +41,15 @@ export function ProjectTabs({
   showSubcontracts?: boolean;
   /** Purchase orders need `procurement.view` or `procurement.receive`. */
   showPurchases?: boolean;
+  /** The Gantt needs `schedule.view`. */
+  showSchedule?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
   const { t } = useLanguage();
   const tabs = [
     { key: 'timeline', label: t('Timeline') },
+    ...(showSchedule ? [{ key: 'schedule', label: t('Schedule') }] : []),
     { key: 'reports', label: t('Daily reports'), count: reportCount },
     ...(showConversation
       ? [{ key: 'conversation', label: t('Conversation'), count: unreadCount }]

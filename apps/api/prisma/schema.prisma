@@ -313,6 +313,13 @@ model Tenant {
   purchaseInvoices       PurchaseInvoice[]
   purchaseInvoiceLines   PurchaseInvoiceLine[]
 
+  // Scheduling
+  scheduleCalendars     ScheduleCalendar[]
+  scheduleTasks         ScheduleTask[]
+  scheduleDependencies  ScheduleDependency[]
+  scheduleBaselines     ScheduleBaseline[]
+  scheduleBaselineTasks ScheduleBaselineTask[]
+
   @@map("tenants")
 }
 
@@ -398,6 +405,10 @@ model User {
   purchaseInvoicesRecorded PurchaseInvoice[]       @relation("pinv_recorded_by")
   purchaseInvoicesApproved PurchaseInvoice[]       @relation("pinv_approved_by")
 
+  // Scheduling
+  scheduleTasksResponsible ScheduleTask[]     @relation("schedule_task_responsible")
+  scheduleBaselinesTaken   ScheduleBaseline[] @relation("schedule_baseline_creator")
+
   /// Phone is unique within a tenant, not globally â€” the same person can be a
   /// supervisor at one builder and an owner at another.
   @@unique([tenantId, phone], map: "users_tenant_id_phone_key")
@@ -476,6 +487,11 @@ model Project {
   goodsReceipts     GoodsReceipt[]
   purchaseInvoices  PurchaseInvoice[]
 
+  scheduleCalendar     ScheduleCalendar?
+  scheduleTasks        ScheduleTask[]
+  scheduleDependencies ScheduleDependency[]
+  scheduleBaselines    ScheduleBaseline[]
+
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
   @@map("projects")
@@ -514,6 +530,8 @@ model Milestone {
   tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   PaymentStage PaymentStage[]
+  /// The schedule task this milestone is, once it has been put on the schedule.
+  scheduleTask ScheduleTask?
 
   @@index([projectId, sortOrder])
   @@map("milestones")
@@ -543,6 +561,7 @@ model Contractor {
   wagePeriods    WagePeriod[]
   labourPayments LabourPayment[]
   subcontracts   Subcontract[]
+  scheduleTasks  ScheduleTask[]
 
   @@index([tenantId, updatedAt])
   @@map("contractors")
@@ -1810,6 +1829,7 @@ model CostCode {
   subcontractDeductions SubcontractDeduction[]
   rfqItems              PurchaseRfqItem[]
   orderLines            PurchaseOrderLine[]
+  scheduleTasks         ScheduleTask[]
 
   @@unique([projectId, code])
   @@index([tenantId])
@@ -2546,4 +2566,170 @@ model PurchaseInvoiceLine {
   @@index([expenseId])
   @@index([tenantId])
   @@map("purchase_invoice_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling (roadmap Phase 2, module 6)
+// ---------------------------------------------------------------------------
+
+/// A summary task is not a kind: any task with subtasks is one.
+enum ScheduleTaskKind {
+  task
+  milestone
+
+  @@map("schedule_task_kind")
+}
+
+/// As soon as possible, start no earlier than, finish no later than.
+enum ScheduleConstraintType {
+  asap
+  snet
+  fnlt
+
+  @@map("schedule_constraint_type")
+}
+
+enum ScheduleLinkType {
+  FS
+  SS
+  FF
+  SF
+
+  @@map("schedule_link_type")
+}
+
+/// Which days are worked. One per site at most, and one for the company (`projectId` null) that a
+/// site without its own uses. Neither row has to exist: the company's country decides the weekend.
+model ScheduleCalendar {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String     @map("tenant_id") @db.Uuid
+  projectId   String?    @unique @map("project_id") @db.Uuid
+  name        String
+  /// Weekdays worked, 0 Sunday … 6 Saturday.
+  workingDays Int[]      @map("working_days")
+  holidays    DateTime[] @db.Date
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("schedule_calendars")
+}
+
+/// One line of a site's programme. Only what a planner decides is stored — durations, links,
+/// constraints and progress. The dates are worked out by the engine on every read
+/// (`scheduleCompute`), so they can never be stale and a slip does not write a row per task moved.
+model ScheduleTask {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                 @map("tenant_id") @db.Uuid
+  projectId         String                 @map("project_id") @db.Uuid
+  parentId          String?                @map("parent_id") @db.Uuid
+  /// The site milestone this task is. Its planned date follows the schedule.
+  milestoneId       String?                @unique @map("milestone_id") @db.Uuid
+  costCodeId        String?                @map("cost_code_id") @db.Uuid
+  responsibleUserId String?                @map("responsible_user_id") @db.Uuid
+  contractorId      String?                @map("contractor_id") @db.Uuid
+  wbsCode           String?                @map("wbs_code")
+  name              String
+  kind              ScheduleTaskKind       @default(task)
+  sortOrder         Int                    @default(0) @map("sort_order")
+  /// Working days. Zero for a milestone.
+  durationDays      Int                    @default(1) @map("duration_days")
+  constraintType    ScheduleConstraintType @default(asap) @map("constraint_type")
+  constraintDate    DateTime?              @map("constraint_date") @db.Date
+  percentComplete   Int                    @default(0) @map("percent_complete")
+  actualStart       DateTime?              @map("actual_start") @db.Date
+  actualFinish      DateTime?              @map("actual_finish") @db.Date
+  notes             String?
+  /// The task's id in the file it was imported from (an MSP UID, a P6 activity id).
+  externalId        String?                @map("external_id")
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent      ScheduleTask?  @relation("schedule_task_tree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    ScheduleTask[] @relation("schedule_task_tree")
+  milestone   Milestone?     @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  costCode    CostCode?      @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  responsible User?          @relation("schedule_task_responsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  contractor  Contractor?    @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+
+  successors    ScheduleDependency[]   @relation("schedule_predecessor")
+  predecessors  ScheduleDependency[]   @relation("schedule_successor")
+  baselineTasks ScheduleBaselineTask[]
+
+  @@index([projectId, sortOrder])
+  @@index([parentId])
+  @@index([tenantId])
+  @@map("schedule_tasks")
+}
+
+/// "B waits on A": finish-to-start, start-to-start, finish-to-finish or start-to-finish, with a lag
+/// in working days (negative is a lead). The service refuses any link that would close a loop.
+model ScheduleDependency {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  projectId     String           @map("project_id") @db.Uuid
+  predecessorId String           @map("predecessor_id") @db.Uuid
+  successorId   String           @map("successor_id") @db.Uuid
+  type          ScheduleLinkType @default(FS)
+  lagDays       Int              @default(0) @map("lag_days")
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  predecessor ScheduleTask @relation("schedule_predecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor   ScheduleTask @relation("schedule_successor", fields: [successorId], references: [id], onDelete: Cascade)
+
+  @@unique([predecessorId, successorId])
+  @@index([projectId])
+  @@index([successorId])
+  @@index([tenantId])
+  @@map("schedule_dependencies")
+}
+
+/// A saved copy of the plan's dates, to measure slippage against. Never edited after it is taken.
+model ScheduleBaseline {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  name        String
+  /// When the plan it copies was due to finish.
+  finishDate  DateTime @map("finish_date") @db.Date
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant    Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?                  @relation("schedule_baseline_creator", fields: [createdById], references: [id], onDelete: SetNull)
+  tasks     ScheduleBaselineTask[]
+
+  @@index([projectId, createdAt])
+  @@index([tenantId])
+  @@map("schedule_baselines")
+}
+
+/// One task's dates in a baseline. Kept, with its name, if the task is later deleted.
+model ScheduleBaselineTask {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  baselineId   String   @map("baseline_id") @db.Uuid
+  taskId       String?  @map("task_id") @db.Uuid
+  name         String
+  startDate    DateTime @map("start_date") @db.Date
+  finishDate   DateTime @map("finish_date") @db.Date
+  durationDays Int      @map("duration_days")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  baseline ScheduleBaseline @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+  task     ScheduleTask?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@unique([baselineId, taskId])
+  @@index([taskId])
+  @@index([tenantId])
+  @@map("schedule_baseline_tasks")
 }
