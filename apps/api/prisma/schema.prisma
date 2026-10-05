@@ -313,6 +313,17 @@ model Tenant {
   purchaseInvoices       PurchaseInvoice[]
   purchaseInvoiceLines   PurchaseInvoiceLine[]
 
+  // QA/QC
+  qualityChecklistTemplates QualityChecklistTemplate[]
+  qualityChecklistItems     QualityChecklistItem[]
+  qualityInspections        QualityInspection[]
+  qualityInspectionItems    QualityInspectionItem[]
+  qualityInspectionSignoffs QualityInspectionSignoff[]
+  qualityTests              QualityTest[]
+  snags                     Snag[]
+  snagPhotos                SnagPhoto[]
+  snagEvents                SnagEvent[]
+
   @@map("tenants")
 }
 
@@ -398,6 +409,15 @@ model User {
   purchaseInvoicesRecorded PurchaseInvoice[]       @relation("pinv_recorded_by")
   purchaseInvoicesApproved PurchaseInvoice[]       @relation("pinv_approved_by")
 
+  // QA/QC
+  qualityInspections   QualityInspection[]        @relation("quality_inspector")
+  qualitySignoffs      QualityInspectionSignoff[] @relation("quality_signoff_user")
+  qualityTestsRecorded QualityTest[]              @relation("quality_test_recorded_by")
+  snagsAssigned        Snag[]                     @relation("snag_assignee")
+  snagsRaised          Snag[]                     @relation("snag_raised_by")
+  snagPhotos           SnagPhoto[]                @relation("snag_photo_uploaded_by")
+  snagEvents           SnagEvent[]                @relation("snag_event_actor")
+
   /// Phone is unique within a tenant, not globally â€” the same person can be a
   /// supervisor at one builder and an owner at another.
   @@unique([tenantId, phone], map: "users_tenant_id_phone_key")
@@ -476,6 +496,11 @@ model Project {
   goodsReceipts     GoodsReceipt[]
   purchaseInvoices  PurchaseInvoice[]
 
+  // QA/QC
+  qualityInspections QualityInspection[]
+  qualityTests       QualityTest[]
+  snags              Snag[]
+
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
   @@map("projects")
@@ -511,9 +536,10 @@ model Milestone {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  PaymentStage PaymentStage[]
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  PaymentStage       PaymentStage[]
+  qualityInspections QualityInspection[]
 
   @@index([projectId, sortOrder])
   @@map("milestones")
@@ -543,6 +569,7 @@ model Contractor {
   wagePeriods    WagePeriod[]
   labourPayments LabourPayment[]
   subcontracts   Subcontract[]
+  snagsAssigned  Snag[]
 
   @@index([tenantId, updatedAt])
   @@map("contractors")
@@ -1810,6 +1837,9 @@ model CostCode {
   subcontractDeductions SubcontractDeduction[]
   rfqItems              PurchaseRfqItem[]
   orderLines            PurchaseOrderLine[]
+  qualityInspections    QualityInspection[]
+  qualityTests          QualityTest[]
+  snags                 Snag[]
 
   @@unique([projectId, code])
   @@index([tenantId])
@@ -2546,4 +2576,387 @@ model PurchaseInvoiceLine {
   @@index([expenseId])
   @@index([tenantId])
   @@map("purchase_invoice_lines")
+}
+
+// ---------------------------------------------------------------------------
+// QA/QC (roadmap Phase 2, module 7)
+// ---------------------------------------------------------------------------
+//
+// Every name here says `quality`, `inspection` or `snag`: safety (HSE) has checklists and
+// observations of its own, and the two modules must never collide on a table or an enum.
+
+enum QualityItemKind {
+  pass_fail
+  number
+  text
+  photo
+
+  @@map("quality_item_kind")
+}
+
+enum QualityItemOutcome {
+  pass
+  fail
+  na
+
+  @@map("quality_item_outcome")
+}
+
+enum QualityInspectionStatus {
+  in_progress
+  completed
+
+  @@map("quality_inspection_status")
+}
+
+enum QualityInspectionResult {
+  pass
+  pass_with_comments
+  fail
+
+  @@map("quality_inspection_result")
+}
+
+enum QualitySignoffParty {
+  inspector
+  client
+  consultant
+
+  @@map("quality_signoff_party")
+}
+
+enum QualityTestType {
+  concrete_cube
+  concrete_slump
+  steel_tensile
+  soil_compaction
+  brick_compressive
+  water_absorption
+  other
+
+  @@map("quality_test_type")
+}
+
+enum QualityTestResult {
+  pass
+  fail
+
+  @@map("quality_test_result")
+}
+
+enum SnagStatus {
+  draft
+  open
+  fixed
+  closed
+
+  @@map("snag_status")
+}
+
+enum SnagPriority {
+  low
+  medium
+  high
+  critical
+
+  @@map("snag_priority")
+}
+
+enum SnagSource {
+  manual
+  inspection
+  quick_capture
+  test
+
+  @@map("snag_source")
+}
+
+enum SnagPhotoStage {
+  before
+  after
+
+  @@map("snag_photo_stage")
+}
+
+/// A checklist in the company's library. Copied from the standard set the first time the library
+/// is opened (`standardKey` says which), then the company's own to edit.
+model QualityChecklistTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  /// The trade a failed line's snag is filed under.
+  trade       String?
+  description String?
+  /// The standard checklist this was copied from, if any.
+  standardKey String?  @map("standard_key")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items       QualityChecklistItem[]
+  inspections QualityInspection[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active])
+  @@map("quality_checklist_templates")
+}
+
+model QualityChecklistItem {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  templateId     String          @map("template_id") @db.Uuid
+  position       Int
+  label          String
+  kind           QualityItemKind
+  required       Boolean         @default(true)
+  photoRequired  Boolean         @default(false) @map("photo_required")
+  unit           String?
+  targetValue    Decimal?        @map("target_value") @db.Decimal(12, 3)
+  toleranceMinus Decimal?        @map("tolerance_minus") @db.Decimal(12, 3)
+  tolerancePlus  Decimal?        @map("tolerance_plus") @db.Decimal(12, 3)
+  guidance       String?
+
+  tenant   Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template QualityChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, position])
+  @@index([tenantId])
+  @@map("quality_checklist_items")
+}
+
+/// One checklist run on one place on one site. The lines are copied in when it starts, so editing
+/// the library later never rewrites an inspection somebody signed.
+model QualityInspection {
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                   @map("tenant_id") @db.Uuid
+  projectId       String                   @map("project_id") @db.Uuid
+  templateId      String?                  @map("template_id") @db.Uuid
+  /// QI-12: numbered within the company.
+  number          Int
+  /// The template's name when the inspection started.
+  title           String
+  trade           String?
+  /// "Block A, 3rd floor slab".
+  location        String
+  inspectionDate  DateTime                 @map("inspection_date") @db.Date
+  inspectorId     String?                  @map("inspector_id") @db.Uuid
+  costCodeId      String?                  @map("cost_code_id") @db.Uuid
+  milestoneId     String?                  @map("milestone_id") @db.Uuid
+  status          QualityInspectionStatus  @default(in_progress)
+  result          QualityInspectionResult?
+  notes           String?
+  /// Shown to the client in the portal once completed, for their countersignature.
+  shareWithClient Boolean                  @default(false) @map("share_with_client")
+  completedAt     DateTime?                @map("completed_at") @db.Timestamptz(6)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  template  QualityChecklistTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  inspector User?                     @relation("quality_inspector", fields: [inspectorId], references: [id], onDelete: SetNull)
+  costCode  CostCode?                 @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  milestone Milestone?                @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  items    QualityInspectionItem[]
+  signoffs QualityInspectionSignoff[]
+  snags    Snag[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, projectId, inspectionDate])
+  @@index([templateId])
+  @@map("quality_inspections")
+}
+
+model QualityInspectionItem {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String              @map("tenant_id") @db.Uuid
+  inspectionId   String              @map("inspection_id") @db.Uuid
+  position       Int
+  label          String
+  kind           QualityItemKind
+  required       Boolean             @default(true)
+  photoRequired  Boolean             @default(false) @map("photo_required")
+  unit           String?
+  targetValue    Decimal?            @map("target_value") @db.Decimal(12, 3)
+  toleranceMinus Decimal?            @map("tolerance_minus") @db.Decimal(12, 3)
+  tolerancePlus  Decimal?            @map("tolerance_plus") @db.Decimal(12, 3)
+  guidance       String?
+  outcome        QualityItemOutcome?
+  numberValue    Decimal?            @map("number_value") @db.Decimal(12, 3)
+  textValue      String?             @map("text_value")
+  comment        String?
+  /// Uploaded with kind `quality_photo`.
+  photoKeys      String[]            @default([]) @map("photo_keys")
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inspection QualityInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  snag       Snag?
+
+  @@index([inspectionId, position])
+  @@index([tenantId])
+  @@map("quality_inspection_items")
+}
+
+/// A signature on an inspection: the inspector's completes it; a client's or consultant's
+/// countersigns it. One per party — a second signature would make the first one meaningless.
+model QualityInspectionSignoff {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  inspectionId  String              @map("inspection_id") @db.Uuid
+  party         QualitySignoffParty
+  userId        String?             @map("user_id") @db.Uuid
+  /// Typed in full by the signer; what the printed report shows.
+  signatureName String              @map("signature_name")
+  accepted      Boolean             @default(true)
+  note          String?
+  signedAt      DateTime            @default(now()) @map("signed_at") @db.Timestamptz(6)
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inspection QualityInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  user       User?             @relation("quality_signoff_user", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([inspectionId, party])
+  @@index([tenantId])
+  @@map("quality_inspection_signoffs")
+}
+
+/// A material or lab test. A cube set is one row per crushing age, sharing the sample reference.
+model QualityTest {
+  id           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String             @map("tenant_id") @db.Uuid
+  projectId    String             @map("project_id") @db.Uuid
+  /// QT-5: numbered within the company.
+  number       Int
+  testType     QualityTestType    @map("test_type")
+  title        String?
+  sampleRef    String             @map("sample_ref")
+  location     String?
+  costCodeId   String?            @map("cost_code_id") @db.Uuid
+  grade        String?
+  castOn       DateTime?          @map("cast_on") @db.Date
+  ageDays      Int?               @map("age_days")
+  dueOn        DateTime?          @map("due_on") @db.Date
+  testedOn     DateTime?          @map("tested_on") @db.Date
+  specMin      Decimal?           @map("spec_min") @db.Decimal(12, 3)
+  specMax      Decimal?           @map("spec_max") @db.Decimal(12, 3)
+  unit         String?
+  resultValue  Decimal?           @map("result_value") @db.Decimal(12, 3)
+  result       QualityTestResult?
+  labName      String?            @map("lab_name")
+  /// The lab's report, uploaded with kind `quality_report`.
+  reportS3Key  String?            @map("report_s3_key")
+  notes        String?
+  recordedById String?            @map("recorded_by") @db.Uuid
+  /// When the "due for testing" reminder went out, so it goes out once.
+  remindedAt   DateTime?          @map("reminded_at") @db.Timestamptz(6)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  costCode   CostCode? @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  recordedBy User?     @relation("quality_test_recorded_by", fields: [recordedById], references: [id], onDelete: SetNull)
+  snags      Snag[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, projectId])
+  @@index([tenantId, dueOn])
+  @@map("quality_tests")
+}
+
+/// A defect to put right: from an inspection's failed line, a failed test, a quick photo, or typed.
+/// The handover punch list is the snags marked `clientVisible`.
+model Snag {
+  id                   String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String       @map("tenant_id") @db.Uuid
+  projectId            String       @map("project_id") @db.Uuid
+  /// SN-34: numbered within the company.
+  number               Int
+  title                String
+  description          String?
+  location             String?
+  trade                String?
+  priority             SnagPriority @default(medium)
+  status               SnagStatus   @default(open)
+  source               SnagSource   @default(manual)
+  assignedUserId       String?      @map("assigned_user_id") @db.Uuid
+  assignedContractorId String?      @map("assigned_contractor_id") @db.Uuid
+  dueOn                DateTime?    @map("due_on") @db.Date
+  clientVisible        Boolean      @default(false) @map("client_visible")
+  costCodeId           String?      @map("cost_code_id") @db.Uuid
+  inspectionId         String?      @map("inspection_id") @db.Uuid
+  inspectionItemId     String?      @unique @map("inspection_item_id") @db.Uuid
+  testId               String?      @map("test_id") @db.Uuid
+  raisedById           String?      @map("raised_by") @db.Uuid
+  /// What a voice note said, kept beside the draft so the words can be checked.
+  transcript           String?
+  /// A voice note kept because it could not be transcribed, so somebody can still listen to it.
+  voiceS3Key           String?      @map("voice_s3_key")
+  aiSuggested          Boolean      @default(false) @map("ai_suggested")
+  reopenCount          Int          @default(0) @map("reopen_count")
+  fixedAt              DateTime?    @map("fixed_at") @db.Timestamptz(6)
+  closedAt             DateTime?    @map("closed_at") @db.Timestamptz(6)
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant             Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project            Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedUser       User?                  @relation("snag_assignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  assignedContractor Contractor?            @relation(fields: [assignedContractorId], references: [id], onDelete: SetNull)
+  costCode           CostCode?              @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  inspection         QualityInspection?     @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+  inspectionItem     QualityInspectionItem? @relation(fields: [inspectionItemId], references: [id], onDelete: SetNull)
+  test               QualityTest?           @relation(fields: [testId], references: [id], onDelete: SetNull)
+  raisedBy           User?                  @relation("snag_raised_by", fields: [raisedById], references: [id], onDelete: SetNull)
+
+  photos SnagPhoto[]
+  events SnagEvent[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, projectId, status])
+  @@index([assignedUserId])
+  @@index([assignedContractorId])
+  @@index([inspectionId])
+  @@index([testId])
+  @@map("snags")
+}
+
+model SnagPhoto {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  snagId       String         @map("snag_id") @db.Uuid
+  stage        SnagPhotoStage @default(before)
+  s3Key        String         @map("s3_key")
+  uploadedById String?        @map("uploaded_by") @db.Uuid
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  snag       Snag   @relation(fields: [snagId], references: [id], onDelete: Cascade)
+  uploadedBy User?  @relation("snag_photo_uploaded_by", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([snagId])
+  @@index([tenantId])
+  @@map("snag_photos")
+}
+
+/// The snag's own history — raised, fixed, closed, reopened and why — for the timeline on the snag.
+/// The audit log holds the same facts; this is the readable version, kept with the snag.
+model SnagEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  snagId    String   @map("snag_id") @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  action    String
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  snag   Snag   @relation(fields: [snagId], references: [id], onDelete: Cascade)
+  actor  User?  @relation("snag_event_actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([snagId, createdAt])
+  @@index([tenantId])
+  @@map("snag_events")
 }

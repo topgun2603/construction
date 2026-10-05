@@ -136,6 +136,10 @@ const UPLOAD_KINDS = [
   'site_media',
   /** A photo a client or the team attached to a message in the site conversation. */
   'message_attachment',
+  /** QA/QC: a photo on an inspection line or a snag, before or after the fix. */
+  'quality_photo',
+  /** QA/QC: a lab's test report, usually a PDF. */
+  'quality_report',
 ] as const;
 
 /**

@@ -6,6 +6,7 @@ import { AskService } from './ask.service';
 import { BillReader } from './bill-reader.service';
 import { DocumentQaService } from './document-qa.service';
 import { VoiceReader } from './voice-reader.service';
+import { SnagReader } from './snag-reader.service';
 
 /**
  * Everything that asks a model a question.
@@ -16,7 +17,7 @@ import { VoiceReader } from './voice-reader.service';
  */
 @Module({
   controllers: [AskController, TranslateController],
-  providers: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService],
-  exports: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService],
+  providers: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, SnagReader],
+  exports: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, SnagReader],
 })
 export class AiModule {}
