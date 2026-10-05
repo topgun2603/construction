@@ -38,6 +38,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { PlatformModule } from './modules/platform/platform.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { PortalModule } from './modules/portal/portal.module';
+import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -115,6 +116,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     CampsModule,
     CostCodesModule,
     SubcontractsModule,
+    ProcurementModule,
     AuditModule,
     ReportsModule,
     StockModule,

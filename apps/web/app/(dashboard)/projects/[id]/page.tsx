@@ -57,6 +57,8 @@ import type { SubcontractSummary } from '@/lib/subcontract-types';
 import type { Contractor } from '@/lib/api-types';
 import { SubcontractsTable } from '../../subcontracts/subcontracts-table';
 import { NewSubcontractDialog } from '../../subcontracts/new-subcontract-dialog';
+import type { PurchaseOrderSummary } from '@/lib/procurement-types';
+import { SitePurchases } from './site-purchases';
 
 const TABS = [
   'timeline',
@@ -69,6 +71,7 @@ const TABS = [
   'materials',
   'cost',
   'subcontracts',
+  'purchases',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -269,6 +272,16 @@ export default async function ProjectPage({
         ])
       : [null, null];
 
+  // Purchase orders (roadmap Phase 2, module 2), fetched only for their own tab. Procurement sits
+  // behind the `materials` module; receivers see the list too, without prices.
+  const canSeePurchases =
+    me.enabled_modules.includes('materials') &&
+    ['procurement.view', 'procurement.receive'].some((p) => me.permissions.includes(p));
+  const purchases =
+    active === 'purchases' && canSeePurchases
+      ? await serverFetch<PurchaseOrderSummary[]>(`/purchase-orders?project_id=${id}`)
+      : [];
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -327,6 +340,7 @@ export default async function ProjectPage({
         showApprovals={canSeeApprovals}
         showCost={canSeeCost}
         showSubcontracts={canSeeSubcontracts}
+        showPurchases={canSeePurchases}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -456,6 +470,9 @@ export default async function ProjectPage({
           )}
           <SubcontractsTable subcontracts={subcontracts.items} showSite={false} />
         </div>
+      )}
+      {active === 'purchases' && canSeePurchases && (
+        <SitePurchases projectId={id} orders={purchases} />
       )}
 
       {active === 'materials' && (

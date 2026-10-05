@@ -73,6 +73,20 @@ export const PERMISSIONS = [
   'subcontracts.certify',
   'subcontracts.pay',
 
+  /*
+   * Procurement (roadmap Phase 2, module 2): suppliers, quotes, purchase orders, goods received
+   * and supplier invoices. Split along the decisions a company separates on purpose — the person
+   * who raises an order should not be the only one who can approve it, the store keeper who signs
+   * for a delivery need not see what it cost, and whoever matches the invoice is accounts.
+   * How much a person may approve is an amount (Settings → Procurement), not a permission.
+   */
+  'vendors.manage',
+  'procurement.view',
+  'procurement.manage',
+  'procurement.approve',
+  'procurement.receive',
+  'procurement.invoices',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -258,6 +272,36 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Procurement',
+    items: [
+      { permission: 'vendors.manage', label: 'Add and edit suppliers' },
+      {
+        permission: 'procurement.view',
+        label: 'See quotes and purchase orders',
+        note: 'Includes the prices suppliers quoted',
+      },
+      {
+        permission: 'procurement.manage',
+        label: 'Ask for quotes and raise purchase orders',
+      },
+      {
+        permission: 'procurement.approve',
+        label: 'Approve purchase orders',
+        note: 'Only up to their approval limit, set in Settings → Procurement. Owners have none.',
+      },
+      {
+        permission: 'procurement.receive',
+        label: 'Receive goods against a purchase order',
+        note: 'Books the delivery into site stock',
+      },
+      {
+        permission: 'procurement.invoices',
+        label: 'Record and match supplier invoices',
+        note: 'An approved invoice becomes an expense on the site',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -383,6 +427,12 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'subcontracts.manage',
     'subcontracts.measure',
     'subcontracts.certify',
+    // Buying for the job is running the job — approving only up to the limit the owner sets.
+    'vendors.manage',
+    'procurement.view',
+    'procurement.manage',
+    'procurement.approve',
+    'procurement.receive',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -409,6 +459,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Setting the estimate is not — that is the figure their consumption is judged against.
     'stock.view',
     'stock.record',
+    // Signing for a delivery against the order is the same job as signing for it at all. What the
+    // order cost is not theirs to see, so no `procurement.view`.
+    'procurement.receive',
     'expenses.view',
     'expenses.record',
     // Measures the subcontractor's work on their own site for the running bill. Not the rates or
@@ -450,6 +503,11 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Reads every subcontract account and pays the certified bills; certifying them is the job's.
     'subcontracts.view',
     'subcontracts.pay',
+    // Matching the supplier's invoice to the order and the delivery is the books' job, and so is
+    // keeping supplier tax numbers right. Approving the order itself is not.
+    'vendors.manage',
+    'procurement.view',
+    'procurement.invoices',
     'messages.post',
     'messages.internal',
     'documents.view',

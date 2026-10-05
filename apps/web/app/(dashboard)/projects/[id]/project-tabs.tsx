@@ -15,6 +15,7 @@ export function ProjectTabs({
   showApprovals = false,
   showCost = false,
   showSubcontracts = false,
+  showPurchases = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -37,6 +38,8 @@ export function ProjectTabs({
   showCost?: boolean;
   /** Subcontracts need `subcontracts.view` or `.measure`; a supervisor measures without the money. */
   showSubcontracts?: boolean;
+  /** Purchase orders need `procurement.view` or `procurement.receive`. */
+  showPurchases?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -56,6 +59,7 @@ export function ProjectTabs({
     ...(showMaterials ? [{ key: 'materials', label: t('Materials') }] : []),
     ...(showCost ? [{ key: 'cost', label: t('Cost codes') }] : []),
     ...(showSubcontracts ? [{ key: 'subcontracts', label: t('Subcontracts') }] : []),
+    ...(showPurchases ? [{ key: 'purchases', label: t('Purchases') }] : []),
   ];
 
   return (
