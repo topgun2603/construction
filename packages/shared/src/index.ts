@@ -12,6 +12,7 @@ export * from './forecast';
 export * from './cost-codes';
 export * from './subcontracts';
 export * from './procurement';
+export * from './change-orders';
 export * from './whatsapp';
 
 export * from './schemas/common';
@@ -26,6 +27,7 @@ export * from './schemas/camps';
 export * from './schemas/cost-codes';
 export * from './schemas/subcontracts';
 export * from './schemas/procurement';
+export * from './schemas/change-orders';
 export * from './schemas/audit';
 export * from './schemas/site';
 export * from './schemas/portal';

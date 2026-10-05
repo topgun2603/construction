@@ -1,4 +1,5 @@
 import type { PayBasis, PaymentMode, WorkerDocumentKind } from '@sitebook/shared';
+import type { ClientChangeOrder } from './change-order-types';
 
 /**
  * Response shapes from the API.
@@ -790,6 +791,8 @@ export interface Approval {
   decided_at: string | null;
   decision_note: string | null;
   document: { id: string; title: string; version: number; url: string | null } | null;
+  /** Set when the question is a change order: its price and days, never its cost. */
+  change_order?: ClientChangeOrder | null;
 }
 
 /** A drawing, contract or approval — one revision of it. */

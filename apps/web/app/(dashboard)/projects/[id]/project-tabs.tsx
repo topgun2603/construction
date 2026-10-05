@@ -16,6 +16,7 @@ export function ProjectTabs({
   showCost = false,
   showSubcontracts = false,
   showPurchases = false,
+  showChangeOrders = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -40,6 +41,8 @@ export function ProjectTabs({
   showSubcontracts?: boolean;
   /** Purchase orders need `procurement.view` or `procurement.receive`. */
   showPurchases?: boolean;
+  /** Change orders: `change_orders.view` for the team; a client sees theirs through approvals. */
+  showChangeOrders?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -60,6 +63,7 @@ export function ProjectTabs({
     ...(showCost ? [{ key: 'cost', label: t('Cost codes') }] : []),
     ...(showSubcontracts ? [{ key: 'subcontracts', label: t('Subcontracts') }] : []),
     ...(showPurchases ? [{ key: 'purchases', label: t('Purchases') }] : []),
+    ...(showChangeOrders ? [{ key: 'change-orders', label: t('Change orders') }] : []),
   ];
 
   return (

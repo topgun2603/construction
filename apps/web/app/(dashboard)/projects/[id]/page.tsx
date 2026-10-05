@@ -59,6 +59,13 @@ import { SubcontractsTable } from '../../subcontracts/subcontracts-table';
 import { NewSubcontractDialog } from '../../subcontracts/new-subcontract-dialog';
 import type { PurchaseOrderSummary } from '@/lib/procurement-types';
 import { SitePurchases } from './site-purchases';
+import type {
+  ChangeOrderRegister,
+  ChangeOrderSiteSummary,
+  ChangeOrderSuggestion,
+} from '@/lib/change-order-types';
+import { SiteChangeOrders } from '../../change-orders/site-change-orders';
+import { ClientChangeOrders } from '../../change-orders/client-change-order';
 
 const TABS = [
   'timeline',
@@ -72,6 +79,7 @@ const TABS = [
   'cost',
   'subcontracts',
   'purchases',
+  'change-orders',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -282,6 +290,25 @@ export default async function ProjectPage({
       ? await serverFetch<PurchaseOrderSummary[]>(`/purchase-orders?project_id=${id}`)
       : [];
 
+  /*
+   * Change orders (roadmap Phase 2, module 4), fetched only for their own tab. The team reads the
+   * register with `change_orders.view`; a client sees the ones put to them through the approvals
+   * already loaded above, which carry the price and days and never the cost.
+   */
+  const canSeeChangeOrders = me.permissions.includes('change_orders.view');
+  const clientSeesChangeOrders =
+    !canSeeChangeOrders && canSeeApprovals && approvals.some((approval) => approval.change_order);
+  const [changeOrders, changeOrderSummary, changeOrderSuggestions] =
+    active === 'change-orders' && canSeeChangeOrders
+      ? await Promise.all([
+          serverFetch<ChangeOrderRegister>(`/change-orders?project_id=${id}`),
+          serverFetch<ChangeOrderSiteSummary>(`/projects/${id}/change-order-summary`),
+          me.permissions.includes('change_orders.manage')
+            ? serverFetch<{ items: ChangeOrderSuggestion[] }>(`/change-order-suggestions?project_id=${id}`)
+            : { items: [] as ChangeOrderSuggestion[] },
+        ])
+      : [null, null, null];
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -341,6 +368,7 @@ export default async function ProjectPage({
         showCost={canSeeCost}
         showSubcontracts={canSeeSubcontracts}
         showPurchases={canSeePurchases}
+        showChangeOrders={canSeeChangeOrders || clientSeesChangeOrders}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -473,6 +501,19 @@ export default async function ProjectPage({
       )}
       {active === 'purchases' && canSeePurchases && (
         <SitePurchases projectId={id} orders={purchases} />
+      )}
+
+      {active === 'change-orders' && changeOrders && changeOrderSummary && (
+        <SiteChangeOrders
+          project={{ id, name: project.name }}
+          summary={changeOrderSummary}
+          changeOrders={changeOrders.items}
+          suggestions={changeOrderSuggestions?.items ?? []}
+          canManage={me.permissions.includes('change_orders.manage')}
+        />
+      )}
+      {active === 'change-orders' && clientSeesChangeOrders && (
+        <ClientChangeOrders projectId={id} approvals={approvals} />
       )}
 
       {active === 'materials' && (

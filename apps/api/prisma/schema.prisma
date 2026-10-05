@@ -313,6 +313,14 @@ model Tenant {
   purchaseInvoices       PurchaseInvoice[]
   purchaseInvoiceLines   PurchaseInvoiceLine[]
 
+  // Change orders
+  changeOrders               ChangeOrder[]
+  changeOrderLines           ChangeOrderLine[]
+  changeOrderAttachments     ChangeOrderAttachment[]
+  changeOrderBudgetRevisions ChangeOrderBudgetRevision[]
+  changeOrderSiteRevisions   ChangeOrderSiteRevision[]
+  changeOrderSuggestions     ChangeOrderSuggestion[]
+
   @@map("tenants")
 }
 
@@ -443,6 +451,9 @@ model Project {
   startDate     DateTime?     @map("start_date") @db.Date
   targetEndDate DateTime?     @map("target_end_date") @db.Date
   budgetAmount  BigInt?       @map("budget_amount")
+  /// The contract with the client as signed, before any change order. The revised value is this
+  /// plus approved change orders, worked out rather than stored (see `ChangeOrderSiteRevision`).
+  contractValue BigInt?       @map("contract_value")
   status        ProjectStatus @default(planning)
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -475,6 +486,10 @@ model Project {
   purchaseOrders    PurchaseOrder[]
   goodsReceipts     GoodsReceipt[]
   purchaseInvoices  PurchaseInvoice[]
+
+  changeOrders             ChangeOrder[]
+  changeOrderSiteRevisions ChangeOrderSiteRevision[]
+  changeOrderSuggestions   ChangeOrderSuggestion[]
 
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
@@ -1504,6 +1519,7 @@ model Document {
   chunks   DocumentChunk[]
 
   subcontractLinks SubcontractDocument[]
+  changeOrderLinks ChangeOrderAttachment[]
 
   @@unique([tenantId, clientId], map: "documents_tenant_id_client_id_key")
   @@unique([familyId, version], map: "documents_family_id_version_key")
@@ -1640,6 +1656,9 @@ model Approval {
   document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   requester User      @relation("approval_requester", fields: [requestedBy], references: [id], onDelete: Restrict)
   decider   User?     @relation("approval_decider", fields: [decidedBy], references: [id], onDelete: Restrict)
+
+  /// Set when the question is a change order: the client's answer here is what applies it.
+  changeOrder ChangeOrder?
 
   @@unique([tenantId, clientId], map: "approvals_tenant_id_client_id_key")
   @@index([projectId, status, createdAt(sort: Desc)])
@@ -1810,6 +1829,9 @@ model CostCode {
   subcontractDeductions SubcontractDeduction[]
   rfqItems              PurchaseRfqItem[]
   orderLines            PurchaseOrderLine[]
+
+  changeOrderLines           ChangeOrderLine[]
+  changeOrderBudgetRevisions ChangeOrderBudgetRevision[]
 
   @@unique([projectId, code])
   @@index([tenantId])
@@ -2546,4 +2568,245 @@ model PurchaseInvoiceLine {
   @@index([expenseId])
   @@index([tenantId])
   @@map("purchase_invoice_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Change orders (roadmap Phase 2, module 4)
+// ---------------------------------------------------------------------------
+//
+// A variation to the client's contract: what the change costs the builder, what the client is
+// charged for it, and how many days it adds. The client's yes goes through the existing portal
+// `Approval`, and once given it moves the cost codes' budgets, the handover date and the contract
+// value — each recorded as a revision row rather than an overwrite, so the original figures can
+// always be read back.
+//
+// People are bare ids, as in subcontracts: the audit log already names whoever wrote each row, and
+// leaving `User` alone keeps this module out of a model every other module also extends.
+
+enum ChangeOrderStatus {
+  draft
+  submitted
+  sent
+  approved
+  rejected
+  implemented
+  cancelled
+
+  @@map("change_order_status")
+}
+
+enum ChangeOrderReason {
+  client_request
+  design_change
+  site_condition
+  error_omission
+
+  @@map("change_order_reason")
+}
+
+enum ChangeOrderSuggestionStatus {
+  open
+  dismissed
+  converted
+
+  @@map("change_order_suggestion_status")
+}
+
+enum ChangeOrderSourceKind {
+  daily_report
+  site_message
+
+  @@map("change_order_source_kind")
+}
+
+model ChangeOrder {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  projectId       String            @map("project_id") @db.Uuid
+  /// CO-001 is 1. Numbered per site; a revision keeps its number and counts `revision` up.
+  number          Int
+  revision        Int               @default(0)
+  title           String
+  description     String?
+  reason          ChangeOrderReason
+  status          ChangeOrderStatus @default(draft)
+  raisedBy        String            @map("raised_by") @db.Uuid
+  raisedOn        DateTime          @map("raised_on") @db.Date
+  /// Markup on cost, basis points. Ignored when `enteredPrice` is set.
+  markupBp        Int               @default(0) @map("markup_bp")
+  /// A price agreed outright rather than cost plus markup.
+  enteredPrice    BigInt?           @map("entered_price")
+  taxRateBp       Int               @default(0) @map("tax_rate_bp")
+  /// The stored figures, worked out by `changeOrderFigures` whenever the lines or pricing change.
+  costImpact      BigInt            @default(0) @map("cost_impact")
+  clientPrice     BigInt            @default(0) @map("client_price")
+  taxAmount       BigInt            @default(0) @map("tax_amount")
+  clientTotal     BigInt            @default(0) @map("client_total")
+  timeImpactDays  Int               @default(0) @map("time_impact_days")
+  submittedBy     String?           @map("submitted_by") @db.Uuid
+  submittedAt     DateTime?         @map("submitted_at") @db.Timestamptz(6)
+  approvedBy      String?           @map("approved_by") @db.Uuid
+  approvedAt      DateTime?         @map("approved_at") @db.Timestamptz(6)
+  /// The approver's note — why it was returned, or anything said on approving it.
+  reviewNote      String?           @map("review_note")
+  sentAt          DateTime?         @map("sent_at") @db.Timestamptz(6)
+  /// The portal approval the client answers. One per revision sent; the current one is linked.
+  approvalId      String?           @unique @map("approval_id") @db.Uuid
+  clientDecidedBy String?           @map("client_decided_by") @db.Uuid
+  clientDecidedAt DateTime?         @map("client_decided_at") @db.Timestamptz(6)
+  clientNote      String?           @map("client_note")
+  /// When the budgets, handover and contract value were moved. Set once, on the client's yes.
+  appliedAt       DateTime?         @map("applied_at") @db.Timestamptz(6)
+  implementedBy   String?           @map("implemented_by") @db.Uuid
+  implementedAt   DateTime?         @map("implemented_at") @db.Timestamptz(6)
+  cancelledBy     String?           @map("cancelled_by") @db.Uuid
+  cancelledAt     DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason    String?           @map("cancel_reason")
+  clientId        String?           @map("client_id") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant          Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project         Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approval        Approval?                   @relation(fields: [approvalId], references: [id], onDelete: SetNull)
+  lines           ChangeOrderLine[]
+  attachments     ChangeOrderAttachment[]
+  budgetRevisions ChangeOrderBudgetRevision[]
+  siteRevision    ChangeOrderSiteRevision?
+  suggestions     ChangeOrderSuggestion[]
+
+  @@unique([projectId, number])
+  @@unique([tenantId, clientId], map: "change_orders_tenant_id_client_id_key")
+  @@index([tenantId, status])
+  @@map("change_orders")
+}
+
+model ChangeOrderLine {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  changeOrderId String   @map("change_order_id") @db.Uuid
+  costCodeId    String?  @map("cost_code_id") @db.Uuid
+  sortOrder     Int      @default(0) @map("sort_order")
+  description   String
+  unit          String?
+  /// Null for a lump sum.
+  quantity      Decimal? @db.Decimal(14, 3)
+  rate          BigInt?
+  /// Cost to the builder, minor units. Negative for an omission.
+  amount        BigInt
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  changeOrder ChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+  costCode    CostCode?   @relation(fields: [costCodeId], references: [id], onDelete: NoAction)
+
+  @@index([tenantId])
+  @@index([changeOrderId, sortOrder])
+  @@index([costCodeId])
+  @@map("change_order_lines")
+}
+
+/// A photo or document backing a change order: one from the library, or an uploaded photo.
+model ChangeOrderAttachment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  changeOrderId String   @map("change_order_id") @db.Uuid
+  documentId    String?  @map("document_id") @db.Uuid
+  s3Key         String?  @map("s3_key")
+  contentType   String?  @map("content_type")
+  caption       String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  changeOrder ChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+  document    Document?   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([changeOrderId])
+  @@index([documentId])
+  @@map("change_order_attachments")
+}
+
+/// One cost code's budget moved by one approved change order: what was asked, what was applied
+/// (a credit never takes a budget below zero), and the budget either side.
+model ChangeOrderBudgetRevision {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  projectId     String   @map("project_id") @db.Uuid
+  changeOrderId String   @map("change_order_id") @db.Uuid
+  costCodeId    String   @map("cost_code_id") @db.Uuid
+  requested     BigInt
+  amount        BigInt
+  budgetBefore  BigInt   @map("budget_before")
+  budgetAfter   BigInt   @map("budget_after")
+  createdBy     String   @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  changeOrder ChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+  costCode    CostCode    @relation(fields: [costCodeId], references: [id], onDelete: NoAction)
+
+  @@index([tenantId])
+  @@index([projectId, costCodeId])
+  @@index([changeOrderId])
+  @@index([costCodeId])
+  @@map("change_order_budget_revisions")
+}
+
+/// What one approved change order did to the site: the handover date, the contract value and the
+/// site budget, each before and after. Null pairs where the site had no such figure.
+model ChangeOrderSiteRevision {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  projectId        String    @map("project_id") @db.Uuid
+  changeOrderId    String    @unique @map("change_order_id") @db.Uuid
+  timeImpactDays   Int       @map("time_impact_days")
+  handoverBefore   DateTime? @map("handover_before") @db.Date
+  handoverAfter    DateTime? @map("handover_after") @db.Date
+  contractBefore   BigInt?   @map("contract_before")
+  contractAfter    BigInt?   @map("contract_after")
+  siteBudgetBefore BigInt?   @map("site_budget_before")
+  siteBudgetAfter  BigInt?   @map("site_budget_after")
+  createdBy        String    @map("created_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changeOrder ChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([projectId, createdAt])
+  @@map("change_order_site_revisions")
+}
+
+/// The scope-creep catcher's find: a daily report or site message that reads like extra work,
+/// waiting for a manager to raise a change order from it or dismiss it.
+model ChangeOrderSuggestion {
+  id            String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                      @map("tenant_id") @db.Uuid
+  projectId     String                      @map("project_id") @db.Uuid
+  sourceKind    ChangeOrderSourceKind       @map("source_kind")
+  sourceId      String                      @map("source_id") @db.Uuid
+  excerpt       String
+  matched       String[]                    @default([])
+  /// `rules` (keywords) or `ai` (keywords confirmed by the model).
+  detectedBy    String                      @default("rules") @map("detected_by")
+  /// The model's one-line reading of it, when one was asked.
+  summary       String?
+  status        ChangeOrderSuggestionStatus @default(open)
+  changeOrderId String?                     @map("change_order_id") @db.Uuid
+  decidedBy     String?                     @map("decided_by") @db.Uuid
+  decidedAt     DateTime?                   @map("decided_at") @db.Timestamptz(6)
+  createdAt     DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changeOrder ChangeOrder? @relation(fields: [changeOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceKind, sourceId])
+  @@index([tenantId, status])
+  @@index([projectId, status])
+  @@map("change_order_suggestions")
 }

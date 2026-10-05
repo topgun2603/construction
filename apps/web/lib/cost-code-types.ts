@@ -38,6 +38,8 @@ export interface CostReportLine {
   has_children: boolean;
   own: CostFigures;
   total: CostFigures;
+  /** Budget added by approved change orders, already inside `budget`. Original = budget − this. */
+  approved_changes?: { own: string; total: string };
 }
 
 /** `GET /projects/:id/cost-report`. */
@@ -52,6 +54,8 @@ export interface CostReport {
   lines: CostReportLine[];
   unallocated: CostFigures;
   totals: CostFigures;
+  /** Budget added (or credited) by approved change orders across the site. */
+  approved_changes?: string;
 }
 
 /** `GET /cost-code-templates`. The built-in one has id `standard`. */

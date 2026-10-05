@@ -87,6 +87,15 @@ export const PERMISSIONS = [
   'procurement.receive',
   'procurement.invoices',
 
+  /*
+   * Change orders (roadmap Phase 2, module 4): variations to the client's contract. Seeing one shows
+   * its cost as well as its price — the margin — so viewing is its own permission. Approving is the
+   * internal sign-off before anything is put in front of the client.
+   */
+  'change_orders.view',
+  'change_orders.manage',
+  'change_orders.approve',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -302,6 +311,26 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Change orders',
+    items: [
+      {
+        permission: 'change_orders.view',
+        label: 'See change orders and the contract value',
+        note: 'Shows what each change costs as well as what the client is charged',
+      },
+      {
+        permission: 'change_orders.manage',
+        label: 'Raise and edit change orders',
+        note: 'Also sees the extra-work suggestions picked up from daily reports and messages',
+      },
+      {
+        permission: 'change_orders.approve',
+        label: 'Approve change orders before they go to the client',
+        note: 'Nobody but an owner approves one they raised themselves',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -433,6 +462,11 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'procurement.manage',
     'procurement.approve',
     'procurement.receive',
+    // Pricing and agreeing changes with the client is running the job. Their own change orders still
+    // need somebody else to approve them.
+    'change_orders.view',
+    'change_orders.manage',
+    'change_orders.approve',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -508,6 +542,8 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'vendors.manage',
     'procurement.view',
     'procurement.invoices',
+    // Reads the register: an approved change order is money the client will be billed.
+    'change_orders.view',
     'messages.post',
     'messages.internal',
     'documents.view',

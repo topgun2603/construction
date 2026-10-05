@@ -195,7 +195,14 @@ export function CostCodesTab({
           </span>
         </div>
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-          <Figure label={t('Budget')} value={format.moneyShort(totals.budget)} />
+          <Figure
+            label={
+              report.approved_changes && report.approved_changes !== '0'
+                ? `${t('Budget')} (${t('incl. change orders')} ${format.moneyShort(report.approved_changes)})`
+                : t('Budget')
+            }
+            value={format.moneyShort(totals.budget)}
+          />
           <Figure label={t('Committed')} value={format.moneyShort(totals.committed)} />
           <Figure label={t('Actual')} value={format.moneyShort(totals.actual)} />
           <Figure label={t('Forecast')} value={format.moneyShort(totals.forecast)} />
@@ -388,6 +395,15 @@ function LineRow({
             {format.money(figures.budget)}
           </span>
         )}
+        {/* The budget includes approved change orders; this says how much, so the original is
+            always readable as budget minus it. */}
+        {line.approved_changes &&
+          (line.has_children ? line.approved_changes.total : line.approved_changes.own) !== '0' && (
+            <span className="block text-[11px] text-ink-muted">
+              {t('incl. change orders')}{' '}
+              {format.money(line.has_children ? line.approved_changes.total : line.approved_changes.own)}
+            </span>
+          )}
       </TableCell>
       <Amounts figures={figures} skipBudget />
       {canManage && (

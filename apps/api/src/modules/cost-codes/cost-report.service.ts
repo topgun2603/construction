@@ -41,6 +41,11 @@ export interface CostReportLine {
   own: FiguresView;
   /** Its own plus everything beneath it. */
   total: FiguresView;
+  /**
+   * How much of the budget came from approved change orders — own, and with everything beneath.
+   * `budget` already includes it; original budget = budget − approved changes.
+   */
+  approved_changes: { own: string; total: string };
 }
 
 export interface CostReport {
@@ -59,6 +64,8 @@ export interface CostReport {
   /** Spend and commitments with no code: shown, never dropped, so the totals match the ledger. */
   unallocated: FiguresView;
   totals: FiguresView;
+  /** Budget added (or credited) by approved change orders across the site. */
+  approved_changes: string;
 }
 
 /**
@@ -96,7 +103,7 @@ export class CostReportService {
       const today = todayIn(tenant?.timezone ?? INDIA_LOCALE.timezone);
       const upTo = isoDateToUtcDate(today);
 
-      const [project, codes, expenses, attendance, milestones, committed, otherActuals] = await Promise.all([
+      const [project, codes, expenses, attendance, milestones, committed, otherActuals, changes] = await Promise.all([
         tx.project.findUniqueOrThrow({
           where: { id: projectId },
           select: { name: true, budgetAmount: true, startDate: true, targetEndDate: true },
@@ -129,6 +136,12 @@ export class CostReportService {
         this.commitments.committedByCostCode(tx, projectId),
         // Certified subcontract bills, and anything else that becomes cost through its own record.
         this.actuals.actualsFor(tx, projectId, today),
+        // Budget moved by approved change orders, per line — the "approved changes" column.
+        tx.changeOrderBudgetRevision.groupBy({
+          by: ['costCodeId'],
+          where: { projectId },
+          _sum: { amount: true },
+        }),
       ]);
 
       const codeIds = new Set(codes.map((code) => code.id));
@@ -238,6 +251,15 @@ export class CostReportService {
       const parents = new Set(codes.map((code) => code.parentId).filter(Boolean));
       const ordered = orderCostCodeTree(codes);
 
+      const changedOwn = new Map(changes.map((row) => [row.costCodeId, row._sum.amount ?? 0n]));
+      const changedTotal = new Map<string, bigint>();
+      // Children come after their parent in tree order, so walking it backwards totals bottom-up.
+      for (const line of [...ordered].reverse()) {
+        const sum = (changedOwn.get(line.id) ?? 0n) + (changedTotal.get(line.id) ?? 0n);
+        changedTotal.set(line.id, sum);
+        if (line.parentId) changedTotal.set(line.parentId, (changedTotal.get(line.parentId) ?? 0n) + sum);
+      }
+
       const grand = { ...unallocated };
       for (const line of ordered) {
         if (line.depth !== 0) continue;
@@ -267,9 +289,14 @@ export class CostReportService {
           has_children: parents.has(line.id),
           own: view(own.get(line.id) ?? ZERO_FIGURES),
           total: view(totals.get(line.id) ?? ZERO_FIGURES),
+          approved_changes: {
+            own: (changedOwn.get(line.id) ?? 0n).toString(),
+            total: (changedTotal.get(line.id) ?? 0n).toString(),
+          },
         })),
         unallocated: view(unallocated),
         totals: view(grand),
+        approved_changes: [...changedOwn.values()].reduce((sum, amount) => sum + amount, 0n).toString(),
       };
     });
   }
