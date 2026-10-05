@@ -139,7 +139,7 @@ export function AddMemberDialog({
                       <span className="truncate text-[14px] font-medium">{member.name}</span>
                       <span className="font-mono text-[12px] text-ink-muted">+{member.phone}</span>
                     </span>
-                    <span className="ml-auto text-[12.5px] text-ink-faint">
+                    <span className="ms-auto text-[12.5px] text-ink-faint">
                       {t(titleCase(member.role))}
                     </span>
                   </label>

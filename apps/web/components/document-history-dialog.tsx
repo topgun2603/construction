@@ -111,7 +111,7 @@ export function DocumentHistoryDialog({
                       href={row.url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="ml-auto flex items-center gap-1.5 text-[12.5px] font-medium text-accent hover:underline"
+                      className="ms-auto flex items-center gap-1.5 text-[12.5px] font-medium text-accent hover:underline"
                     >
                       <Download className="size-3.5" /> {t('Open')}
                     </a>

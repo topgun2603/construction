@@ -58,7 +58,7 @@ export function SitesView({
    * made the page look unaligned; one row reads as a toolbar.
    */
   const controls = (
-    <div className="ml-auto flex items-center gap-2">
+    <div className="ms-auto flex items-center gap-2">
       <div className="flex gap-1 rounded-btn bg-neutral-bg p-1" role="group" aria-label={t('View')}>
         {(
           [

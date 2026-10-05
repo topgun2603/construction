@@ -562,7 +562,7 @@ function UploadDialog({
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
-              className="flex min-h-11 w-full items-center gap-2 rounded-btn border border-dashed border-line-strong bg-raised px-3 text-left text-[14px] text-ink-muted transition hover:border-accent hover:text-accent"
+              className="flex min-h-11 w-full items-center gap-2 rounded-btn border border-dashed border-line-strong bg-raised px-3 text-start text-[14px] text-ink-muted transition hover:border-accent hover:text-accent"
             >
               <Upload className="size-4" />
               {file ? `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB` : 'Choose a file'}

@@ -138,10 +138,10 @@ export default async function StockPage({
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="border-b border-line-soft text-[12px] uppercase tracking-[0.06em] text-ink-muted">
-                  <th className="px-4 py-2.5 text-left font-semibold">{t('Material')}</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">{t('Received')}</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">{t('Used')}</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">{t('On site')}</th>
+                  <th className="px-4 py-2.5 text-start font-semibold">{t('Material')}</th>
+                  <th className="px-3 py-2.5 text-end font-semibold">{t('Received')}</th>
+                  <th className="px-3 py-2.5 text-end font-semibold">{t('Used')}</th>
+                  <th className="px-4 py-2.5 text-end font-semibold">{t('On site')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -158,19 +158,19 @@ export default async function StockPage({
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-ink-muted">
+                    <td className="px-3 py-2.5 text-end font-mono text-ink-muted">
                       <span className="inline-flex items-center gap-1.5">
                         <PackageCheck className="size-3.5" />
                         {row.received}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-ink-muted">
+                    <td className="px-3 py-2.5 text-end font-mono text-ink-muted">
                       <span className="inline-flex items-center gap-1.5">
                         <PackageMinus className="size-3.5" />
                         {row.used}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-2.5 text-end">
                       {row.negative ? (
                         <Badge tone="blocked">
                           {row.on_hand} {row.unit}

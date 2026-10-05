@@ -59,7 +59,7 @@ export function DangerZone({
             {t('Who can sign in, what the plan allows, and what has been filed lately')}
           </span>
         </div>
-        <Button asChild size="sm" variant="secondary" className="ml-auto">
+        <Button asChild size="sm" variant="secondary" className="ms-auto">
           <a href={`/admin/tenants/${tenantId}/support`}>{t('Open')}</a>
         </Button>
       </Card>
@@ -76,7 +76,7 @@ export function DangerZone({
           A plain link, not a fetch: the API answers with the whole export, and the browser is
           better at saving a large response than the page is at holding one in memory.
         */}
-        <Button asChild size="sm" variant="secondary" className="ml-auto">
+        <Button asChild size="sm" variant="secondary" className="ms-auto">
           <a href={`/admin/tenants/${tenantId}/export`} download>
             {t('Download')}
           </a>

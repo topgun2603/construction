@@ -355,7 +355,7 @@ function MediaTile({
             src={url}
             controls
             preload="metadata"
-            className="h-full w-full bg-ink object-contain"
+            className="h-full w-full bg-shade object-contain"
           />
         ) : (
           <a
@@ -387,14 +387,14 @@ function MediaTile({
           site, not a control, and somebody scanning the grid needs to see it at a glance.
         */}
         {isMain && (
-          <span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-ink/70 px-2 py-1 text-[11px] font-medium text-white">
+          <span className="pointer-events-none absolute start-2 top-2 inline-flex items-center gap-1 rounded-full bg-shade/70 px-2 py-1 text-[11px] font-medium text-white">
             <Star className="size-3 fill-current" />
             {t('Main image')}
           </span>
         )}
 
         {canEdit && (
-          <div className="absolute right-2 top-2 flex gap-1.5 opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
+          <div className="absolute end-2 top-2 flex gap-1.5 opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
             {/*
               Videos are never the main image — the card shows a still, and a video has no frame to
               show without decoding it — but they can still be moved around the gallery.
@@ -464,7 +464,7 @@ function MediaTile({
                 onMove(index + 1);
               }
             }}
-            className="absolute bottom-2 left-2 grid size-8 cursor-grab place-items-center rounded-control bg-ink/60 text-white opacity-0 transition hover:bg-ink/80 focus-visible:opacity-100 group-hover:opacity-100 active:cursor-grabbing"
+            className="absolute bottom-2 start-2 grid size-8 cursor-grab place-items-center rounded-control bg-shade/60 text-white opacity-0 transition hover:bg-shade/80 focus-visible:opacity-100 group-hover:opacity-100 active:cursor-grabbing"
           >
             <GripVertical className="size-4" />
           </button>
@@ -490,7 +490,7 @@ function MediaTile({
             type="button"
             disabled={!canEdit}
             onClick={() => setEditing(true)}
-            className="truncate text-left text-[13.5px] font-medium disabled:cursor-default"
+            className="truncate text-start text-[13.5px] font-medium disabled:cursor-default"
           >
             {media.caption ?? (
               <span className="text-ink-faint">{canEdit ? 'Add a caption' : 'No caption'}</span>

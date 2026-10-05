@@ -67,7 +67,11 @@ const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3000/v1'
  * sign-in token", which describes the wrong half of the problem.
  */
 const DEV_AUTH_BYPASS =
-  process.env.NODE_ENV !== 'production' && process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
+  process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true' &&
+  (process.env.NODE_ENV !== 'production' ||
+    // Command line only (`NEXT_PUBLIC_DEV_AUTH_IN_BUILD=true next build`) for a fast local demo;
+    // never in an env file, which is how this leaked into a Docker build once already.
+    process.env['NEXT_PUBLIC_DEV_AUTH_IN_BUILD'] === 'true');
 
 const OTP_LENGTH = 6;
 const EASE = [0.22, 0.61, 0.36, 1] as const;
@@ -484,7 +488,6 @@ export function LoginForm() {
       </div>
 
       <div className="mx-auto w-full max-w-[440px] rounded-[18px] border border-line bg-surface p-7 shadow-[0_18px_50px_-24px_rgba(27,26,46,0.28)] sm:p-9">
-
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
@@ -503,7 +506,9 @@ export function LoginForm() {
                     {t('Sign in to your workspace')}
                   </p>
                   <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
-                    {t('Enter the mobile number your builder registered and we’ll send you a secure code. There is no password to remember.')}
+                    {t(
+                      'Enter the mobile number your builder registered and we’ll send you a secure code. There is no password to remember.',
+                    )}
                   </p>
                 </header>
 
@@ -586,7 +591,9 @@ export function LoginForm() {
                 {DEV_AUTH_BYPASS && (
                   <p className="rounded-btn border border-pending-line bg-pending-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-pending-fg">
                     <span className="font-semibold">{t('Developer / demo access.')}</span>{' '}
-                    {t('No SMS is sent — any mobile number signs in, and an unknown one starts a new account.')}
+                    {t(
+                      'No SMS is sent — any mobile number signs in, and an unknown one starts a new account.',
+                    )}
                   </p>
                 )}
               </form>
@@ -602,7 +609,10 @@ export function LoginForm() {
                     {t('Enter the code')}
                   </h1>
                   <p className="text-[14.5px] leading-relaxed text-ink-muted">
-                    {t('Sent to')} <span className="font-mono font-semibold text-ink">{signedInPhone ? displayPhone(signedInPhone) : phone}</span>
+                    {t('Sent to')}{' '}
+                    <span className="font-mono font-semibold text-ink">
+                      {signedInPhone ? displayPhone(signedInPhone) : phone}
+                    </span>
                   </p>
                 </header>
 
@@ -743,15 +753,30 @@ export function LoginForm() {
                     {t('Set up your company')}
                   </h1>
                   <p className="text-[14.5px] leading-relaxed text-ink-muted">
-                    {t('This number isn’t on a team yet. Create the account and you’ll be the owner — sites, team and plan come next.')}
+                    {t(
+                      'This number isn’t on a team yet. Create the account and you’ll be the owner — sites, team and plan come next.',
+                    )}
                   </p>
                 </header>
 
                 <Field label={t('Company name')} htmlFor="company">
-                  <Input id="company" name="company" required minLength={2} placeholder="ARK Constructions" className="h-12 text-[16px]" />
+                  <Input
+                    id="company"
+                    name="company"
+                    required
+                    minLength={2}
+                    placeholder="ARK Constructions"
+                    className="h-12 text-[16px]"
+                  />
                 </Field>
                 <Field label={t('Your name')} htmlFor="owner">
-                  <Input id="owner" name="owner" required placeholder="Gowtham Kumar" className="h-12 text-[16px]" />
+                  <Input
+                    id="owner"
+                    name="owner"
+                    required
+                    placeholder="Gowtham Kumar"
+                    className="h-12 text-[16px]"
+                  />
                 </Field>
                 <Field
                   label={t('Country')}
@@ -810,7 +835,9 @@ export function LoginForm() {
       </div>
 
       <footer className="mx-auto mt-8 flex w-full max-w-[440px] flex-wrap items-center justify-between gap-2 text-[12px] text-ink-faint">
-        <span>© {new Date().getFullYear()} {t('BUILDR. All rights reserved.')}</span>
+        <span>
+          © {new Date().getFullYear()} {t('BUILDR. All rights reserved.')}
+        </span>
         <span className="flex items-center gap-1.5">
           <span aria-hidden className="size-2 rounded-[3px] bg-accent" />
           {t('Powered by Trusta Technologies')}
@@ -819,7 +846,6 @@ export function LoginForm() {
     </section>
   );
 }
-
 
 function Submit({ busy, children }: { busy: boolean; children: React.ReactNode }) {
   const { t } = useLanguage();

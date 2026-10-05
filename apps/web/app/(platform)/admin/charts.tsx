@@ -168,7 +168,7 @@ export function FunnelChart({
                   <span className="text-[12px] text-blocked-fg">−{step.dropped}</span>
                 )}
                 <span className="font-semibold">{step.count}</span>
-                <span className="w-9 text-right text-[12px] text-ink-muted">{step.percent}%</span>
+                <span className="w-9 text-end text-[12px] text-ink-muted">{step.percent}%</span>
               </span>
             </div>
             <div className="h-2.5 overflow-hidden rounded-full bg-track">

@@ -19,7 +19,6 @@ import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/components/language-provider';
 import { CallingCodeSelect } from '@/components/phone-input';
 
-
 /**
  * Whether to skip Firebase and post a `dev:<phone>` token straight to the API.
  *
@@ -35,7 +34,11 @@ import { CallingCodeSelect } from '@/components/phone-input';
  * sign-in token", which describes the wrong half of the problem.
  */
 const DEV_AUTH_BYPASS =
-  process.env.NODE_ENV !== 'production' && process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
+  process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true' &&
+  (process.env.NODE_ENV !== 'production' ||
+    // Command line only (`NEXT_PUBLIC_DEV_AUTH_IN_BUILD=true next build`) for a fast local demo;
+    // never in an env file, which is how this leaked into a Docker build once already.
+    process.env['NEXT_PUBLIC_DEV_AUTH_IN_BUILD'] === 'true');
 
 /**
  * Phone OTP for the console.
@@ -194,7 +197,7 @@ export function PlatformLoginForm() {
               <CallingCodeSelect
                 value={phoneCode}
                 onChange={setPhoneCode}
-                className="h-12 border-r-0 px-0"
+                className="h-12 border-e-0 px-0"
               />
               <input
                 value={phone}
@@ -287,7 +290,9 @@ export function PlatformLoginForm() {
       */}
       <p className="flex items-start gap-2.5 rounded-btn bg-accent-soft px-3.5 py-3 text-[12.5px] leading-relaxed text-ink-soft">
         <ShieldCheck className="mt-px size-4 flex-none text-accent" />
-        {t('Every action you take here is written to the platform audit trail against your number.')}
+        {t(
+          'Every action you take here is written to the platform audit trail against your number.',
+        )}
       </p>
 
       <div id="platform-recaptcha" ref={recaptchaHost} />

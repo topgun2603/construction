@@ -135,7 +135,7 @@ export function SiteMap({
           />
 
           {TABS.length > 1 && (
-            <div className="absolute left-2 top-2 flex overflow-hidden rounded-btn border border-line bg-surface/95 shadow-sm backdrop-blur-sm">
+            <div className="absolute start-2 top-2 flex overflow-hidden rounded-btn border border-line bg-surface/95 shadow-sm backdrop-blur-sm">
               {TABS.map((tab) => (
                 <button
                   key={tab.id}

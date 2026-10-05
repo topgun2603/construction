@@ -59,12 +59,12 @@ export function SiteCardGrid({
       */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('Search sites, clients, addresses')}
-            className="pl-9"
+            className="ps-9"
             aria-label={t('Search sites')}
           />
         </div>
@@ -100,12 +100,12 @@ function SiteCard({ project }: { project: ProjectListItem }) {
         <Cover project={project} />
 
         {/* Status sits on the image, where the eye already is. */}
-        <span className="absolute left-3 top-3">
+        <span className="absolute start-3 top-3">
           <Badge tone={statusTone(project.status)}>{t(statusLabel(project.status))}</Badge>
         </span>
 
         {project.photo_count > 0 && (
-          <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-ink/70 px-2 py-1 font-mono text-[11.5px] text-white">
+          <span className="absolute bottom-3 end-3 inline-flex items-center gap-1.5 rounded-full bg-shade/70 px-2 py-1 font-mono text-[11.5px] text-white">
             <Camera className="size-3" />
             {project.photo_count}
           </span>
@@ -167,7 +167,7 @@ function Cover({ project }: { project: ProjectListItem }) {
     return (
       <>
         <SiteCoverFallback seed={project.id} name={project.name} />
-        <span className="absolute bottom-3 left-3 rounded-full bg-ink/55 px-2 py-1 text-[11px] font-medium text-white/90">
+        <span className="absolute bottom-3 start-3 rounded-full bg-shade/55 px-2 py-1 text-[11px] font-medium text-white/90">
           {t('No photo yet')}
         </span>
       </>
@@ -263,8 +263,8 @@ function CarouselArrow({
       type="button"
       onClick={onClick}
       aria-label={side === 'left' ? 'Previous photo' : 'Next photo'}
-      className={`absolute top-1/2 z-10 grid size-8 min-h-0 -translate-y-1/2 place-items-center rounded-full bg-ink/55 text-white opacity-100 transition hover:bg-ink/75 focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100 ${
-        side === 'left' ? 'left-2' : 'right-2'
+      className={`absolute top-1/2 z-10 grid size-8 min-h-0 -translate-y-1/2 place-items-center rounded-full bg-shade/55 text-white opacity-100 transition hover:bg-shade/75 focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100 ${
+        side === 'left' ? 'start-2' : 'end-2'
       }`}
     >
       <Icon className="size-4" />

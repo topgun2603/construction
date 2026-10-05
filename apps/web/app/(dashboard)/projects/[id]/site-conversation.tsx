@@ -331,7 +331,7 @@ export function SiteConversation({
                         return current.filter((_, position) => position !== index);
                       })
                     }
-                    className="absolute right-1 top-1 grid size-5 min-h-0 place-items-center rounded-full bg-ink/70 text-white"
+                    className="absolute end-1 top-1 grid size-5 min-h-0 place-items-center rounded-full bg-shade/70 text-white"
                   >
                     <X className="size-3" />
                   </button>

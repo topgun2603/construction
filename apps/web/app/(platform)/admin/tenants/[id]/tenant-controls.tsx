@@ -106,7 +106,7 @@ export function TenantControls({
             <button
               type="button"
               disabled={pending}
-              className="group flex w-full items-center gap-3.5 rounded-panel bg-nav px-4 py-3.5 text-left transition hover:bg-nav-active disabled:opacity-60"
+              className="group flex w-full items-center gap-3.5 rounded-panel bg-nav px-4 py-3.5 text-start transition hover:bg-nav-active disabled:opacity-60"
             >
               <span className="flex size-10 flex-none items-center justify-center rounded-[11px] bg-accent/25 text-accent-onDark ring-1 ring-inset ring-white/[0.1]">
                 <InfinityIcon className="size-5" />
@@ -119,7 +119,7 @@ export function TenantControls({
                   {t('Paid once. The account never expires and no renewal comes up.')}
                 </span>
               </span>
-              <ArrowRight className="ml-auto size-4 flex-none text-white/40 transition group-hover:translate-x-0.5 group-hover:text-accent-onDark" />
+              <ArrowRight className="ms-auto size-4 flex-none text-white/40 transition group-hover:translate-x-0.5 group-hover:text-accent-onDark" />
             </button>
           }
         />

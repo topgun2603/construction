@@ -13,7 +13,11 @@ import { useLanguage } from '@/components/language-provider';
 import { GoogleMark } from '@/components/ui/google-mark';
 
 const DEV_AUTH_BYPASS =
-  process.env.NODE_ENV !== 'production' && process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
+  process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true' &&
+  (process.env.NODE_ENV !== 'production' ||
+    // Command line only (`NEXT_PUBLIC_DEV_AUTH_IN_BUILD=true next build`) for a fast local demo;
+    // never in an env file, which is how this leaked into a Docker build once already.
+    process.env['NEXT_PUBLIC_DEV_AUTH_IN_BUILD'] === 'true');
 
 /**
  * Linking a Google account to this user, so it can be used to sign in.
@@ -78,8 +82,8 @@ export function GoogleLink({ email }: { email: string | null }) {
         title={t('Unlink this Google account?')}
         body={
           <>
-            {t('Signing in with')} {email} will stop working. Your mobile number still signs you in, so
-            you will not be locked out.
+            {t('Signing in with')} {email} will stop working. Your mobile number still signs you in,
+            so you will not be locked out.
           </>
         }
         confirmLabel={t('Unlink')}
@@ -94,4 +98,3 @@ export function GoogleLink({ email }: { email: string | null }) {
     </div>
   );
 }
-

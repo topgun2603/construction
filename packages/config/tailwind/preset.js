@@ -11,56 +11,82 @@
  *     `bg-done`/`bg-blocked` surface token, only the pill pairs.
  *   - Accent is the only colour used for action.
  *
- * The system is deliberately light-only, so there is no dark palette here.
+ * Light and dark palettes are both in apps/web/app/globals.css, as variables.
  *
  * @type {import('tailwindcss').Config}
  */
 module.exports = {
   theme: {
     extend: {
+      // Every colour is a variable, set per theme in apps/web/app/globals.css. The names are
+      // the design's; the values live in one place per theme, so a component never knows which
+      // theme it is in. Space-separated RGB channels, so `bg-accent/25` still works.
       colors: {
         // Surfaces
-        canvas: '#F2F1F9',
-        surface: '#FFFFFF',
-        raised: '#FAFAFE',
+        canvas: 'rgb(var(--c-canvas) / <alpha-value>)',
+        surface: 'rgb(var(--c-surface) / <alpha-value>)',
+        raised: 'rgb(var(--c-raised) / <alpha-value>)',
 
         // Text
         ink: {
-          DEFAULT: '#1B1A2E',
-          soft: '#4A4870',
-          muted: '#6B6A8C',
-          faint: '#9694B4',
+          DEFAULT: 'rgb(var(--c-ink) / <alpha-value>)',
+          soft: 'rgb(var(--c-ink-soft) / <alpha-value>)',
+          muted: 'rgb(var(--c-ink-muted) / <alpha-value>)',
+          faint: 'rgb(var(--c-ink-faint) / <alpha-value>)',
         },
 
         // Lines: neutral on surface, stronger on canvas, softest for dividers
         line: {
-          DEFAULT: '#E6E5F0',
-          strong: '#D9D7E8',
-          soft: '#EFEEF7',
+          DEFAULT: 'rgb(var(--c-line) / <alpha-value>)',
+          strong: 'rgb(var(--c-line-strong) / <alpha-value>)',
+          soft: 'rgb(var(--c-line-soft) / <alpha-value>)',
         },
 
         // The single action colour
         accent: {
-          DEFAULT: '#6C4CE0',
-          soft: '#DCD6F8',
-          onDark: '#B9A6FF',
+          DEFAULT: 'rgb(var(--c-accent) / <alpha-value>)',
+          soft: 'rgb(var(--c-accent-soft) / <alpha-value>)',
+          onDark: 'rgb(var(--c-accent-on-dark) / <alpha-value>)',
         },
 
         // Status — pill fill + pill text + the dot, nothing else
-        done: { DEFAULT: '#12805C', bg: '#E3F6EF', fg: '#0E6B4E' },
-        pending: { DEFAULT: '#A86A08', bg: '#FCF1E1', fg: '#85510A', line: '#F3DCB6' },
-        blocked: { DEFAULT: '#D8443C', bg: '#FDEAE9', fg: '#A32A2F' },
-        neutral: { bg: '#EDECF6', fg: '#4A4870' },
+        done: {
+          DEFAULT: 'rgb(var(--c-done) / <alpha-value>)',
+          bg: 'rgb(var(--c-done-bg) / <alpha-value>)',
+          fg: 'rgb(var(--c-done-fg) / <alpha-value>)',
+        },
+        pending: {
+          DEFAULT: 'rgb(var(--c-pending) / <alpha-value>)',
+          bg: 'rgb(var(--c-pending-bg) / <alpha-value>)',
+          fg: 'rgb(var(--c-pending-fg) / <alpha-value>)',
+          line: 'rgb(var(--c-pending-line) / <alpha-value>)',
+        },
+        blocked: {
+          DEFAULT: 'rgb(var(--c-blocked) / <alpha-value>)',
+          bg: 'rgb(var(--c-blocked-bg) / <alpha-value>)',
+          fg: 'rgb(var(--c-blocked-fg) / <alpha-value>)',
+        },
+        neutral: {
+          bg: 'rgb(var(--c-neutral-bg) / <alpha-value>)',
+          fg: 'rgb(var(--c-neutral-fg) / <alpha-value>)',
+        },
 
         // Dark navigation rail
         nav: {
-          DEFAULT: '#1B1A2E',
-          active: '#363357',
-          card: '#2A2846',
+          DEFAULT: 'rgb(var(--c-nav) / <alpha-value>)',
+          active: 'rgb(var(--c-nav-active) / <alpha-value>)',
+          card: 'rgb(var(--c-nav-card) / <alpha-value>)',
+          // The rail's gradient, tinted by the chosen accent.
+          tint: 'rgb(var(--c-nav-tint) / <alpha-value>)',
+          glow: 'rgb(var(--c-nav-glow) / <alpha-value>)',
         },
 
         // Progress track
-        track: '#E7E5F2',
+        track: 'rgb(var(--c-track) / <alpha-value>)',
+
+        // Always dark, in every theme: the scrim under white text on a photograph, and the
+        // backdrop behind a dialog. `ink` turns light in the dark theme; a scrim must not.
+        shade: 'rgb(var(--c-shade) / <alpha-value>)',
       },
 
       borderRadius: {
@@ -73,9 +99,15 @@ module.exports = {
       },
 
       fontFamily: {
-        sans: ['var(--font-plex-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: [
+          'var(--font-plex-sans)',
+          'var(--font-plex-arabic)',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif',
+        ],
         // Every number — counts, ₹, %, dates — is set in mono so columns align.
-        mono: ['var(--font-plex-mono)', 'ui-monospace', 'monospace'],
+        mono: ['var(--font-plex-mono)', 'var(--font-plex-arabic)', 'ui-monospace', 'monospace'],
       },
 
       fontSize: {

@@ -349,7 +349,7 @@ export function FileReportDialog({
                     type="button"
                     onClick={() => removePhoto(index)}
                     aria-label={`Remove ${photo.file.name}`}
-                    className="absolute right-1 top-1 grid size-6 min-h-0 place-items-center rounded-full bg-ink/70 text-white transition hover:bg-ink"
+                    className="absolute end-1 top-1 grid size-6 min-h-0 place-items-center rounded-full bg-shade/70 text-white transition hover:bg-shade"
                   >
                     <X className="size-3.5" />
                   </button>

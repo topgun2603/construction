@@ -146,7 +146,7 @@ export function BilingualTextarea({
             }}
             className="self-start rounded-btn px-2 py-1 text-[12px] font-medium text-accent transition hover:bg-accent-soft"
           >
-            <Check className="mr-1 inline size-3" />
+            <Check className="me-1 inline size-3" />
             {t('Use this')}
           </button>
         </div>

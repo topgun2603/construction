@@ -10,9 +10,205 @@
  * name. This file only sets the page ground and a few base rules the design
  * states explicitly.
  *
- * The system is light-only by design — status colour carries meaning here, and a
- * second palette would need every status pair re-derived to stay legible.
+ * Both palettes are below as variables; every status pair was re-derived for the dark one so
+ * status colour keeps its meaning.
  */
+
+/*
+ * Themes: light, dark, and system (follow the device). `<html data-theme>` comes from the theme
+ * cookie in app/layout.tsx, so the first paint is already in the right theme. Status colours keep
+ * their meaning in both: green is done, amber is waiting, red is stuck. The dark ones are lifted
+ * rather than inverted, so a pill still reads at a glance on a dark card.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --c-nav-tint: 40 33 80;
+    --c-nav-glow: 58 42 114;
+    --c-canvas: 242 241 249;
+    --c-surface: 255 255 255;
+    --c-raised: 250 250 254;
+    --c-ink: 27 26 46;
+    --c-ink-soft: 74 72 112;
+    --c-ink-muted: 107 106 140;
+    --c-ink-faint: 150 148 180;
+    --c-line: 230 229 240;
+    --c-line-strong: 217 215 232;
+    --c-line-soft: 239 238 247;
+    --c-accent: 108 76 224;
+    --c-accent-soft: 220 214 248;
+    --c-accent-on-dark: 185 166 255;
+    --c-done: 18 128 92;
+    --c-done-bg: 227 246 239;
+    --c-done-fg: 14 107 78;
+    --c-pending: 168 106 8;
+    --c-pending-bg: 252 241 225;
+    --c-pending-fg: 133 81 10;
+    --c-pending-line: 243 220 182;
+    --c-blocked: 216 68 60;
+    --c-blocked-bg: 253 234 233;
+    --c-blocked-fg: 163 42 47;
+    --c-neutral-bg: 237 236 246;
+    --c-neutral-fg: 74 72 112;
+    --c-nav: 27 26 46;
+    --c-nav-active: 54 51 87;
+    --c-nav-card: 42 40 70;
+    --c-track: 231 229 242;
+    --c-shade: 27 26 46;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --c-canvas: 15 14 26;
+    --c-surface: 26 25 41;
+    --c-raised: 33 31 51;
+    --c-ink: 236 235 247;
+    --c-ink-soft: 198 196 224;
+    --c-ink-muted: 160 158 194;
+    --c-ink-faint: 118 116 154;
+    --c-line: 45 43 68;
+    --c-line-strong: 59 57 88;
+    --c-line-soft: 37 35 57;
+    --c-accent: 142 115 255;
+    --c-accent-soft: 59 47 112;
+    --c-accent-on-dark: 185 166 255;
+    --c-done: 47 191 140;
+    --c-done-bg: 18 48 42;
+    --c-done-fg: 94 214 170;
+    --c-pending: 224 162 60;
+    --c-pending-bg: 51 38 15;
+    --c-pending-fg: 242 188 102;
+    --c-pending-line: 92 69 25;
+    --c-blocked: 240 102 94;
+    --c-blocked-bg: 59 24 25;
+    --c-blocked-fg: 255 146 139;
+    --c-neutral-bg: 41 40 63;
+    --c-neutral-fg: 198 196 224;
+    --c-nav: 11 10 20;
+    --c-nav-active: 42 40 70;
+    --c-nav-card: 28 27 48;
+    --c-track: 45 43 68;
+    --c-shade: 11 10 20;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme='system'] {
+      color-scheme: dark;
+      --c-canvas: 15 14 26;
+      --c-surface: 26 25 41;
+      --c-raised: 33 31 51;
+      --c-ink: 236 235 247;
+      --c-ink-soft: 198 196 224;
+      --c-ink-muted: 160 158 194;
+      --c-ink-faint: 118 116 154;
+      --c-line: 45 43 68;
+      --c-line-strong: 59 57 88;
+      --c-line-soft: 37 35 57;
+      --c-accent: 142 115 255;
+      --c-accent-soft: 59 47 112;
+      --c-accent-on-dark: 185 166 255;
+      --c-done: 47 191 140;
+      --c-done-bg: 18 48 42;
+      --c-done-fg: 94 214 170;
+      --c-pending: 224 162 60;
+      --c-pending-bg: 51 38 15;
+      --c-pending-fg: 242 188 102;
+      --c-pending-line: 92 69 25;
+      --c-blocked: 240 102 94;
+      --c-blocked-bg: 59 24 25;
+      --c-blocked-fg: 255 146 139;
+      --c-neutral-bg: 41 40 63;
+      --c-neutral-fg: 198 196 224;
+      --c-nav: 11 10 20;
+      --c-nav-active: 42 40 70;
+      --c-nav-card: 28 27 48;
+      --c-track: 45 43 68;
+      --c-shade: 11 10 20;
+    }
+  }
+}
+
+/*
+ * Accent palettes: `<html data-accent>`, from the accent cookie. Only the action colour changes;
+ * status colours never do, so none of these is green, amber or red. Violet is the default and
+ * needs no rule: it is the palette above.
+ */
+@layer base {
+  :root[data-accent='blue'] {
+    --c-nav-tint: 23 36 71;
+    --c-nav-glow: 29 58 120;
+    --c-nav-active: 42 53 87;
+    --c-accent: 37 99 235;
+    --c-accent-soft: 214 226 251;
+    --c-accent-on-dark: 157 187 255;
+  }
+  :root[data-theme='dark'][data-accent='blue'] {
+    --c-accent: 91 140 255;
+    --c-accent-soft: 30 47 92;
+    --c-accent-on-dark: 157 187 255;
+  }
+  :root[data-accent='teal'] {
+    --c-nav-tint: 16 47 51;
+    --c-nav-glow: 15 79 82;
+    --c-nav-active: 36 67 74;
+    --c-accent: 15 127 128;
+    --c-accent-soft: 205 235 234;
+    --c-accent-on-dark: 127 216 211;
+  }
+  :root[data-theme='dark'][data-accent='teal'] {
+    --c-accent: 36 168 163;
+    --c-accent-soft: 16 58 58;
+    --c-accent-on-dark: 127 216 211;
+  }
+  :root[data-accent='rose'] {
+    --c-nav-tint: 58 24 48;
+    --c-nav-glow: 94 31 69;
+    --c-nav-active: 74 42 68;
+    --c-accent: 204 58 116;
+    --c-accent-soft: 248 215 229;
+    --c-accent-on-dark: 255 159 196;
+  }
+  :root[data-theme='dark'][data-accent='rose'] {
+    --c-accent: 233 92 150;
+    --c-accent-soft: 74 28 49;
+    --c-accent-on-dark: 255 159 196;
+  }
+  :root[data-accent='graphite'] {
+    --c-nav-tint: 34 36 46;
+    --c-nav-glow: 52 56 70;
+    --c-nav-active: 53 56 70;
+    --c-accent: 63 68 86;
+    --c-accent-soft: 222 224 232;
+    --c-accent-on-dark: 196 200 214;
+  }
+  :root[data-theme='dark'][data-accent='graphite'] {
+    --c-accent: 124 130 160;
+    --c-accent-soft: 46 49 66;
+    --c-accent-on-dark: 196 200 214;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme='system'][data-accent='blue'] {
+      --c-accent: 91 140 255;
+      --c-accent-soft: 30 47 92;
+      --c-accent-on-dark: 157 187 255;
+    }
+    :root[data-theme='system'][data-accent='teal'] {
+      --c-accent: 36 168 163;
+      --c-accent-soft: 16 58 58;
+      --c-accent-on-dark: 127 216 211;
+    }
+    :root[data-theme='system'][data-accent='rose'] {
+      --c-accent: 233 92 150;
+      --c-accent-soft: 74 28 49;
+      --c-accent-on-dark: 255 159 196;
+    }
+    :root[data-theme='system'][data-accent='graphite'] {
+      --c-accent: 124 130 160;
+      --c-accent-soft: 46 49 66;
+      --c-accent-on-dark: 196 200 214;
+    }
+  }
+}
 
 @layer base {
   html {
@@ -33,12 +229,12 @@
   }
 
   ::selection {
-    background: theme('colors.accent.soft');
-    color: theme('colors.ink.DEFAULT');
+    background: rgb(var(--c-accent-soft));
+    color: rgb(var(--c-ink));
   }
 
   :focus-visible {
-    outline: 2px solid theme('colors.accent.DEFAULT');
+    outline: 2px solid rgb(var(--c-accent));
     outline-offset: 2px;
   }
 }
@@ -120,5 +316,43 @@ gmp-place-autocomplete {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/*
+ * Right to left (Arabic).
+ *
+ * Layout mirrors on its own: every margin, padding and position in the app is written start/end
+ * (`ms-2`, `end-3`, `text-start`), so `<html dir="rtl">` is the whole switch. Two things are left
+ * that an attribute cannot know about.
+ */
+@layer base {
+  /*
+   * Icons that point along the line of reading. "Next" is a left arrow in Arabic. The `scale`
+   * property rather than `transform`, so an icon that also nudges on hover (`translate-x`) keeps
+   * both instead of one overwriting the other.
+   */
+  [dir='rtl']
+    :is(
+      .lucide-arrow-right,
+      .lucide-arrow-left,
+      .lucide-chevron-right,
+      .lucide-chevron-left,
+      .lucide-send,
+      .lucide-log-out,
+      .lucide-panel-left-open,
+      .lucide-panel-left-close
+    ) {
+    scale: -1 1;
+  }
+
+  /*
+   * Phone numbers, emails and links are read left to right in Arabic too. Typed into a right to
+   * left field they come out as `971 50 123 4567+`; this keeps them the right way round while the
+   * field itself still sits on the reading side.
+   */
+  [dir='rtl'] :is(input[type='tel'], input[type='email'], input[type='url']) {
+    direction: ltr;
+    text-align: right;
   }
 }

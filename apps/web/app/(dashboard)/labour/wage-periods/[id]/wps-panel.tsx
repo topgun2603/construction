@@ -73,7 +73,7 @@ export function WpsPanel({ periodId }: { periodId: string }) {
       {file && file.problems.length > 0 && (
         <ul
           role="alert"
-          className="flex list-disc flex-col gap-1 rounded-btn bg-blocked-bg py-2 pl-7 pr-3 text-[13px] text-blocked-fg"
+          className="flex list-disc flex-col gap-1 rounded-btn bg-blocked-bg py-2 ps-7 pe-3 text-[13px] text-blocked-fg"
         >
           {file.problems.map((problem) => (
             <li key={problem}>{t(problem)}</li>

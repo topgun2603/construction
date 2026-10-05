@@ -48,7 +48,7 @@ export default async function AccountPage() {
               <span className="text-[12.5px] text-ink-muted">{t('Mobile number')}</span>
               <span className="font-mono text-[14.5px] font-medium">+{me.user.phone}</span>
             </div>
-            <span className="ml-auto flex items-center gap-1.5 text-[12.5px] text-ink-faint">
+            <span className="ms-auto flex items-center gap-1.5 text-[12.5px] text-ink-faint">
               <ShieldCheck className="size-3.5" />
               {t('Always works')}
             </span>
@@ -66,7 +66,7 @@ export default async function AccountPage() {
                   : 'Optional. Link it to skip the SMS code when you are at a desk.'}
               </span>
             </div>
-            <div className="ml-auto">
+            <div className="ms-auto">
               <GoogleLink email={me.user.email} />
             </div>
           </div>

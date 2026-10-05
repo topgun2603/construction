@@ -16,9 +16,9 @@ import { z } from 'zod';
 /**
  * The languages this product translates between.
  *
- * Deliberately short, and every one of them is a language a construction crew in south India
- * actually works in. A list of a hundred would cost nothing to write and would be a promise that
- * nobody has checked the output of.
+ * Deliberately short, and every one of them is a language a construction crew actually works in:
+ * the south Indian five, and Arabic for the Gulf companies. A list of a hundred would cost nothing
+ * to write and would be a promise that nobody has checked the output of.
  */
 export const APP_LANGUAGES = [
   { code: 'en', label: 'English', native: 'English' },
@@ -27,6 +27,7 @@ export const APP_LANGUAGES = [
   { code: 'te', label: 'Telugu', native: 'తెలుగు' },
   { code: 'kn', label: 'Kannada', native: 'ಕನ್ನಡ' },
   { code: 'ml', label: 'Malayalam', native: 'മലയാളം' },
+  { code: 'ar', label: 'Arabic', native: 'العربية' },
 ] as const;
 
 export const LANGUAGE_CODES = APP_LANGUAGES.map((language) => language.code);

@@ -259,7 +259,7 @@ export function EmailSignIn({ linkedEmail }: { linkedEmail: string | null }) {
           </span>
         </div>
         {configured && phase === 'idle' && !emailUser && (
-          <div className="ml-auto">
+          <div className="ms-auto">
             <Button size="sm" variant="secondary" onClick={() => setPhase('form')}>
               {t('Set up email sign-in')}
             </Button>
@@ -393,7 +393,7 @@ export function EmailSignIn({ linkedEmail }: { linkedEmail: string | null }) {
               )}
             </div>
             {emailUser && phase === 'idle' && (
-              <div className="ml-auto">
+              <div className="ms-auto">
                 {totp.length > 0 ? (
                   <ConfirmDialog
                     title={t('Turn off two-factor?')}
@@ -424,7 +424,7 @@ export function EmailSignIn({ linkedEmail }: { linkedEmail: string | null }) {
               onSubmit={handleEnrol}
               className="flex flex-col gap-4 rounded-card border border-line bg-raised p-4"
             >
-              <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-[13px] leading-relaxed text-ink-soft">
+              <ol className="flex list-decimal flex-col gap-1.5 ps-5 text-[13px] leading-relaxed text-ink-soft">
                 <li>
                   {t(
                     'Open an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password…).',

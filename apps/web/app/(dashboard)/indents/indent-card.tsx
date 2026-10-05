@@ -66,7 +66,7 @@ export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove:
               <span className="flex-none font-mono">
                 {item.quantity} {item.unit}
                 {Number(item.received_quantity) > 0 && (
-                  <span className="ml-2 text-done-fg">
+                  <span className="ms-2 text-done-fg">
                     ({item.received_quantity} in)
                   </span>
                 )}

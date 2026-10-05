@@ -457,7 +457,7 @@ export default async function ProjectPage({
                       >
                         {activity.activity}
                         {activity.quantity && (
-                          <span className="ml-1.5 font-mono text-ink-muted">
+                          <span className="ms-1.5 font-mono text-ink-muted">
                             {activity.quantity} {activity.unit ?? ''}
                           </span>
                         )}

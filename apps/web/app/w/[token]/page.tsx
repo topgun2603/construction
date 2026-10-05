@@ -145,7 +145,7 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
                       {day.site}
                     </span>
                   </div>
-                  <span className="ml-auto font-mono text-[14px] font-semibold">
+                  <span className="ms-auto font-mono text-[14px] font-semibold">
                     {fmt.money(day.earned)}
                   </span>
                 </li>
@@ -173,7 +173,7 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
                       {t(titleCase(payment.type))} · {t(titleCase(payment.mode))}
                     </span>
                   </div>
-                  <span className="ml-auto font-mono text-[14px] font-semibold">
+                  <span className="ms-auto font-mono text-[14px] font-semibold">
                     {fmt.money(payment.amount)}
                   </span>
                 </li>

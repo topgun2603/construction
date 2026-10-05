@@ -165,7 +165,7 @@ export function PlanCatalogue({
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="ml-auto size-8 text-ink-faint hover:text-blocked-fg"
+                        className="ms-auto size-8 text-ink-faint hover:text-blocked-fg"
                         aria-label={`Delete ${plan.name}`}
                       >
                         <Trash2 className="size-4" />
@@ -211,7 +211,7 @@ function LifetimeHero({
       {/* One accent bloom, as on the console door. Static: a plan card is not a thing to animate. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-20 -top-24 size-[320px] rounded-full bg-accent/30 blur-[90px]"
+        className="pointer-events-none absolute -end-20 -top-24 size-[320px] rounded-full bg-accent/30 blur-[90px]"
       />
       <div className="relative flex flex-wrap items-center justify-between gap-6 p-6">
         <div className="flex flex-col gap-3">

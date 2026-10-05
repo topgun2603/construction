@@ -70,7 +70,7 @@ export function RolePicker({
           {ordered.map((role) => (
             <SelectItem key={role.id} value={role.id}>
               {role.name}
-              {!role.is_system && <span className="ml-1.5 text-ink-faint">custom</span>}
+              {!role.is_system && <span className="ms-1.5 text-ink-faint">custom</span>}
             </SelectItem>
           ))}
         </SelectContent>

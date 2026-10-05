@@ -50,7 +50,7 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
               {sheet.contractor.phone && ` · +${sheet.contractor.phone}`}
             </div>
           </div>
-          <div className="text-right font-mono text-[13px]">
+          <div className="text-end font-mono text-[13px]">
             <div>{longDate(sheet.period_start)}</div>
             <div>to {longDate(sheet.period_end)}</div>
           </div>
@@ -59,14 +59,14 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
-              <tr className="border-b border-line text-left">
+              <tr className="border-b border-line text-start">
                 <Th className="w-10">#</Th>
                 <Th>{t('Worker')}</Th>
-                <Th className="text-right">{t('Days')}</Th>
-                <Th className="text-right">{t('OT hrs')}</Th>
-                <Th className="text-right">{t('Gross')}</Th>
-                <Th className="text-right">{t('Advance')}</Th>
-                <Th className="text-right">{t('Net')}</Th>
+                <Th className="text-end">{t('Days')}</Th>
+                <Th className="text-end">{t('OT hrs')}</Th>
+                <Th className="text-end">{t('Gross')}</Th>
+                <Th className="text-end">{t('Advance')}</Th>
+                <Th className="text-end">{t('Net')}</Th>
                 <Th className="w-40">{t('Signature')}</Th>
               </tr>
             </thead>
@@ -78,26 +78,26 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
                     <div className="font-medium">{row.name}</div>
                     {row.trade && <div className="text-[11.5px] text-ink-muted">{row.trade}</div>}
                   </Td>
-                  <Td className="text-right font-mono">{row.days}</Td>
-                  <Td className="text-right font-mono">{row.overtime_hours}</Td>
-                  <Td className="text-right font-mono">{money(row.gross)}</Td>
-                  <Td className="text-right font-mono">
+                  <Td className="text-end font-mono">{row.days}</Td>
+                  <Td className="text-end font-mono">{row.overtime_hours}</Td>
+                  <Td className="text-end font-mono">{money(row.gross)}</Td>
+                  <Td className="text-end font-mono">
                     {BigInt(row.advances) > 0n ? `− ${money(row.advances)}` : '—'}
                   </Td>
-                  <Td className="text-right font-mono font-semibold">{money(row.net)}</Td>
+                  <Td className="text-end font-mono font-semibold">{money(row.net)}</Td>
                   {/* Signed in ink at the site — the column is intentionally blank. */}
-                  <Td className="border-l border-line-soft" />
+                  <Td className="border-s border-line-soft" />
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-line font-semibold">
-                <Td colSpan={4} className="text-right">
+                <Td colSpan={4} className="text-end">
                   {t('Total')}
                 </Td>
-                <Td className="text-right font-mono">{money(sheet.totals.gross)}</Td>
-                <Td className="text-right font-mono">− {money(sheet.totals.advances)}</Td>
-                <Td className="text-right font-mono">{money(sheet.totals.net)}</Td>
+                <Td className="text-end font-mono">{money(sheet.totals.gross)}</Td>
+                <Td className="text-end font-mono">− {money(sheet.totals.advances)}</Td>
+                <Td className="text-end font-mono">{money(sheet.totals.net)}</Td>
                 <Td />
               </tr>
             </tfoot>

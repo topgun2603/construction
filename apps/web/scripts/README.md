@@ -62,3 +62,26 @@ compare Tamil against English and silently render nothing.
 - **Interpolated sentences** — `` `${n} urgent indent` ``. Tamil puts the verb last, so translating
   the fragments around a hole produces a sentence that reads backwards. Closing this needs
   whole-message formatting, which is the next real piece of work here.
+
+## Right to left
+
+Arabic mirrors the whole page with one attribute, `<html dir="rtl">`, set in `app/layout.tsx` from
+the language cookie. That only works because **no class in the app says left or right**: write
+`ms-2`/`me-2` (not `ml-`/`mr-`), `ps-`/`pe-`, `start-3`/`end-3`, `text-start`/`text-end`,
+`border-s`/`border-e`. A new `ml-4` is a bug in Arabic, the same way a hard-coded English string is a
+bug in Tamil. The exceptions are on purpose: a dialog centred with `left-1/2 -translate-x-1/2` is
+symmetric, and the phone field is `dir="ltr"` because `+971 50…` reads that way in every language.
+
+Icons that point along the line (arrows, chevrons, send) are flipped in `globals.css`; add a new one
+there if you use one. A gradient that darkens the headline's side needs `rtl:bg-gradient-to-l`.
+
+## A translator's sheet
+
+```bash
+node scripts/i18n-review.mjs export ar ar-review.csv   # english | draft | corrected
+node scripts/i18n-review.mjs import ar ar-review.csv   # corrections win, blanks keep the draft
+```
+
+The Arabic dictionary is a machine draft and is offered only where
+`NEXT_PUBLIC_PREVIEW_LANGUAGES=ar`. Once a reviewer has signed it off, add `ar` to `REVIEWED` in
+`lib/i18n.ts` and it appears in everyone's language menu.

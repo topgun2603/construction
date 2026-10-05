@@ -165,7 +165,7 @@ export function MaterialEstimates({
                       defaultValue={estimate.estimated_quantity}
                       onBlur={(event) => revise(estimate, event.target.value)}
                       inputMode="decimal"
-                      className="h-9 w-[110px] text-right font-mono"
+                      className="h-9 w-[110px] text-end font-mono"
                       aria-label={`Expected ${estimate.material_name}`}
                       disabled={pending}
                     />

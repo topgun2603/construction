@@ -161,7 +161,7 @@ export function EditSiteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[62vh] flex-col gap-4 overflow-y-auto pr-1">
+        <div className="flex max-h-[62vh] flex-col gap-4 overflow-y-auto pe-1">
           <div className="flex flex-wrap gap-3">
             <Field label={t('Site name')} className="min-w-[220px] flex-1">
               <Input

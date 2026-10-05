@@ -160,7 +160,7 @@ export function SearchCommand() {
       >
         <Search className="size-4" />
         <span>{t('Search sites, workers, indents')}</span>
-        <kbd className="ml-6 rounded-[5px] border border-line px-1.5 font-mono text-[11px] text-ink-faint">
+        <kbd className="ms-6 rounded-[5px] border border-line px-1.5 font-mono text-[11px] text-ink-faint">
           ⌘K
         </kbd>
       </button>
@@ -252,7 +252,7 @@ export function SearchCommand() {
                     onMouseEnter={() => setActive(index)}
                     onClick={() => go(hit)}
                     className={cn(
-                      'flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-left transition',
+                      'flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-start transition',
                       index === active ? 'bg-raised' : 'hover:bg-raised',
                     )}
                   >
@@ -278,7 +278,7 @@ export function SearchCommand() {
                 onClick={() => void ask()}
                 disabled={asking}
                 className={cn(
-                  'mt-1 flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-left transition',
+                  'mt-1 flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-start transition',
                   active >= hits.length ? 'bg-raised' : 'hover:bg-raised',
                 )}
               >

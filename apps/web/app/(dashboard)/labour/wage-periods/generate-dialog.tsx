@@ -17,7 +17,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { addDaysIso, weekStart } from '@/lib/format';
 import type { Contractor } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
@@ -52,8 +58,9 @@ export function GeneratePeriodDialog({ contractors }: { contractors: Contractor[
         return;
       }
       toast.success(`${result.data?.line_count ?? 0} wage lines built from attendance`);
-      setOpen(false);
+      // Stays open and pending until the new page is on screen (see the New site dialog).
       if (result.data?.id) router.push(`/labour/wage-periods/${result.data.id}`);
+      else setOpen(false);
     });
   }
 
@@ -68,7 +75,9 @@ export function GeneratePeriodDialog({ contractors }: { contractors: Contractor[
         <DialogHeader>
           <DialogTitle>{t('Generate a wage period')}</DialogTitle>
           <DialogDescription>
-            {t('Builds one line per worker from the attendance already recorded, and deducts any advance that has not yet been settled. Re-running an open period recomputes it.')}
+            {t(
+              'Builds one line per worker from the attendance already recorded, and deducts any advance that has not yet been settled. Re-running an open period recomputes it.',
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -91,15 +100,30 @@ export function GeneratePeriodDialog({ contractors }: { contractors: Contractor[
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t('From')} htmlFor="period_start">
-              <Input id="period_start" name="period_start" type="date" defaultValue={lastMonday} required />
+              <Input
+                id="period_start"
+                name="period_start"
+                type="date"
+                defaultValue={lastMonday}
+                required
+              />
             </Field>
             <Field label={t('To')} htmlFor="period_end">
-              <Input id="period_end" name="period_end" type="date" defaultValue={lastSunday} required />
+              <Input
+                id="period_end"
+                name="period_end"
+                type="date"
+                defaultValue={lastSunday}
+                required
+              />
             </Field>
           </div>
 
           {error && (
-            <p role="alert" className="rounded-btn bg-blocked-bg px-3 py-2 text-[13px] text-blocked-fg">
+            <p
+              role="alert"
+              className="rounded-btn bg-blocked-bg px-3 py-2 text-[13px] text-blocked-fg"
+            >
               {error}
             </p>
           )}

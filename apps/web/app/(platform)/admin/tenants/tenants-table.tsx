@@ -104,7 +104,7 @@ const columnsFor = (planNames: Record<string, string>, t: Translator): ColumnDef
         >
           {date}
           {days <= 30 && (
-            <span className="ml-1 font-sans">({days === 0 ? 'today' : `${days}d`})</span>
+            <span className="ms-1 font-sans">({days === 0 ? 'today' : `${days}d`})</span>
           )}
         </span>
       );

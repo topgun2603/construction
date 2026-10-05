@@ -58,14 +58,14 @@ export function AskDocuments({
           {t('Ask the documents a question')}
         </label>
         <span className="relative flex-1">
-          <FileSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+          <FileSearch className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
           <Input
             id="ask-documents"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             placeholder={placeholder}
             maxLength={400}
-            className="pl-9"
+            className="ps-9"
           />
         </span>
         <Button type="submit" disabled={asking || question.trim().length < 5}>

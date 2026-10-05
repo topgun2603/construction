@@ -48,7 +48,7 @@ export async function OverviewBanner({
         opens the gap by lightening; this is a bright midday sky under white type, so it opens the
         other way. Stronger on the left, where the words are.
       */}
-      <div className="absolute inset-0 bg-gradient-to-r from-ink/85 via-ink/55 to-ink/20" />
+      <div className="absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l from-shade/85 via-shade/55 to-shade/20" />
       <div className="absolute inset-0 flex flex-col justify-center gap-0.5 px-6">
         <span className="text-[13px] text-white/70">{part},</span>
         <span className="text-[24px] font-bold leading-tight text-white">{first}</span>

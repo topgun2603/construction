@@ -107,7 +107,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
         <table className="w-full border-separate border-spacing-0 text-[13px]">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 min-w-[200px] border-b border-line-soft bg-surface px-4 py-2.5 text-left font-semibold">
+              <th className="sticky start-0 z-20 min-w-[200px] border-b border-line-soft bg-surface px-4 py-2.5 text-start font-semibold">
                 {t('Worker')}
               </th>
               {register.dates.map((date) => {
@@ -129,13 +129,13 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                   </th>
                 );
               })}
-              <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-right font-semibold">
+              <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-end font-semibold">
                 {t('Days')}
               </th>
-              <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-right font-semibold">
+              <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-end font-semibold">
                 OT
               </th>
-              <th className="border-b border-line-soft bg-surface px-4 py-2.5 text-right font-semibold">
+              <th className="border-b border-line-soft bg-surface px-4 py-2.5 text-end font-semibold">
                 {t('Earned')}
               </th>
             </tr>
@@ -143,7 +143,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
           <tbody>
             {workers.map((worker) => (
               <tr key={worker.worker_id} className="group">
-                <td className="sticky left-0 z-10 border-b border-line-soft bg-surface px-4 py-2 group-hover:bg-raised">
+                <td className="sticky start-0 z-10 border-b border-line-soft bg-surface px-4 py-2 group-hover:bg-raised">
                   <div className="flex flex-col">
                     <span className="font-medium">{worker.worker_name}</span>
                     <span className="text-[11.5px] text-ink-muted">
@@ -180,7 +180,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                           {/* A dot rather than the number: at 24px the hours would not
                               fit, and the figure is in the tooltip and the CSV. */}
                           {overtime && (
-                            <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-accent" />
+                            <span className="absolute -end-0.5 -top-0.5 size-1.5 rounded-full bg-accent" />
                           )}
                         </span>
                       ) : (
@@ -189,13 +189,13 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                     </td>
                   );
                 })}
-                <td className="border-b border-line-soft px-3 py-2 text-right font-mono group-hover:bg-raised">
+                <td className="border-b border-line-soft px-3 py-2 text-end font-mono group-hover:bg-raised">
                   {worker.days_present}
                 </td>
-                <td className="border-b border-line-soft px-3 py-2 text-right font-mono text-ink-muted group-hover:bg-raised">
+                <td className="border-b border-line-soft px-3 py-2 text-end font-mono text-ink-muted group-hover:bg-raised">
                   {worker.overtime_hours}
                 </td>
-                <td className="border-b border-line-soft px-4 py-2 text-right font-mono font-semibold group-hover:bg-raised">
+                <td className="border-b border-line-soft px-4 py-2 text-end font-mono font-semibold group-hover:bg-raised">
                   {money(worker.earned)}
                 </td>
               </tr>
@@ -203,17 +203,17 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
           </tbody>
           <tfoot>
             <tr>
-              <td className="sticky left-0 z-10 bg-raised px-4 py-2.5 font-semibold">
+              <td className="sticky start-0 z-10 bg-raised px-4 py-2.5 font-semibold">
                 {workers.length} {workers.length === 1 ? 'worker' : 'workers'}
               </td>
               <td className="bg-raised" colSpan={register.dates.length} />
-              <td className="bg-raised px-3 py-2.5 text-right font-mono font-semibold">
+              <td className="bg-raised px-3 py-2.5 text-end font-mono font-semibold">
                 {register.totals.days_present}
               </td>
-              <td className="bg-raised px-3 py-2.5 text-right font-mono font-semibold">
+              <td className="bg-raised px-3 py-2.5 text-end font-mono font-semibold">
                 {register.totals.overtime_hours}
               </td>
-              <td className="bg-raised px-4 py-2.5 text-right font-mono font-semibold">
+              <td className="bg-raised px-4 py-2.5 text-end font-mono font-semibold">
                 {money(register.totals.earned)}
               </td>
             </tr>

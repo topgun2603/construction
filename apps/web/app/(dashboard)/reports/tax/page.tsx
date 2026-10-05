@@ -146,9 +146,9 @@ export default async function TaxReportPage({
             <TableHeader>
               <TableRow>
                 <TableHead>{t('Month')}</TableHead>
-                <TableHead className="text-right">{t('Input')}</TableHead>
-                <TableHead className="text-right">{t('Output')}</TableHead>
-                <TableHead className="text-right">{t('Net')}</TableHead>
+                <TableHead className="text-end">{t('Input')}</TableHead>
+                <TableHead className="text-end">{t('Output')}</TableHead>
+                <TableHead className="text-end">{t('Net')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -159,9 +159,9 @@ export default async function TaxReportPage({
                     <TableCell className="font-medium">
                       {monthName.format(new Date(`${row.month}-01T00:00:00Z`))}
                     </TableCell>
-                    <TableCell className="text-right font-mono">{money(row.input_tax)}</TableCell>
-                    <TableCell className="text-right font-mono">{money(row.output_tax)}</TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-end font-mono">{money(row.input_tax)}</TableCell>
+                    <TableCell className="text-end font-mono">{money(row.output_tax)}</TableCell>
+                    <TableCell className="text-end font-mono">
                       <NetAmount net={monthNet} money={money} />
                     </TableCell>
                   </TableRow>
@@ -171,9 +171,9 @@ export default async function TaxReportPage({
             <TableFooter>
               <TableRow>
                 <TableCell>{t('Total')}</TableCell>
-                <TableCell className="text-right font-mono">{money(report.input_tax)}</TableCell>
-                <TableCell className="text-right font-mono">{money(report.output_tax)}</TableCell>
-                <TableCell className="text-right font-mono">
+                <TableCell className="text-end font-mono">{money(report.input_tax)}</TableCell>
+                <TableCell className="text-end font-mono">{money(report.output_tax)}</TableCell>
+                <TableCell className="text-end font-mono">
                   <NetAmount net={net} money={money} />
                 </TableCell>
               </TableRow>

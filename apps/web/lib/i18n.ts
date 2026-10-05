@@ -1,4 +1,5 @@
 import type { LanguageCode } from '@sitebook/shared';
+import { AR } from './i18n-ar';
 import { TA } from './i18n-ta';
 
 /**
@@ -27,19 +28,45 @@ import { TA } from './i18n-ta';
 
 const DICTIONARIES: Partial<Record<LanguageCode, Record<string, string>>> = {
   ta: TA,
+  ar: AR,
 };
+
+/**
+ * Dictionaries a fluent reader has been through. Anything else is a draft: it exists so the layout
+ * can be built and checked against real text, and it is offered only where
+ * `NEXT_PUBLIC_PREVIEW_LANGUAGES` names it (`ar`, say, on a staging box) — never to customers by
+ * default.
+ */
+const REVIEWED: LanguageCode[] = ['ta'];
+const PREVIEW = (process.env.NEXT_PUBLIC_PREVIEW_LANGUAGES ?? '')
+  .split(',')
+  .map((code) => code.trim());
 
 /**
  * Which languages the interface is actually available in.
  *
- * The picker offers only these. The other four in `APP_LANGUAGES` are wired for *translation* —
+ * The picker offers only these. The others in `APP_LANGUAGES` are wired for *translation* —
  * somebody can have their typing turned into Telugu — but the interface itself has not been
  * written in them, and listing them here would be a promise made in a dropdown.
  */
 export const TRANSLATED_LANGUAGES: LanguageCode[] = [
   'en',
-  ...(Object.keys(DICTIONARIES) as LanguageCode[]),
+  ...(Object.keys(DICTIONARIES) as LanguageCode[]).filter(
+    (code) => REVIEWED.includes(code) || PREVIEW.includes(code),
+  ),
 ];
+
+/**
+ * Languages written right to left. The whole page mirrors for these: `<html dir="rtl">`, and every
+ * margin, padding and position in the app is written start/end (`ms-2`, `end-3`, `text-start`)
+ * rather than left/right, so the one attribute is enough. A new `ml-`/`left-` class is a bug in
+ * Arabic; `scripts/i18n-README.md` has the rule.
+ */
+const RTL_LANGUAGES: LanguageCode[] = ['ar'];
+
+export function directionOf(language: LanguageCode): 'ltr' | 'rtl' {
+  return RTL_LANGUAGES.includes(language) ? 'rtl' : 'ltr';
+}
 
 /** One string. English in, the reader's language out — or the English back, which is a fine answer. */
 export function translate(language: LanguageCode, english: string): string {

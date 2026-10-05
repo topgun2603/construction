@@ -175,11 +175,11 @@ async function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
         <table className="w-full text-[13.5px]">
           <thead>
             <tr className="border-b border-line-soft text-[12px] uppercase tracking-[0.06em] text-ink-muted">
-              <th className="px-4 py-2.5 text-left font-semibold">{t('Date')}</th>
-              <th className="px-3 py-2.5 text-left font-semibold">{t('Entry')}</th>
-              <th className="px-3 py-2.5 text-right font-semibold">{t('Earned')}</th>
-              <th className="px-3 py-2.5 text-right font-semibold">{t('Paid')}</th>
-              <th className="px-4 py-2.5 text-right font-semibold">{t('Balance')}</th>
+              <th className="px-4 py-2.5 text-start font-semibold">{t('Date')}</th>
+              <th className="px-3 py-2.5 text-start font-semibold">{t('Entry')}</th>
+              <th className="px-3 py-2.5 text-end font-semibold">{t('Earned')}</th>
+              <th className="px-3 py-2.5 text-end font-semibold">{t('Paid')}</th>
+              <th className="px-4 py-2.5 text-end font-semibold">{t('Balance')}</th>
             </tr>
           </thead>
           <tbody>
@@ -209,14 +209,14 @@ async function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
                         )}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono">
+                  <td className="px-3 py-2.5 text-end font-mono">
                     {earned > 0n ? money(entry.earned) : <span className="text-ink-faint">—</span>}
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono">
+                  <td className="px-3 py-2.5 text-end font-mono">
                     {paid > 0n ? money(entry.paid) : <span className="text-ink-faint">—</span>}
                   </td>
                   <td
-                    className={`px-4 py-2.5 text-right font-mono font-semibold ${
+                    className={`px-4 py-2.5 text-end font-mono font-semibold ${
                       balance < 0n ? 'text-blocked-fg' : ''
                     }`}
                   >

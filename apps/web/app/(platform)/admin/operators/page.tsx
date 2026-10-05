@@ -70,7 +70,7 @@ export default async function OperatorsPage() {
                 but the Google address linked to it is an ordinary row and can — which is the only
                 way a root operator gets one at all.
               */}
-              <span className="ml-4">
+              <span className="ms-4">
                 <EmailLink
                   phone={operator.phone}
                   email={operator.email}
@@ -78,7 +78,7 @@ export default async function OperatorsPage() {
                   canManage={me.root}
                 />
               </span>
-              <span className="ml-auto flex-none text-[12.5px] text-ink-faint">
+              <span className="ms-auto flex-none text-[12.5px] text-ink-faint">
                 {t('Number changed by redeploying, not here')}
               </span>
             </div>

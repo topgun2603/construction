@@ -80,7 +80,7 @@ export function CallingCodeSelect({
         id={id}
         aria-label="Country code"
         className={cn(
-          'h-full w-auto flex-none gap-1.5 rounded-none border-0 border-r border-line bg-transparent px-3 font-mono text-[14px] text-ink-muted',
+          'h-full w-auto flex-none gap-1.5 rounded-none border-0 border-e border-line bg-transparent px-3 font-mono text-[14px] text-ink-muted',
           className,
         )}
       >
@@ -135,8 +135,13 @@ export function PhoneInput({
   const value =
     typed === '' ? '' : typed.startsWith('+') ? typed : `+${entry?.callingCode ?? ''}${typed}`;
 
+  // `ltr` even on an Arabic page: `+971 50 123 4567` reads left to right in every language, and
+  // the calling code belongs in front of the number it prefixes, not after it.
   return (
-    <div className="flex h-10 items-stretch overflow-hidden rounded-btn border border-line-strong bg-surface transition focus-within:border-accent">
+    <div
+      dir="ltr"
+      className="flex h-10 items-stretch overflow-hidden rounded-btn border border-line-strong bg-surface transition focus-within:border-accent"
+    >
       <CallingCodeSelect value={country} onChange={setCountry} />
       <input
         id={id}
