@@ -13,6 +13,7 @@ const TABS: Array<{ href: string; label: string; permission?: string }> = [
   { href: '/settings/contractors', label: 'Contractors' },
   { href: '/settings/materials', label: 'Materials' },
   { href: '/settings/cost-codes', label: 'Cost codes' },
+  { href: '/settings/quality', label: 'Quality checklists', permission: 'quality.manage' },
   { href: '/settings/automation', label: 'Automation' },
   { href: '/settings/audit', label: 'Audit log', permission: 'audit.view' },
 ];

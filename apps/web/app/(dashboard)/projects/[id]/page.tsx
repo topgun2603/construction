@@ -59,6 +59,7 @@ import { SubcontractsTable } from '../../subcontracts/subcontracts-table';
 import { NewSubcontractDialog } from '../../subcontracts/new-subcontract-dialog';
 import type { PurchaseOrderSummary } from '@/lib/procurement-types';
 import { SitePurchases } from './site-purchases';
+import { SiteQuality } from './site-quality';
 
 const TABS = [
   'timeline',
@@ -72,6 +73,7 @@ const TABS = [
   'cost',
   'subcontracts',
   'purchases',
+  'quality',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -282,6 +284,14 @@ export default async function ProjectPage({
       ? await serverFetch<PurchaseOrderSummary[]>(`/purchase-orders?project_id=${id}`)
       : [];
 
+  // QA/QC (roadmap Phase 2, module 7). The team sees it with a quality permission; a client sees
+  // their punch list and the inspections shared with them. Its fetches live in SiteQuality, which
+  // only renders on its own tab.
+  const canSeeQuality =
+    me.permissions.includes('quality.view') ||
+    me.permissions.includes('quality.inspect') ||
+    me.user.role === 'client';
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -341,6 +351,7 @@ export default async function ProjectPage({
         showCost={canSeeCost}
         showSubcontracts={canSeeSubcontracts}
         showPurchases={canSeePurchases}
+        showQuality={canSeeQuality}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -473,6 +484,10 @@ export default async function ProjectPage({
       )}
       {active === 'purchases' && canSeePurchases && (
         <SitePurchases projectId={id} orders={purchases} />
+      )}
+
+      {active === 'quality' && canSeeQuality && (
+        <SiteQuality projectId={id} projectName={project.name} me={me} />
       )}
 
       {active === 'materials' && (

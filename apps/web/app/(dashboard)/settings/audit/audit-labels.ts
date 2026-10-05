@@ -42,6 +42,16 @@ export const ENTITY_LABELS: Record<string, string> = {
   subscriptions: 'Subscription',
   invoices: 'Invoice',
   audit_logs: 'Audit log',
+  // QA/QC
+  quality_checklist_templates: 'Checklist',
+  quality_checklist_items: 'Checklist line',
+  quality_inspections: 'Inspection',
+  quality_inspection_items: 'Inspection line',
+  quality_inspection_signoffs: 'Inspection signature',
+  quality_tests: 'Material test',
+  snags: 'Snag',
+  snag_photos: 'Snag photo',
+  snag_events: 'Snag history',
 };
 
 /** The entity filter: the tables people most often go looking through, in the order they think. */
@@ -67,6 +77,10 @@ export const ENTITY_FILTER_ORDER = [
   'daily_reports',
   'materials',
   'milestones',
+  // Quality: who signed an inspection, who closed a snag, whether a cube result changed.
+  'quality_inspections',
+  'quality_tests',
+  'snags',
 ];
 
 export function entityLabel(entity: string): string {
