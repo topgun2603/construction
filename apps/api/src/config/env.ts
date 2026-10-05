@@ -239,6 +239,9 @@ const envSchema = z
     DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
     // Cube and lab tests due today, on each company's clock: early enough to get them to the lab.
     QUALITY_TEST_DUE_CRON: z.string().default('0 7 * * *'),
+    // Permits to work whose time ran out while still open. Every quarter-hour, so the alert lands
+    // within fifteen minutes of the permit lapsing on any company's clock.
+    SAFETY_PERMIT_EXPIRY_CRON: z.string().default('*/15 * * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

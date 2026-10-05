@@ -140,6 +140,8 @@ const UPLOAD_KINDS = [
   'quality_photo',
   /** QA/QC: a lab's test report, usually a PDF. */
   'quality_report',
+  /** Safety evidence: an incident scene, a witness statement, an observation and its close-out. */
+  'safety_photo',
 ] as const;
 
 /**

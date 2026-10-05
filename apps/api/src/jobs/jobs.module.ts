@@ -7,6 +7,7 @@ import { ForecastsModule } from '../modules/forecasts/forecasts.module';
 import { ChecksModule } from '../modules/checks/checks.module';
 import { WorkerDocumentsModule } from '../modules/worker-documents/worker-documents.module';
 import { QualityModule } from '../modules/quality/quality.module';
+import { SafetyModule } from '../modules/safety/safety.module';
 import { DocumentTextService } from '../modules/portal/document-text.service';
 import { WagePeriodsModule } from '../modules/wage-periods/wage-periods.module';
 import { DEFAULT_JOB_OPTIONS, QUEUE } from './job-types';
@@ -81,6 +82,8 @@ export class JobsModule {
               WorkerDocumentsModule,
               // The morning "cubes due for crushing" reminder.
               QualityModule,
+              // Expired permit-to-work alerts.
+              SafetyModule,
             ]
           : []),
       ],

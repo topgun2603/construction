@@ -8,6 +8,7 @@ import {
   type DocumentTextJob,
   type DprSubmittedJob,
   type IndentStatusJob,
+  type SafetyIncidentReportedJob,
   type SiteMessagePostedJob,
   type ThumbnailJob,
   type WagePeriodFinalisedJob,
@@ -47,6 +48,11 @@ export class JobQueueService {
 
   async wagePeriodFinalised(job: WagePeriodFinalisedJob): Promise<void> {
     await this.add(this.whatsapp, QUEUE.whatsapp, 'wage-period-finalised', job);
+  }
+
+  /** One WhatsApp alert per serious incident: the id is the incident's, so a retry cannot repeat it. */
+  async safetyIncidentReported(job: SafetyIncidentReportedJob): Promise<void> {
+    await this.add(this.whatsapp, QUEUE.whatsapp, 'safety-incident', job, `safety-incident-${job.incidentId}`);
   }
 
   /**

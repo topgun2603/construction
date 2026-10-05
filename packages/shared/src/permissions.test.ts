@@ -81,6 +81,9 @@ describe('permission catalogue', () => {
         'schedule.view',
         'schedule.manage',
         'schedule.progress',
+        'safety.view',
+        'safety.report',
+        'safety.manage',
         'indents.approve',
         'indents.raise',
         'estimates.manage',
@@ -126,6 +129,8 @@ describe('permission catalogue', () => {
         'subcontracts.measure',
         'schedule.view',
         'schedule.progress',
+        'safety.view',
+        'safety.report',
         'workers.view',
       ],
       accounts: [

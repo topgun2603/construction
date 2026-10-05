@@ -39,6 +39,7 @@ export class SchedulerService implements OnApplicationBootstrap {
       { queue: this.reports, name: 'fan-out-leak-checks', pattern: TICK_CRON, tz: 'UTC' },
       { queue: this.reports, name: 'fan-out-document-expiry', pattern: TICK_CRON, tz: 'UTC' },
       { queue: this.reports, name: 'fan-out-quality-tests-due', pattern: TICK_CRON, tz: 'UTC' },
+      { queue: this.reports, name: 'fan-out-safety-permit-expiry', pattern: TICK_CRON, tz: 'UTC' },
       {
         queue: this.reports,
         name: 'drop-lapsed-subscriptions',

@@ -117,6 +117,15 @@ export const PERMISSIONS = [
   'schedule.manage',
   'schedule.progress',
 
+  /*
+   * Safety (HSE, roadmap Phase 2, module 8). Reporting is deliberately wide — anybody on a site who
+   * sees a hazard or a near miss must be able to write it down, or it goes unreported. Managing is
+   * the investigation, the close-out and signing permits to work, which is a competent person's job.
+   */
+  'safety.view',
+  'safety.report',
+  'safety.manage',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -390,6 +399,25 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Safety',
+    items: [
+      {
+        permission: 'safety.view',
+        label: 'See incidents, permits, toolbox talks and safety figures',
+      },
+      {
+        permission: 'safety.report',
+        label: 'Report incidents and observations, record toolbox talks, request permits',
+        note: 'Give this to everybody on site: an unreported near miss is the next accident.',
+      },
+      {
+        permission: 'safety.manage',
+        label: 'Investigate and close incidents, issue and suspend permits',
+        note: 'Signs permits to work as issuer or area authority',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -535,6 +563,10 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'schedule.view',
     'schedule.manage',
     'schedule.progress',
+    // Runs safety on their jobs: investigates incidents and signs permits to work.
+    'safety.view',
+    'safety.report',
+    'safety.manage',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -576,6 +608,10 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Works to the programme and says how far it has got; re-planning it is the manager's.
     'schedule.view',
     'schedule.progress',
+    // The person on site when something happens: reports it, records the morning toolbox talk and
+    // asks for a permit. Signing their own permit is not theirs, so no `safety.manage`.
+    'safety.view',
+    'safety.report',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.

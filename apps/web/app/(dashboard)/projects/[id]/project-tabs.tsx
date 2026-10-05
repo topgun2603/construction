@@ -19,6 +19,7 @@ export function ProjectTabs({
   showChangeOrders = false,
   showQuality = false,
   showSchedule = false,
+  showSafety = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -49,6 +50,8 @@ export function ProjectTabs({
   showQuality?: boolean;
   /** The Gantt needs `schedule.view`. */
   showSchedule?: boolean;
+  /** Safety needs `safety.view`; anybody who can only report does it from the company page. */
+  showSafety?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -72,6 +75,7 @@ export function ProjectTabs({
     ...(showPurchases ? [{ key: 'purchases', label: t('Purchases') }] : []),
     ...(showChangeOrders ? [{ key: 'change-orders', label: t('Change orders') }] : []),
     ...(showQuality ? [{ key: 'quality', label: t('Quality') }] : []),
+    ...(showSafety ? [{ key: 'safety', label: t('Safety') }] : []),
   ];
 
   return (

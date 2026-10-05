@@ -74,12 +74,19 @@ export interface WagePeriodFinalisedJob {
   wagePeriodId: string;
 }
 
+/** A lost-time injury or fatality: every owner hears on WhatsApp, not only in the app. */
+export interface SafetyIncidentReportedJob {
+  tenantId: string;
+  incidentId: string;
+}
+
 export type WhatsappJobName =
   | 'fan-out-daily-summary'
   | 'daily-summary'
   | 'fan-out-dpr-reminder'
   | 'dpr-reminder'
-  | 'wage-period-finalised';
+  | 'wage-period-finalised'
+  | 'safety-incident';
 
 export interface WhatsappJobs {
   'fan-out-daily-summary': FanOutJob;
@@ -87,6 +94,7 @@ export interface WhatsappJobs {
   'fan-out-dpr-reminder': FanOutJob;
   'dpr-reminder': DprReminderJob;
   'wage-period-finalised': WagePeriodFinalisedJob;
+  'safety-incident': SafetyIncidentReportedJob;
 }
 
 // --- reports ---------------------------------------------------------------
@@ -106,7 +114,9 @@ export type ReportJobName =
   | 'labour-rollup'
   | 'fan-out-wage-period-draft'
   | 'wage-period-draft'
-  | 'drop-lapsed-subscriptions';
+  | 'drop-lapsed-subscriptions'
+  | 'fan-out-safety-permit-expiry'
+  | 'safety-permit-expiry';
 
 export interface ReportJobs {
   'fan-out-labour-rollup': FanOutJob;

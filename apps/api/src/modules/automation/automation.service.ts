@@ -94,6 +94,14 @@ export class AutomationService {
         effect: null,
         cron: this.config.DOCUMENT_EXPIRY_CRON,
       },
+      {
+        key: 'safety_permit_expiry',
+        name: 'Expired permits to work',
+        description:
+          'Tells whoever requested and signed a permit to work, and the site’s managers, once its time runs out while it is still open.',
+        effect: null,
+        cron: this.config.SAFETY_PERMIT_EXPIRY_CRON,
+      },
     ].map((job) => ({
       ...job,
       // Each job runs on the company's own clock (jobs/tenant-clock.ts), so that is the zone shown.

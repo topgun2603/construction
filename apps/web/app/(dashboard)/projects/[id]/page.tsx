@@ -70,6 +70,14 @@ import { SiteQuality } from './site-quality';
 import type { CostCode } from '@/lib/cost-code-types';
 import type { ScheduleView } from '@/lib/schedule-types';
 import { ScheduleTab } from './schedule/schedule-tab';
+import type {
+  SafetyIncidentSummary,
+  SafetyKpis,
+  SafetyObservationSummary,
+  SafetyPermitSummary,
+  SafetyTalkSummary,
+} from '@/lib/safety-types';
+import { SiteSafety } from './site-safety';
 
 const TABS = [
   'timeline',
@@ -86,6 +94,7 @@ const TABS = [
   'purchases',
   'change-orders',
   'quality',
+  'safety',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -342,6 +351,19 @@ export default async function ProjectPage({
         ])
       : [null, [] as CostCode[], null];
 
+  // Safety (roadmap Phase 2, module 8), fetched only for its own tab.
+  const canSeeSafety = me.permissions.includes('safety.view');
+  const safety =
+    active === 'safety' && canSeeSafety
+      ? await Promise.all([
+          serverFetch<SafetyKpis>(`/safety/kpis?project_id=${id}`),
+          serverFetch<{ items: SafetyIncidentSummary[] }>(`/safety/incidents?project_id=${id}&limit=50`),
+          serverFetch<{ items: SafetyPermitSummary[] }>(`/safety/permits?project_id=${id}&limit=50`),
+          serverFetch<{ items: SafetyTalkSummary[] }>(`/safety/toolbox-talks?project_id=${id}&limit=20`),
+          serverFetch<{ items: SafetyObservationSummary[] }>(`/safety/observations?project_id=${id}&limit=50`),
+        ])
+      : null;
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -404,6 +426,7 @@ export default async function ProjectPage({
         showChangeOrders={canSeeChangeOrders || clientSeesChangeOrders}
         showQuality={canSeeQuality}
         showSchedule={canSeeSchedule}
+        showSafety={canSeeSafety}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -551,6 +574,17 @@ export default async function ProjectPage({
       )}
       {active === 'purchases' && canSeePurchases && (
         <SitePurchases projectId={id} orders={purchases} />
+      )}
+      {active === 'safety' && safety && (
+        <SiteSafety
+          site={{ id, name: project.name }}
+          kpis={safety[0]}
+          incidents={safety[1].items}
+          permits={safety[2].items}
+          talks={safety[3].items}
+          observations={safety[4].items}
+          canReport={me.permissions.includes('safety.report')}
+        />
       )}
 
       {active === 'change-orders' && changeOrders && changeOrderSummary && (

@@ -52,6 +52,15 @@ export const ENTITY_LABELS: Record<string, string> = {
   snags: 'Snag',
   snag_photos: 'Snag photo',
   snag_events: 'Snag history',
+  safety_incidents: 'Safety incident',
+  safety_incident_people: 'Person in an incident',
+  safety_actions: 'Safety action',
+  safety_permits: 'Permit to work',
+  safety_permit_crew: 'Permit crew',
+  safety_toolbox_talks: 'Toolbox talk',
+  safety_toolbox_attendees: 'Toolbox talk attendee',
+  safety_observations: 'Safety observation',
+  safety_photos: 'Safety photo',
 };
 
 /** The entity filter: the tables people most often go looking through, in the order they think. */

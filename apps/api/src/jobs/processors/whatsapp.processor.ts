@@ -1,7 +1,15 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job, Queue } from 'bullmq';
-import { formatMoneyCompact, isoDateToUtcDate, utcDateToIsoDate } from '@sitebook/shared';
+import {
+  SAFETY_INCIDENT_TYPE_LABELS,
+  formatMoneyCompact,
+  isoDateToUtcDate,
+  safetyInstantToLocal,
+  safetyNumber,
+  utcDateToIsoDate,
+  type SafetyIncidentType,
+} from '@sitebook/shared';
 import { env } from '../../config/env';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { TEMPLATES, WhatsappService, type TemplateMessage } from '../../integrations/whatsapp.service';
@@ -11,6 +19,7 @@ import {
   type DailySummaryJob,
   type DprReminderJob,
   type FanOutJob,
+  type SafetyIncidentReportedJob,
   type WagePeriodFinalisedJob,
 } from '../job-types';
 import { TenantRoster } from '../tenant-roster.service';
@@ -47,6 +56,8 @@ export class WhatsappProcessor extends WorkerHost {
         return this.dprReminder(job.data as DprReminderJob);
       case 'wage-period-finalised':
         return this.wagePeriodFinalised(job.data as WagePeriodFinalisedJob);
+      case 'safety-incident':
+        return this.safetyIncident(job.data as SafetyIncidentReportedJob);
       default:
         this.logger.warn({ name: job.name }, 'Unknown whatsapp job');
         return null;
@@ -200,6 +211,46 @@ export class WhatsappProcessor extends WorkerHost {
     const result = await this.whatsapp.sendMany(messages);
     this.logger.log({ tenantId: data.tenantId, nudged: messages.length }, 'DPR reminders sent');
     return { ...result, nudged: messages.length };
+  }
+
+  /**
+   * A lost-time injury or a fatality, to every owner's phone. The in-app notification and push went
+   * out with the report itself; this is the channel an owner on a plane or at a wedding still reads.
+   */
+  private async safetyIncident(data: SafetyIncidentReportedJob) {
+    const db = this.tenantDb.clientFor(data.tenantId);
+    const [tenant, owners, incident] = await Promise.all([
+      db.tenant.findUnique({ where: { id: data.tenantId }, select: { name: true, timezone: true } }),
+      db.user.findMany({
+        where: { role: 'owner', status: 'active', deletedAt: null },
+        select: { phone: true },
+      }),
+      db.safetyIncident.findFirst({
+        where: { id: data.incidentId },
+        select: {
+          number: true,
+          type: true,
+          title: true,
+          occurredAt: true,
+          project: { select: { name: true } },
+        },
+      }),
+    ]);
+    if (!tenant || !incident) return { skipped: 'incident gone' };
+
+    // Template safety_incident_alert: {builder} {type} {site} {number and title} {when}
+    const params = [
+      tenant.name,
+      SAFETY_INCIDENT_TYPE_LABELS[incident.type as SafetyIncidentType],
+      incident.project.name,
+      `${safetyNumber('INC', incident.number)} ${incident.title}`,
+      safetyInstantToLocal(incident.occurredAt, tenant.timezone).replace('T', ' '),
+    ];
+    return this.whatsapp.sendMany(
+      owners
+        .filter((owner) => Boolean(owner.phone))
+        .map((owner) => ({ to: owner.phone, template: TEMPLATES.safetyIncidentAlert, params })),
+    );
   }
 
   /** Contractor gets the totals the moment accounts freeze their period. */
