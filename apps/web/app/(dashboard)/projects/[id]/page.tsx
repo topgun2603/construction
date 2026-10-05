@@ -53,6 +53,10 @@ import { DocumentsList } from '@/components/documents-list';
 import { getT } from '@/lib/i18n-server';
 import type { CostCodeTemplateSummary, CostReport } from '@/lib/cost-code-types';
 import { CostCodesTab } from './cost-codes';
+import type { SubcontractSummary } from '@/lib/subcontract-types';
+import type { Contractor } from '@/lib/api-types';
+import { SubcontractsTable } from '../../subcontracts/subcontracts-table';
+import { NewSubcontractDialog } from '../../subcontracts/new-subcontract-dialog';
 
 const TABS = [
   'timeline',
@@ -64,6 +68,7 @@ const TABS = [
   'people',
   'materials',
   'cost',
+  'subcontracts',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -250,6 +255,20 @@ export default async function ProjectPage({
         ])
       : [null, [] as CostCodeTemplateSummary[]];
 
+  // The site's subcontracts (roadmap Phase 2, module 3), fetched only for their own tab.
+  const canSeeSubcontracts =
+    me.permissions.includes('subcontracts.view') || me.permissions.includes('subcontracts.measure');
+  const canLetSubcontracts = me.permissions.includes('subcontracts.manage');
+  const [subcontracts, contractors] =
+    active === 'subcontracts' && canSeeSubcontracts
+      ? await Promise.all([
+          serverFetch<{ items: SubcontractSummary[] }>(`/subcontracts?project_id=${id}`),
+          canLetSubcontracts
+            ? serverFetch<Page<Contractor>>('/contractors?limit=200').catch(() => null)
+            : null,
+        ])
+      : [null, null];
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -307,6 +326,7 @@ export default async function ProjectPage({
         showPayments={canSeePayments}
         showApprovals={canSeeApprovals}
         showCost={canSeeCost}
+        showSubcontracts={canSeeSubcontracts}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -421,6 +441,21 @@ export default async function ProjectPage({
           templates={costTemplates}
           canManage={me.permissions.includes('cost_codes.manage')}
         />
+      )}
+
+      {active === 'subcontracts' && subcontracts && (
+        <div className="flex flex-col gap-3">
+          {canLetSubcontracts && (
+            <div className="flex justify-end">
+              <NewSubcontractDialog
+                sites={[{ id, name: project.name }]}
+                contractors={contractors?.items ?? []}
+                fixedSiteId={id}
+              />
+            </div>
+          )}
+          <SubcontractsTable subcontracts={subcontracts.items} showSite={false} />
+        </div>
       )}
 
       {active === 'materials' && (

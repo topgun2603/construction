@@ -140,9 +140,11 @@ export class CostCodesService {
     await this.access.assertAccess(actor, projectId);
     await this.tenantDb.transaction(actor.tenantId, async (tx) => {
       await findCode(tx, projectId, id);
-      const [children, expenses] = await Promise.all([
+      const [children, expenses, subcontractLines, deductions] = await Promise.all([
         tx.costCode.count({ where: { parentId: id } }),
         tx.expense.count({ where: { costCodeId: id, deletedAt: null } }),
+        tx.subcontractLine.count({ where: { costCodeId: id } }),
+        tx.subcontractDeduction.count({ where: { costCodeId: id } }),
       ]);
       if (children > 0) {
         throw ApiError.conflict('This line has lines under it. Remove or move those first.', {
@@ -154,6 +156,14 @@ export class CostCodesService {
           'Expenses are booked to this line. Rename it, or move the expenses, instead.',
           { expenses },
         );
+      }
+      // A subcontract line carries its commitment and its certified cost on this code; the foreign
+      // key refuses too, but this says why.
+      if (subcontractLines + deductions > 0) {
+        throw ApiError.conflict('Subcontract work is booked to this line. Rename it instead.', {
+          subcontract_lines: subcontractLines,
+          deductions,
+        });
       }
       await tx.costCode.delete({ where: { id } });
     });

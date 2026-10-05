@@ -119,6 +119,9 @@ export interface Contractor {
   trade: string | null;
   phone: string | null;
   payment_terms: string;
+  /** GSTIN or TRN, printed on their RA bills when they work as a subcontractor. */
+  tax_id?: string | null;
+  address?: string | null;
   worker_count: number;
 }
 

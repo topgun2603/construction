@@ -24,6 +24,12 @@ export const createContractorSchema = z.object({
   trade: z.string().trim().min(1).max(80).optional(),
   phone: phoneSchema.optional(),
   payment_terms: z.enum(PAYMENT_TERMS).default('weekly'),
+  /**
+   * The contractor's GSTIN or TRN, printed on their RA bills when they work as a subcontractor.
+   * Checked against the company's tax regime by the API, which knows it.
+   */
+  tax_id: z.string().trim().min(1).max(30).optional(),
+  address: z.string().trim().min(1).max(300).optional(),
 });
 export type CreateContractorInput = z.infer<typeof createContractorSchema>;
 

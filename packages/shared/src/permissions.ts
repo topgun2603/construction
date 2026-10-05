@@ -62,6 +62,17 @@ export const PERMISSIONS = [
   'cost_codes.view',
   'cost_codes.manage',
 
+  /*
+   * Subcontracts and progress (RA) billing. Split along the decisions a job actually has: who sees
+   * what a subcontract is worth (the margin again), who writes and changes them, who measures work
+   * on site, who certifies a bill as owed, and who hands the money over.
+   */
+  'subcontracts.view',
+  'subcontracts.manage',
+  'subcontracts.measure',
+  'subcontracts.certify',
+  'subcontracts.pay',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -222,6 +233,31 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Subcontracts',
+    items: [
+      {
+        permission: 'subcontracts.view',
+        label: 'See subcontracts, their bills and statements',
+        note: 'What each subcontract is worth and what has been paid on it',
+      },
+      {
+        permission: 'subcontracts.manage',
+        label: 'Write subcontracts, their rates and variations',
+      },
+      {
+        permission: 'subcontracts.measure',
+        label: 'Measure work done for a running bill',
+        note: 'Enter quantities and back-charges on a draft bill. Without “see subcontracts” the rates and amounts stay hidden.',
+      },
+      {
+        permission: 'subcontracts.certify',
+        label: 'Certify bills, approve variations and release retention',
+        note: 'What a certified bill says is owed becomes cost on the site',
+      },
+      { permission: 'subcontracts.pay', label: 'Record payments to subcontractors' },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -341,6 +377,12 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Running a job means owning its breakdown and its budget lines.
     'cost_codes.view',
     'cost_codes.manage',
+    // Writes the subcontracts on their jobs, measures them and certifies the bills. Paying is the
+    // books' — the same split as wages, where a manager sees the sheet and accounts pays it.
+    'subcontracts.view',
+    'subcontracts.manage',
+    'subcontracts.measure',
+    'subcontracts.certify',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -369,6 +411,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'stock.record',
     'expenses.view',
     'expenses.record',
+    // Measures the subcontractor's work on their own site for the running bill. Not the rates or
+    // the bill's money: what a subcontract is worth is the margin, the same as a budget line.
+    'subcontracts.measure',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.
@@ -402,6 +447,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Reads the budget report because cost against budget is accounts' question too; setting the
     // budget is the job's, not the books'.
     'cost_codes.view',
+    // Reads every subcontract account and pays the certified bills; certifying them is the job's.
+    'subcontracts.view',
+    'subcontracts.pay',
     'messages.post',
     'messages.internal',
     'documents.view',

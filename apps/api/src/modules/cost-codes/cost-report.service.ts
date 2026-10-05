@@ -16,6 +16,7 @@ import {
 import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { CostActualsService } from './cost-actuals.service';
 import { CostCommitmentsService } from './cost-commitments.service';
 
 /** Amounts as strings, the way money crosses the wire everywhere else. `variance` = budget − forecast. */
@@ -64,7 +65,8 @@ export interface CostReport {
  * Budget against committed, actual and forecast, per cost code and rolled up the tree.
  *
  * Actual is what the forecast card calls spent: expenses that were not rejected, and labour earned
- * on the roll call. Labour has no code of its own on a roll call, so it lands on the site's
+ * on the roll call — plus whatever registered with `CostActualsService` (certified subcontract
+ * bills), which posts through its own record rather than as expense rows. Labour has no code of its own on a roll call, so it lands on the site's
  * labour line when one is chosen and in "Unallocated" otherwise — the report's totals always agree
  * with the forecast card's spend, which is the first thing an owner will check.
  *
@@ -80,6 +82,7 @@ export class CostReportService {
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
     private readonly commitments: CostCommitmentsService,
+    private readonly actuals: CostActualsService,
   ) {}
 
   async report(actor: RequestUser, projectId: string): Promise<CostReport> {
@@ -93,7 +96,7 @@ export class CostReportService {
       const today = todayIn(tenant?.timezone ?? INDIA_LOCALE.timezone);
       const upTo = isoDateToUtcDate(today);
 
-      const [project, codes, expenses, attendance, milestones, committed] = await Promise.all([
+      const [project, codes, expenses, attendance, milestones, committed, otherActuals] = await Promise.all([
         tx.project.findUniqueOrThrow({
           where: { id: projectId },
           select: { name: true, budgetAmount: true, startDate: true, targetEndDate: true },
@@ -124,6 +127,8 @@ export class CostReportService {
           select: { actualDate: true },
         }),
         this.commitments.committedByCostCode(tx, projectId),
+        // Certified subcontract bills, and anything else that becomes cost through its own record.
+        this.actuals.actualsFor(tx, projectId, today),
       ]);
 
       const codeIds = new Set(codes.map((code) => code.id));
@@ -154,6 +159,11 @@ export class CostReportService {
         if (earned === 0n) continue;
         add(labourCode, earned);
         spend.push({ date: utcDateToIsoDate(row.attendanceDate), line: 'Labour', amount: earned });
+      }
+      for (const row of otherActuals) {
+        if (row.amount === 0n) continue;
+        add(bucket(row.costCodeId), row.amount);
+        spend.push({ date: row.date, line: row.line, amount: row.amount });
       }
 
       const committedFor = (id: string | null) => {

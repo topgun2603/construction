@@ -14,7 +14,7 @@ import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
-import { TenantDb, type TenantClient, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 
 /**
  * Materials stock: what arrived, what was used, and what that says against the estimate.
@@ -244,7 +244,7 @@ export class StockService {
 
   async listEstimates(actor: RequestUser, projectId: string) {
     await this.access.assertAccess(actor, projectId);
-    return this.estimatesFor(this.tenantDb.clientFor(actor.tenantId), projectId);
+    return this.tenantDb.transaction(actor.tenantId, (tx) => this.estimatesFor(tx, projectId));
   }
 
   async removeEstimate(actor: RequestUser, projectId: string, materialId: string): Promise<void> {
@@ -262,7 +262,12 @@ export class StockService {
     await db.materialEstimate.delete({ where: { id: existing.id } });
   }
 
-  private async estimatesFor(db: TenantTx | TenantClient, projectId: string) {
+  /*
+   * A transaction client only. Typing this as `TenantTx | TenantClient` made TypeScript compare the
+   * two clients' generic signatures structurally, which overflows its stack once the schema has
+   * enough models — the reader was always happy inside a transaction anyway.
+   */
+  private async estimatesFor(db: TenantTx, projectId: string) {
     const rows = await db.materialEstimate.findMany({
       where: { projectId },
       select: {
