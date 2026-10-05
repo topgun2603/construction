@@ -23,5 +23,6 @@ export function formatLocaleOf(self: SelfResponse): FormatLocale {
     locale: self.tenant.locale,
     timezone: self.tenant.timezone,
     country: self.tenant.country,
+    taxRegime: self.tenant.tax_regime,
   };
 }

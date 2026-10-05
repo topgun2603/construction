@@ -26,6 +26,8 @@ export interface FormatLocale {
   timezone: string;
   /** ISO country, for defaults that are not display — the calling code on a phone field. */
   country?: string;
+  /** The tax regime (`vat_ae`, `gst_in`, `none`), for `taxRule()` — which tax fields a form shows. */
+  taxRegime?: string;
 }
 
 export interface Format {

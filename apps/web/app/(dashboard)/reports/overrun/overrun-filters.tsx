@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarRange, PieChart, UserCog, Warehouse } from 'lucide-react';
+import { taxRule } from '@sitebook/shared';
+import { CalendarRange, PieChart, Receipt, UserCog, Warehouse } from 'lucide-react';
 import type { ProjectSummary } from '@/lib/api-types';
 import {
   Select,
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /**
  * The reports tab row, plus this report's own filters.
@@ -26,6 +28,7 @@ const TABS = [
   { href: '/reports/attendance', label: 'Attendance register', icon: CalendarRange },
   { href: '/reports/overrun', label: 'Material overrun', icon: Warehouse },
   { href: '/reports/people', label: 'People', icon: UserCog, ownerOnly: true },
+  { href: '/reports/tax', label: 'Tax', icon: Receipt, taxOnly: true },
 ];
 
 export function OverrunFilters({
@@ -33,13 +36,18 @@ export function OverrunFilters({
   projectId,
   showAll,
   isOwnerOrAccounts,
+  showTax = false,
 }: {
   projects: ProjectSummary[];
   projectId: string;
   showAll: boolean;
   isOwnerOrAccounts: boolean;
+  /** From `canSeeTaxReport(self)` on the page. */
+  showTax?: boolean;
 }) {
   const { t } = useLanguage();
+  const { settings } = useFormat();
+  const taxName = taxRule(settings.taxRegime ?? 'none').taxName;
   const router = useRouter();
 
   function push(next: { project_id?: string; all?: boolean }) {
@@ -52,7 +60,10 @@ export function OverrunFilters({
     router.push(`/reports/overrun${suffix}`);
   }
 
-  const tabs = TABS.filter((tab) => !tab.ownerOnly || isOwnerOrAccounts);
+  const tabs = TABS.filter(
+    (tab) =>
+      (!tab.ownerOnly || isOwnerOrAccounts) && (!tab.taxOnly || (showTax && taxName !== null)),
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -73,7 +84,7 @@ export function OverrunFilters({
               )}
             >
               <Icon className="size-4" />
-              {t(tab.label)}
+              {tab.taxOnly && taxName ? taxName : t(tab.label)}
             </Link>
           );
         })}

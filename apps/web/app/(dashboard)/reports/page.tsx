@@ -12,6 +12,7 @@ import { FadeIn, Stagger, StaggerItem } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { ReportFilters } from './report-filters';
 import { ReportsNav } from './reports-nav';
+import { canSeeTaxReport } from './tax/access';
 import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Reports · BUILDR' };
@@ -55,6 +56,7 @@ export default async function ReportsPage({
         from={from}
         to={to}
         isOwnerOrAccounts={['owner', 'accounts'].includes(me.user.role)}
+        showTax={canSeeTaxReport(me)}
         extraParams={{ group_by: groupBy }}
       />
       <ReportFilters groupBy={groupBy} from={from} to={to} />

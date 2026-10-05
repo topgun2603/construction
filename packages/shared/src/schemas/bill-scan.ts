@@ -48,6 +48,8 @@ export const billDraftSchema = z.object({
     .trim()
     .regex(/^[0-9A-Z]{8,20}$/, 'a tax registration number is letters and digits')
     .nullable(),
+  /** The VAT or GST printed on the bill, as a decimal string like `amount`. Null if none is shown. */
+  tax_amount: z.string().nullable(),
   /** What was bought, in the bill's own words. Becomes the expense note. */
   summary: z.string().trim().max(300).nullable(),
 });
@@ -64,6 +66,8 @@ export interface ScanBillResult {
   tax_id: string | null;
   /** What that number is called — GSTIN, TRN, VAT number — for the form's label. */
   tax_id_label: string | null;
+  /** The tax printed on the bill, in minor units like `amount`. Null if the bill shows none. */
+  tax_amount: string | null;
   /** `tax_id` for an Indian company, kept so clients built before `tax_id` keep working. */
   gstin: string | null;
   summary: string | null;

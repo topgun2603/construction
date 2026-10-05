@@ -10,13 +10,21 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
 import {
   GoogleAuthProvider,
   RecaptchaVerifier,
+  TotpMultiFactorGenerator,
+  getMultiFactorResolver,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
   type ConfirmationResult,
+  type MultiFactorError,
+  type MultiFactorResolver,
+  type User,
 } from 'firebase/auth';
 import {
   COUNTRY_PRESETS,
@@ -27,6 +35,7 @@ import {
   toE164,
 } from '@sitebook/shared';
 import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { authErrorCode, authErrorMessage } from '@/lib/auth-errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
@@ -63,7 +72,8 @@ const DEV_AUTH_BYPASS =
 const OTP_LENGTH = 6;
 const EASE = [0.22, 0.61, 0.36, 1] as const;
 
-type Step = 'phone' | 'code' | 'onboard';
+/** `email` and `mfa` are the email-and-password way in and its authenticator-app step. */
+type Step = 'phone' | 'code' | 'email' | 'mfa' | 'onboard';
 
 interface TokenPair {
   access_token: string;
@@ -84,6 +94,10 @@ export function LoginForm() {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState<string | null>(null);
+  /** Good news that still needs the reader to do something — "check your inbox". */
+  const [notice, setNotice] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [country, setCountry] = useState('IN');
   /** The calling code in front of the number. India until the browser's zone says otherwise. */
@@ -98,6 +112,8 @@ export function LoginForm() {
   useEffect(() => setPhoneCode(guessCountry()), []);
 
   const confirmation = useRef<ConfirmationResult | null>(null);
+  /** The half-finished email sign-in waiting on its authenticator code. */
+  const secondFactor = useRef<{ resolver: MultiFactorResolver; hintUid: string } | null>(null);
   const onboardingToken = useRef<string | null>(null);
   const recaptchaHost = useRef<HTMLDivElement>(null);
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -215,9 +231,132 @@ export function LoginForm() {
     }
   }
 
+  /**
+   * Email and password, for somebody who set it up under Your account.
+   *
+   * Like Google, it only signs in an address already linked to a user — the API says so in words
+   * otherwise. An account with two-factor on stops half-way with `multi-factor-auth-required`,
+   * which is not a failure: it is Firebase asking for the authenticator code.
+   */
+  async function handleEmailSubmit(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      const address = email.trim();
+      if (isFirebaseConfigured()) {
+        const auth = firebaseAuth();
+        let user: User;
+        try {
+          user = (await signInWithEmailAndPassword(auth, address, password)).user;
+        } catch (cause) {
+          if (authErrorCode(cause) !== 'auth/multi-factor-auth-required') throw cause;
+          const resolver = getMultiFactorResolver(auth, cause as MultiFactorError);
+          const hint = resolver.hints.find(
+            (candidate) => candidate.factorId === TotpMultiFactorGenerator.FACTOR_ID,
+          );
+          // The only second factor this app enrols. Anything else was set up somewhere else.
+          if (!hint) throw new Error('This account’s second step is not an authenticator app.');
+          secondFactor.current = { resolver, hintUid: hint.uid };
+          setCode(Array(OTP_LENGTH).fill(''));
+          setStep('mfa');
+          setTimeout(() => otpRefs.current[0]?.focus(), 60);
+          return;
+        }
+        await finishEmailSignIn(user);
+        return;
+      }
+
+      if (DEV_AUTH_BYPASS) {
+        // No Firebase, so there is no password to check. Compiled out of a production bundle.
+        await exchange(`dev:${address}`);
+        return;
+      }
+
+      throw new Error('Email sign-in is not configured on this deployment');
+    } catch (cause) {
+      setError(t(authErrorMessage(cause)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * The last step of an email sign-in, with or without the authenticator code.
+   *
+   * An unverified address gets a fresh link instead of a session. The API would refuse the token
+   * anyway — it trusts an address only once its owner has shown they read its mail — and "check
+   * your inbox" is a better thing to be told than "could not verify".
+   */
+  async function finishEmailSignIn(user: User): Promise<void> {
+    if (!user.emailVerified) {
+      await sendEmailVerification(user);
+      setNotice(
+        `${t('We sent a verification link to')} ${user.email ?? email.trim()}. ${t('Open it, then sign in again.')}`,
+      );
+      return;
+    }
+    await exchange(await user.getIdToken());
+  }
+
+  async function handleForgotPassword(): Promise<void> {
+    setError(null);
+    setNotice(null);
+    const address = email.trim();
+    if (!address) {
+      setError(t('Enter your email address first, then tap Forgot password.'));
+      return;
+    }
+    if (!isFirebaseConfigured()) {
+      setError(t('Password reset needs Firebase configured on this deployment.'));
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendPasswordResetEmail(firebaseAuth(), address);
+      // Worded for the case Firebase will not reveal: whether anybody uses this address at all.
+      setNotice(
+        `${t('If an account uses')} ${address}, ${t('a link to reset its password is on its way.')}`,
+      );
+    } catch (cause) {
+      setError(t(authErrorMessage(cause)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** The authenticator code that finishes an email sign-in with two-factor on. */
+  async function submitTotp(value: string): Promise<void> {
+    const pending = secondFactor.current;
+    if (!pending) throw new Error('Sign in with email again');
+    const assertion = TotpMultiFactorGenerator.assertionForSignIn(pending.hintUid, value);
+    const credential = await pending.resolver.resolveSignIn(assertion);
+    // A resolver is good for one sign-in. Whatever happens next, a retry starts from the password.
+    secondFactor.current = null;
+    try {
+      await finishEmailSignIn(credential.user);
+    } catch (cause) {
+      setStep('email');
+      throw cause;
+    }
+  }
+
   async function submitCode(value: string): Promise<void> {
     setError(null);
     setBusy(true);
+    if (step === 'mfa') {
+      try {
+        await submitTotp(value);
+      } catch (cause) {
+        setError(t(authErrorMessage(cause)));
+        setCode(Array(OTP_LENGTH).fill(''));
+        otpRefs.current[0]?.focus();
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     try {
       if (!confirmation.current) throw new Error('Request a new code');
       const credential = await confirmation.current.confirm(value);
@@ -296,6 +435,43 @@ export function LoginForm() {
       setBusy(false);
     }
   }
+
+  function backToPhone() {
+    setStep('phone');
+    setError(null);
+    setNotice(null);
+  }
+
+  // Shared by the SMS code and the authenticator code: six digits either way.
+  const otpBoxes = (
+    <div className="flex gap-2" onPaste={onOtpPaste}>
+      {code.map((digit, index) => (
+        <input
+          key={index}
+          ref={(element) => {
+            otpRefs.current[index] = element;
+          }}
+          value={digit}
+          onChange={(event) => setDigit(index, event.target.value)}
+          onKeyDown={(event) => onOtpKeyDown(index, event)}
+          inputMode="numeric"
+          maxLength={1}
+          autoComplete={index === 0 ? 'one-time-code' : 'off'}
+          aria-label={`Digit ${index + 1}`}
+          disabled={busy}
+          className={cn(
+            // Capped rather than purely `flex-1`: six boxes sharing a 400px card come
+            // out 60px wide against 56px tall, which reads as a row of text fields
+            // rather than a row of digits. 48px keeps each one slightly taller than it
+            // is wide, and the flex basis still lets them shrink on a narrow phone.
+            'h-14 min-w-0 max-w-[48px] flex-1 rounded-btn border bg-surface text-center font-mono text-[20px] font-semibold outline-none transition',
+            digit ? 'border-accent' : 'border-line-strong',
+            'focus:border-accent focus:ring-2 focus:ring-accent/20',
+          )}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <section className="relative flex flex-col justify-center bg-canvas px-6 py-10 lg:px-12">
@@ -382,6 +558,22 @@ export function LoginForm() {
                   {t('Continue with Google')}
                 </button>
 
+                {/* Third: an address and a password, for an office login with no phone to hand.
+                    Like Google, it only works once it has been set up under Your account. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setNotice(null);
+                    setStep('email');
+                  }}
+                  disabled={busy}
+                  className="-mt-3 flex h-12 w-full items-center justify-center gap-3 rounded-btn border border-line-strong bg-surface text-[14.5px] font-semibold text-ink transition hover:bg-raised disabled:opacity-60"
+                >
+                  <Mail className="size-4 text-ink-soft" />
+                  {t('Sign in with email')}
+                </button>
+
                 {/*
                   No numbers printed here any more.
 
@@ -414,33 +606,7 @@ export function LoginForm() {
                   </p>
                 </header>
 
-                <div className="flex gap-2" onPaste={onOtpPaste}>
-                  {code.map((digit, index) => (
-                    <input
-                      key={index}
-                      ref={(element) => {
-                        otpRefs.current[index] = element;
-                      }}
-                      value={digit}
-                      onChange={(event) => setDigit(index, event.target.value)}
-                      onKeyDown={(event) => onOtpKeyDown(index, event)}
-                      inputMode="numeric"
-                      maxLength={1}
-                      autoComplete={index === 0 ? 'one-time-code' : 'off'}
-                      aria-label={`Digit ${index + 1}`}
-                      disabled={busy}
-                      className={cn(
-                        // Capped rather than purely `flex-1`: six boxes sharing a 400px card come
-                        // out 60px wide against 56px tall, which reads as a row of text fields
-                        // rather than a row of digits. 48px keeps each one slightly taller than it
-                        // is wide, and the flex basis still lets them shrink on a narrow phone.
-                        'h-14 min-w-0 max-w-[48px] flex-1 rounded-btn border bg-surface text-center font-mono text-[20px] font-semibold outline-none transition',
-                        digit ? 'border-accent' : 'border-line-strong',
-                        'focus:border-accent focus:ring-2 focus:ring-accent/20',
-                      )}
-                    />
-                  ))}
-                </div>
+                {otpBoxes}
 
                 {busy && (
                   <p className="flex items-center gap-2 text-[13.5px] text-ink-muted">
@@ -458,6 +624,111 @@ export function LoginForm() {
                   className="flex min-h-0 items-center gap-1.5 self-start text-[13.5px] font-medium text-ink-muted transition hover:text-ink"
                 >
                   <ArrowLeft className="size-3.5" /> {t('Use a different number')}
+                </button>
+              </div>
+            )}
+
+            {step === 'email' && (
+              <form onSubmit={handleEmailSubmit} className="flex flex-col gap-6">
+                <header className="flex flex-col gap-2">
+                  <span className="flex size-11 items-center justify-center rounded-card bg-accent-soft text-accent">
+                    <Mail className="size-5" />
+                  </span>
+                  <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-[-0.02em]">
+                    {t('Sign in with email')}
+                  </h1>
+                  <p className="text-[14.5px] leading-relaxed text-ink-muted">
+                    {t('Use the email and password you set up under Your account.')}
+                  </p>
+                </header>
+
+                <Field label={t('Email')} htmlFor="email">
+                  <Input
+                    id="email"
+                    type="email"
+                    autoFocus
+                    autoComplete="username"
+                    required
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="h-12 text-[16px]"
+                  />
+                </Field>
+                <div className="flex flex-col gap-2">
+                  <Field label={t('Password')} htmlFor="password">
+                    <Input
+                      id="password"
+                      type="password"
+                      autoComplete="current-password"
+                      // Nothing checks it without Firebase, so nothing should demand it.
+                      required={isFirebaseConfigured()}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="h-12 text-[16px]"
+                    />
+                  </Field>
+                  <button
+                    type="button"
+                    onClick={() => void handleForgotPassword()}
+                    disabled={busy}
+                    className="self-end text-[13px] font-medium text-accent underline-offset-4 hover:underline disabled:opacity-60"
+                  >
+                    {t('Forgot password?')}
+                  </button>
+                </div>
+
+                <Submit busy={busy}>{t('Sign in')}</Submit>
+
+                {DEV_AUTH_BYPASS && !isFirebaseConfigured() && (
+                  <p className="rounded-btn border border-pending-line bg-pending-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-pending-fg">
+                    <span className="font-semibold">{t('Developer / demo access.')}</span>{' '}
+                    {t('No password is checked — any email linked to a user signs in.')}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={backToPhone}
+                  className="flex min-h-0 items-center gap-1.5 self-start text-[13.5px] font-medium text-ink-muted transition hover:text-ink"
+                >
+                  <ArrowLeft className="size-3.5" /> {t('Use your mobile number instead')}
+                </button>
+              </form>
+            )}
+
+            {step === 'mfa' && (
+              <div className="flex flex-col gap-6">
+                <header className="flex flex-col gap-2">
+                  <span className="flex size-11 items-center justify-center rounded-card bg-accent-soft text-accent">
+                    <ShieldCheck className="size-5" />
+                  </span>
+                  <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-[-0.02em]">
+                    {t('Two-factor code')}
+                  </h1>
+                  <p className="text-[14.5px] leading-relaxed text-ink-muted">
+                    {t('Enter the 6-digit code from your authenticator app.')}
+                  </p>
+                </header>
+
+                {otpBoxes}
+
+                {busy && (
+                  <p className="flex items-center gap-2 text-[13.5px] text-ink-muted">
+                    <Loader2 className="size-4 animate-spin" /> {t('Verifying…')}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('email');
+                    setCode(Array(OTP_LENGTH).fill(''));
+                    secondFactor.current = null;
+                    setError(null);
+                  }}
+                  className="flex min-h-0 items-center gap-1.5 self-start text-[13.5px] font-medium text-ink-muted transition hover:text-ink"
+                >
+                  <ArrowLeft className="size-3.5" /> {t('Back to email sign-in')}
                 </button>
               </div>
             )}
@@ -517,6 +788,20 @@ export function LoginForm() {
               className="mt-5 rounded-btn border border-blocked/30 bg-blocked-bg px-3.5 py-2.5 text-[13.5px] leading-relaxed text-blocked-fg"
             >
               {error}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {notice && (
+            <motion.p
+              role="status"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mt-5 rounded-btn border border-line bg-raised px-3.5 py-2.5 text-[13.5px] leading-relaxed text-ink-soft"
+            >
+              {notice}
             </motion.p>
           )}
         </AnimatePresence>

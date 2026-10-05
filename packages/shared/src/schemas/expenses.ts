@@ -41,8 +41,16 @@ export const createExpenseSchema = z.object({
   spent_on: isoDateSchema,
   bill_s3_key: z.string().max(512).optional(),
   note: z.string().trim().max(1000).optional(),
+  /** VAT or GST included in `amount` — the reclaimable input tax. */
+  tax_amount: positivePaiseSchema.optional(),
+  /** The supplier's tax registration number; checked against the company's regime. */
+  supplier_tax_id: z.string().trim().max(30).optional(),
   client_id: clientIdSchema.optional(),
-});
+})
+  .refine((value) => value.tax_amount === undefined || value.tax_amount <= value.amount, {
+    message: 'the tax cannot be more than the amount it is part of',
+    path: ['tax_amount'],
+  });
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 
 export const updateExpenseSchema = z
@@ -52,6 +60,8 @@ export const updateExpenseSchema = z
     spent_on: isoDateSchema.optional(),
     bill_s3_key: z.string().max(512).nullable().optional(),
     note: z.string().trim().max(1000).nullable().optional(),
+    tax_amount: positivePaiseSchema.optional(),
+    supplier_tax_id: z.string().trim().max(30).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'no fields to update' });
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
@@ -98,3 +108,9 @@ export function expenseCategoryLabel(category: string): string {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
+
+/** `GET /reports/tax` — VAT or GST paid and charged over a range of days (roadmap Phase 1, item 5). */
+export const taxReportQuerySchema = z
+  .object({ from: isoDateSchema, to: isoDateSchema })
+  .refine((value) => value.from <= value.to, { message: 'from must not be after to', path: ['to'] });
+export type TaxReportQuery = z.infer<typeof taxReportQuerySchema>;

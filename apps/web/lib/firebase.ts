@@ -4,9 +4,14 @@ import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 
 /**
- * Firebase web SDK — used for one thing only: proving the user controls a phone
- * number via OTP. The ID token it returns is exchanged for a BUILDR JWT at
+ * Firebase web SDK — used to prove who somebody is: a phone number via OTP, a Google account, or
+ * an email and password with an optional authenticator-app second step (TOTP, which needs the
+ * project on Identity Platform). The ID token it returns is exchanged for a BUILDR JWT at
  * `POST /auth/exchange` and then never used again (spec §6.2).
+ *
+ * `getAuth` keeps its default persistence — local to this browser, surviving a reload — on
+ * purpose: the account page turns two-factor on and off for whoever signed in with email here,
+ * which it can only do while that Firebase sign-in is still around after the redirect.
  *
  * These values are public client identifiers. The secret half of Firebase is the
  * Admin SDK service account, which lives on the API.

@@ -25,6 +25,19 @@ export const createPlanSchema = z.object({
     .union([z.string(), z.number()])
     .transform((value) => String(value).trim())
     .pipe(z.string().regex(/^\d+$/, 'a price is whole paise')),
+  /**
+   * The price in other currencies (roadmap Phase 0, item 7), each in its own minor units:
+   * { AED: "99900" }. Rupees stay in `price`; a currency with no entry cannot subscribe online.
+   */
+  prices: z
+    .record(
+      z.string().regex(/^[A-Z]{3}$/, 'a currency is a three-letter code'),
+      z
+        .union([z.string(), z.number()])
+        .transform((value) => String(value).trim())
+        .pipe(z.string().regex(/^\d+$/, 'a price is whole minor units')),
+    )
+    .optional(),
   description: z.string().trim().max(300).nullable().optional(),
   /**
    * A ribbon on the card: "Best value", "Most popular", "Premium".

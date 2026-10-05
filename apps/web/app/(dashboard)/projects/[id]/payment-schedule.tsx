@@ -1,6 +1,12 @@
 'use client';
 
-import { PAYMENT_MODE_LABELS, paymentModesFor, type PaymentMode } from '@sitebook/shared';
+import {
+  PAYMENT_MODE_LABELS,
+  paymentModesFor,
+  taxOnTop,
+  taxRule,
+  type PaymentMode,
+} from '@sitebook/shared';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { BadgeIndianRupee, Check, Loader2, Plus, Send, Trash2 } from 'lucide-react';
@@ -42,6 +48,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { minorToAmountInput } from '@/lib/money-input';
 import { useLanguage } from '@/components/language-provider';
 import { useFormat } from '@/components/format-provider';
 
@@ -166,11 +173,14 @@ function Total({ label, value, tone }: { label: string; value: string; tone?: 'd
 
 function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolean }) {
   const { t } = useLanguage();
-  const { money, shortDate } = useFormat();
+  const { money, shortDate, settings } = useFormat();
   const router = useRouter();
   const [pending, start] = useTransition();
   const status = STATUS[stage.status];
   const partPaid = BigInt(stage.paid) > 0n && BigInt(stage.outstanding) > 0n;
+  // VAT is charged on top, so the client is asked for the total; the breakdown sits under it.
+  const taxed = BigInt(stage.tax_amount) > 0n;
+  const taxName = taxRule(settings.taxRegime ?? 'none').taxName ?? t('Tax');
 
   return (
     <div className="flex flex-wrap items-center gap-4 p-4">
@@ -195,7 +205,14 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
       </div>
 
       <div className="flex flex-none flex-col items-end">
-        <span className="font-mono text-[15px] font-semibold">{money(stage.amount)}</span>
+        <span className="font-mono text-[15px] font-semibold">
+          {money(taxed ? stage.total : stage.amount)}
+        </span>
+        {taxed && (
+          <span className="font-mono text-[12px] text-ink-muted">
+            {money(stage.amount)} + {taxName} {money(stage.tax_amount)}
+          </span>
+        )}
         {BigInt(stage.outstanding) > 0n && BigInt(stage.paid) > 0n && (
           <span className="font-mono text-[12px] text-pending-fg">
             {money(stage.outstanding)} left
@@ -236,7 +253,7 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
             body={
               <>
                 <strong className="font-semibold text-ink">{t(stage.label)}</strong> comes off the
-                schedule, and the total the client owes drops by {money(stage.amount)}.
+                schedule, and the total the client owes drops by {money(stage.total)}.
               </>
             }
             confirmLabel={t('Remove')}
@@ -307,11 +324,16 @@ function toPaise(rupees: string, digits = 2): string | null {
 
 function StageDialog({ projectId, milestones }: { projectId: string; milestones: Milestone[] }) {
   const { t } = useLanguage();
-  const { currencyDigits } = useFormat();
+  const { currencyDigits, settings } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
+  const [tax, setTax] = useState('');
+  // VAT goes on top of an instalment; a regime without one (or GST, with no single rate) gets the
+  // field without the shortcut, and no tax at all gets neither.
+  const rule = taxRule(settings.taxRegime ?? 'none');
+  const rate = rule.standardRateBp;
   const [milestoneId, setMilestoneId] = useState('none');
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -321,6 +343,10 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
     const paise = toPaise(amount, currencyDigits);
     if (!label.trim()) return setError('Give it a name the client will recognise');
     if (!paise || paise === '0') return setError('Enter the amount in rupees, like 250000');
+    const taxPaise = rule.taxName && tax.trim() ? toPaise(tax, currencyDigits) : null;
+    if (rule.taxName && tax.trim() && taxPaise === null) {
+      return setError(`${t('Enter the')} ${rule.taxName} ${t('as an amount, like 50')}`);
+    }
     setError(null);
 
     start(async () => {
@@ -328,6 +354,7 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
         projectId,
         label: label.trim(),
         amount: paise,
+        ...(taxPaise && taxPaise !== '0' ? { tax_amount: taxPaise } : {}),
         milestone_id: milestoneId === 'none' ? null : milestoneId,
         due_date: dueDate || null,
       });
@@ -335,6 +362,7 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
       setOpen(false);
       setLabel('');
       setAmount('');
+      setTax('');
       setDueDate('');
       setMilestoneId('none');
       router.refresh();
@@ -374,6 +402,44 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
               placeholder="2500000"
             />
           </Field>
+          {rule.taxName && (
+            <Field
+              label={`${rule.taxName} ${t('on top')}`}
+              htmlFor="stage-tax"
+              optional
+              hint={t('Charged in addition to the amount; the client is asked for both.')}
+            >
+              <div className="flex gap-2">
+                <Input
+                  id="stage-tax"
+                  value={tax}
+                  onChange={(event) => setTax(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="125000"
+                />
+                {rate !== null && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      const net = toPaise(amount, currencyDigits);
+                      if (!net || net === '0') return setError(t('Enter the amount first'));
+                      setError(null);
+                      setTax(
+                        minorToAmountInput(
+                          taxOnTop(BigInt(net), rate).toString(),
+                          currencyDigits,
+                        ),
+                      );
+                    }}
+                  >
+                    {t('Add')} {rate / 100}%
+                  </Button>
+                )}
+              </div>
+            </Field>
+          )}
           <Field label={t('Triggered by')} hint={t('Optional. Links it to a stage on the timeline.')}>
             <Select value={milestoneId} onValueChange={setMilestoneId}>
               <SelectTrigger>

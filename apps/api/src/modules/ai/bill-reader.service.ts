@@ -168,15 +168,16 @@ function normalise(value: unknown, company: BillCompany): Record<string, unknown
   // The amount arrives as printed — "₹1,250.00", "Rs 1250/-" — and the symbols and separators are
   // the vendor's formatting, not the number.
   const amount = field('amount')?.replace(/[^\d.]/g, '') ?? null;
+  const tax = field('tax_amount')?.replace(/[^\d.]/g, '') ?? null;
   const category = field('category');
+  // As many decimals as the currency has: two for rupees and dirhams, three for Kuwaiti dinars.
+  const decimal = new RegExp(`^\\d{1,9}(\\.\\d{1,${currencyMinorDigits(company.currency)}})?$`);
 
   return {
-    // As many decimals as the currency has: two for rupees and dirhams, three for Kuwaiti dinars.
-    amount:
-      amount &&
-      new RegExp(`^\\d{1,9}(\\.\\d{1,${currencyMinorDigits(company.currency)}})?$`).test(amount)
-        ? amount
-        : null,
+    amount: amount && decimal.test(amount) ? amount : null,
+    // The VAT or GST printed on the bill, read the same way. Never worked out from the total: a bill
+    // with no tax line may be exempt, and a guessed figure would end up on a VAT return.
+    tax_amount: tax && decimal.test(tax) ? tax : null,
     vendor: field('vendor'),
     date_printed: field('date_printed'),
     category:
@@ -208,6 +209,7 @@ function systemPrompt(company: BillCompany): string {
   const country = presetFor(company.country)?.name ?? company.country;
   const digits = currencyMinorDigits(company.currency);
   const taxId = taxRule(company.taxRegime).idLabel;
+  const taxName = taxRule(company.taxRegime).taxName;
   return `You read photographs of supplier bills, invoices and cash receipts for a construction company in ${country}, and return JSON.
 
 Return exactly these keys, and nothing else:
@@ -216,6 +218,7 @@ Return exactly these keys, and nothing else:
   date_printed - the bill's own date copied exactly as it is printed, character for character: "25/09/2026", "25 Sep 2026". Do not convert it to another format and do not reorder it.
   category  - one of: ${EXPENSE_CATEGORIES.join(', ')}.
   tax_id    - ${taxId ? `the supplier's ${taxId} if one is printed, exactly as printed.` : 'always null.'}
+  tax_amount - ${taxName ? `the ${taxName} amount printed on the bill, digits and at most ${digits} decimals, no symbols. Null if the bill shows none.` : 'always null.'}
   summary   - up to 15 words on what was bought, in the bill's own words.
 
 Use null for anything you cannot read with confidence. Do not guess, do not infer a date from the photograph, and do not calculate a total that is not printed. A null is useful; a wrong number is not.`;

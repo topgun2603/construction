@@ -132,6 +132,13 @@ const envSchema = z
      * not a collections strategy.
      */
     BILLING_GRACE_DAYS: z.coerce.number().int().min(0).max(60).default(7),
+    /**
+     * Stripe, for every currency other than rupees (roadmap Phase 0, item 7). Unset, checkout runs
+     * dry the way Razorpay's does. The webhook secret is the endpoint's signing secret (whsec_…)
+     * from the Stripe dashboard, not the API key.
+     */
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
     /**
      * Contact address sent to the geocoder in the User-Agent, as its usage policy requires. Without
@@ -252,6 +259,13 @@ const envSchema = z
     }
     // Half-configured billing is worse than none: checkout would create subscriptions that no
     // webhook could ever confirm, leaving tenants charged and still on the old plan.
+    if (value.STRIPE_SECRET_KEY && !value.STRIPE_WEBHOOK_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_WEBHOOK_SECRET'],
+        message: 'STRIPE_SECRET_KEY is set, so STRIPE_WEBHOOK_SECRET must be too',
+      });
+    }
     if (value.RAZORPAY_KEY_ID && !value.RAZORPAY_WEBHOOK_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

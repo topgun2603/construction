@@ -12,6 +12,7 @@ import { PlansService } from '../plans/plans.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { RazorpayService } from '../../integrations/razorpay.service';
+import { StripeService } from '../../integrations/stripe.service';
 import { env } from '../../config/env';
 
 export interface BillingView {
@@ -47,6 +48,7 @@ export class BillingService {
     /** Webhooks arrive with no tenant context, so they are handled outside RLS by event id. */
     private readonly prisma: PrismaService,
     private readonly razorpay: RazorpayService,
+    private readonly stripe: StripeService,
     private readonly tenantCache: TenantCache,
   ) {}
 
@@ -56,7 +58,7 @@ export class BillingService {
       db.subscription.findUnique({ where: { tenantId: actor.tenantId } }),
       db.tenant.findUniqueOrThrow({
         where: { id: actor.tenantId },
-        select: { plan: true },
+        select: { plan: true, currency: true },
       }),
     ]);
 
@@ -70,7 +72,8 @@ export class BillingService {
       cancel_at: subscription?.cancelAt?.toISOString() ?? null,
       last_failure_reason: subscription?.lastFailureReason ?? null,
       checkout_url: null,
-      billing_configured: this.razorpay.configured,
+      billing_configured:
+        tenant.currency === 'INR' ? this.razorpay.configured : this.stripe.configured,
     };
   }
 
@@ -104,7 +107,7 @@ export class BillingService {
     const [tenant, existing] = await Promise.all([
       db.tenant.findUniqueOrThrow({
         where: { id: actor.tenantId },
-        select: { id: true, name: true, plan: true },
+        select: { id: true, name: true, plan: true, currency: true },
       }),
       db.subscription.findUnique({ where: { tenantId: actor.tenantId } }),
     ]);
@@ -112,6 +115,9 @@ export class BillingService {
     if (existing?.status === 'active' && existing.plan === input.plan) {
       throw ApiError.conflict(`You are already subscribed to ${input.plan}`);
     }
+
+    // Rupees go through Razorpay; every other currency through Stripe (roadmap Phase 0, item 7).
+    if (tenant.currency !== 'INR') return this.startStripe(actor, tenant, input);
 
     const owner = await db.user.findFirst({
       where: { role: 'owner', deletedAt: null },
@@ -178,17 +184,22 @@ export class BillingService {
       where: { tenantId: actor.tenantId },
     });
 
-    if (!subscription || !subscription.razorpaySubscriptionId) {
+    const providerId =
+      subscription?.provider === 'stripe'
+        ? subscription.stripeSubscriptionId
+        : subscription?.razorpaySubscriptionId;
+    if (!subscription || !providerId) {
       throw ApiError.conflict('There is no subscription to cancel');
     }
     if (subscription.status === 'cancelled') {
       throw ApiError.conflict('This subscription is already cancelled');
     }
 
-    await this.razorpay.cancelSubscription(
-      subscription.razorpaySubscriptionId,
-      input.at_period_end,
-    );
+    if (subscription.provider === 'stripe') {
+      await this.stripe.cancelSubscription(providerId, input.at_period_end);
+    } else {
+      await this.razorpay.cancelSubscription(providerId, input.at_period_end);
+    }
 
     const immediate = !input.at_period_end;
     await db.subscription.update({
@@ -216,11 +227,14 @@ export class BillingService {
    * - **Tenant resolved from our own data.** The tenant comes from the subscription id we stored, or
    *   from the `notes.tenant_id` we set when creating it — never from anything a caller could choose.
    */
-  async handleWebhook(input: {
-    eventId: string;
-    eventType: string;
-    payload: Record<string, unknown>;
-  }): Promise<{ handled: boolean; duplicate: boolean }> {
+  async handleWebhook(
+    input: {
+      eventId: string;
+      eventType: string;
+      payload: Record<string, unknown>;
+    },
+    provider: 'razorpay' | 'stripe' = 'razorpay',
+  ): Promise<{ handled: boolean; duplicate: boolean }> {
     // The insert is the lock. A unique violation means this event has been seen, so there is nothing
     // to do and Razorpay should stop retrying — hence a 2xx, not an error.
     try {
@@ -237,7 +251,8 @@ export class BillingService {
     }
 
     try {
-      await this.dispatch(input.eventType, input.payload);
+      if (provider === 'stripe') await this.dispatchStripe(input.eventType, input.payload);
+      else await this.dispatch(input.eventType, input.payload);
       await this.prisma.webhookEvent.update({
         where: { eventId: input.eventId },
         data: { handledAt: new Date() },
@@ -256,6 +271,205 @@ export class BillingService {
       this.logger.error(`Webhook ${input.eventType} failed: ${message}`);
       throw error;
     }
+  }
+
+  /**
+   * Begin a Stripe subscription (roadmap Phase 0, item 7): a hosted checkout in the company's
+   * currency, at the catalogue's price for that currency.
+   *
+   * As with Razorpay, nothing is granted here — `checkout.session.completed` does that once Stripe
+   * has taken the money. A currency the plan has no price for is refused rather than converted: an
+   * exchange rate picked at checkout is a price nobody agreed to.
+   */
+  private async startStripe(
+    actor: RequestUser,
+    tenant: { id: string; name: string; currency: string },
+    input: StartSubscriptionInput,
+  ) {
+    const plan = await this.plans.forCode(input.plan);
+    if (!plan) throw ApiError.notFound('Plan');
+    const priced = plan.prices[tenant.currency];
+    if (!priced) {
+      throw ApiError.conflict(
+        `This plan has no ${tenant.currency} price yet — contact us to subscribe.`,
+      );
+    }
+    const amount = BigInt(priced);
+
+    const web = this.config.WEB_BASE_URL ?? 'http://localhost:4000';
+    const checkout = await this.stripe.createCheckout({
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      plan: input.plan,
+      planName: plan.name,
+      currency: tenant.currency,
+      amount,
+      months: plan.months,
+      successUrl: `${web}/settings/billing?checkout=done`,
+      cancelUrl: `${web}/settings/billing?checkout=cancelled`,
+    });
+
+    const data = {
+      plan: input.plan,
+      status: 'trialing' as const,
+      provider: 'stripe',
+      currency: tenant.currency,
+      stripeSessionId: checkout.id,
+      amount,
+      cancelAt: null,
+      cancelledAt: null,
+      lastFailureReason: null,
+    };
+    await this.tenantDb.clientFor(actor.tenantId).subscription.upsert({
+      where: { tenantId: actor.tenantId },
+      create: { tenantId: actor.tenantId, ...data },
+      update: data,
+    });
+
+    return {
+      subscription_id: checkout.id,
+      checkout_url: checkout.url,
+      dry_run: checkout.dryRun,
+      plan: input.plan,
+      amount: amount.toString(),
+    };
+  }
+
+  /** Stripe's events, after the signature check. Unknown types are recorded and ignored. */
+  private async dispatchStripe(eventType: string, payload: Record<string, unknown>): Promise<void> {
+    const data = payload['data'] as { object?: Record<string, unknown> } | undefined;
+    const object = data?.object ?? {};
+    switch (eventType) {
+      case 'checkout.session.completed':
+        await this.onStripeCheckout(object);
+        break;
+      case 'invoice.paid':
+        await this.onStripeInvoice(object, 'paid');
+        break;
+      case 'invoice.payment_failed':
+        await this.onStripePaymentFailed(object);
+        break;
+      case 'customer.subscription.deleted':
+        await this.onStripeCancelled(object);
+        break;
+      default:
+        this.logger.log(`Stripe webhook ${eventType} recorded, no action taken`);
+    }
+  }
+
+  /**
+   * Checkout paid: the plan applies. Matched on the session id we stored, in the tenant the
+   * metadata names — both came from us, and a session that is not that tenant's is ignored.
+   */
+  private async onStripeCheckout(session: Record<string, unknown>): Promise<void> {
+    const metadata = (session['metadata'] ?? {}) as Record<string, unknown>;
+    const tenantId = stringField(metadata, 'tenant_id');
+    const sessionId = stringField(session, 'id');
+    if (!tenantId || !sessionId) return;
+
+    const db = this.tenantDb.clientFor(tenantId);
+    const subscription = await db.subscription.findUnique({ where: { tenantId } });
+    if (!subscription || subscription.stripeSessionId !== sessionId) {
+      this.logger.warn('Stripe checkout matched no subscription of ours — ignoring it');
+      return;
+    }
+
+    const stripeSubscriptionId = stringField(session, 'subscription');
+    const months = await this.plans.monthsFor(subscription.plan);
+    await db.subscription.update({
+      where: { tenantId },
+      data: {
+        status: 'active',
+        stripeSubscriptionId,
+        // Lifetime is a one-off payment, with no period to run out.
+        currentPeriodEnd: months ? addMonths(new Date(), months) : null,
+        lastFailureReason: null,
+      },
+    });
+    if (stripeSubscriptionId) {
+      await this.prisma.stripeIdentity.upsert({
+        where: { stripeSubscriptionId },
+        create: { stripeSubscriptionId, tenantId },
+        update: {},
+      });
+    }
+    await this.applyPlan(tenantId, subscription.plan as Plan, 'Stripe payment cleared');
+  }
+
+  /** A renewal paid: extend the period and keep a copy of the invoice for the owner. */
+  private async onStripeInvoice(invoice: Record<string, unknown>, status: string): Promise<void> {
+    const tenantId = await this.stripeTenant(stringField(invoice, 'subscription'));
+    const invoiceId = stringField(invoice, 'id');
+    if (!tenantId || !invoiceId) return;
+
+    const db = this.tenantDb.clientFor(tenantId);
+    const subscription = await db.subscription.findUnique({ where: { tenantId } });
+    if (!subscription) return;
+
+    const lines = (invoice['lines'] as { data?: Array<{ period?: { end?: number } }> } | undefined)
+      ?.data;
+    const periodEnd = lines?.[0]?.period?.end;
+    await db.subscription.update({
+      where: { tenantId },
+      data: {
+        status: 'active',
+        lastFailureReason: null,
+        ...(periodEnd ? { currentPeriodEnd: new Date(periodEnd * 1000) } : {}),
+      },
+    });
+
+    const created = numberField(invoice, 'created');
+    const transitions = (invoice['status_transitions'] ?? {}) as Record<string, unknown>;
+    const paidAt = numberField(transitions, 'paid_at');
+    await db.invoice.upsert({
+      where: { stripeInvoiceId: invoiceId },
+      create: {
+        tenantId,
+        subscriptionId: subscription.id,
+        stripeInvoiceId: invoiceId,
+        amount: BigInt(numberField(invoice, 'amount_paid') ?? 0),
+        status,
+        invoiceUrl: stringField(invoice, 'hosted_invoice_url'),
+        issuedAt: created ? new Date(created * 1000) : new Date(),
+        paidAt: paidAt ? new Date(paidAt * 1000) : new Date(),
+      },
+      update: { status },
+    });
+  }
+
+  /** A renewal failed. Access is not cut — the same rule as Razorpay; the nightly sweep does that. */
+  private async onStripePaymentFailed(invoice: Record<string, unknown>): Promise<void> {
+    const tenantId = await this.stripeTenant(stringField(invoice, 'subscription'));
+    if (!tenantId) return;
+    await this.tenantDb.clientFor(tenantId).subscription.update({
+      where: { tenantId },
+      data: { status: 'past_due', lastFailureReason: 'The last payment did not go through' },
+    });
+  }
+
+  private async onStripeCancelled(stripeSubscription: Record<string, unknown>): Promise<void> {
+    const tenantId = await this.stripeTenant(stringField(stripeSubscription, 'id'));
+    if (!tenantId) return;
+    const periodEnd = numberField(stripeSubscription, 'current_period_end');
+    await this.tenantDb.clientFor(tenantId).subscription.update({
+      where: { tenantId },
+      data: { status: 'cancelled', cancelledAt: new Date(), cancelAt: null },
+    });
+    await this.lapseTerm(
+      tenantId,
+      'Stripe subscription cancelled',
+      periodEnd ? new Date(periodEnd * 1000) : undefined,
+    );
+  }
+
+  /** The tenant a Stripe subscription id belongs to, from our own directory. */
+  private async stripeTenant(stripeSubscriptionId: string | null): Promise<string | null> {
+    if (!stripeSubscriptionId) return null;
+    const row = await this.prisma.stripeIdentity.findUnique({
+      where: { stripeSubscriptionId },
+      select: { tenantId: true },
+    });
+    return row?.tenantId ?? null;
   }
 
   /** Route an event to its handler. Unknown types are recorded and ignored, never an error. */
@@ -299,9 +513,7 @@ export class BillingService {
     const resolved = await this.resolveTenant(entity);
     if (!resolved) return;
 
-    const periodEnd = entity?.current_end
-      ? new Date(entity.current_end * 1000)
-      : monthFromNow();
+    const periodEnd = entity?.current_end ? new Date(entity.current_end * 1000) : monthFromNow();
 
     await this.tenantDb.clientFor(resolved.tenantId).subscription.update({
       where: { tenantId: resolved.tenantId },
@@ -555,10 +767,13 @@ export class BillingService {
      * list is small, and the alternative is handing billing an RLS-bypassing connection so that every
      * future bug in it can read across tenants.
      */
-    const candidates = await this.prisma.billingIdentity.findMany({
-      select: { tenantId: true },
-      distinct: ['tenantId'],
-    });
+    const [razorpayTenants, stripeTenants] = await Promise.all([
+      this.prisma.billingIdentity.findMany({ select: { tenantId: true }, distinct: ['tenantId'] }),
+      this.prisma.stripeIdentity.findMany({ select: { tenantId: true }, distinct: ['tenantId'] }),
+    ]);
+    const candidates = [
+      ...new Map([...razorpayTenants, ...stripeTenants].map((row) => [row.tenantId, row])).values(),
+    ];
 
     const dropped: string[] = [];
     for (const candidate of candidates) {
@@ -591,10 +806,7 @@ interface SubscriptionEntity {
 }
 
 /** Razorpay nests entities as `payload.<name>.entity`. */
-function entityOf(
-  payload: Record<string, unknown>,
-  name: string,
-): Record<string, unknown> | null {
+function entityOf(payload: Record<string, unknown>, name: string): Record<string, unknown> | null {
   const wrapper = payload[name];
   if (!wrapper || typeof wrapper !== 'object') return null;
   const entity = (wrapper as Record<string, unknown>)['entity'];
@@ -619,4 +831,18 @@ function monthFromNow(): Date {
   const date = new Date();
   date.setUTCMonth(date.getUTCMonth() + 1);
   return date;
+}
+
+function stringField(object: Record<string, unknown>, key: string): string | null {
+  return typeof object[key] === 'string' ? (object[key] as string) : null;
+}
+
+function numberField(object: Record<string, unknown>, key: string): number | null {
+  return typeof object[key] === 'number' ? (object[key] as number) : null;
+}
+
+function addMonths(from: Date, months: number): Date {
+  const next = new Date(from);
+  next.setUTCMonth(next.getUTCMonth() + months);
+  return next;
 }

@@ -4,19 +4,40 @@ import {
   attendanceRegisterQuerySchema,
   labourCostQuerySchema,
   personLedgerQuerySchema,
+  taxReportQuerySchema,
   type AttendanceRegisterQuery,
   type LabourCostQuery,
   type PersonLedgerQuery,
+  type TaxReportQuery,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
 import { CurrentUser, RequiresModule, RequiresPermission } from '../../common/decorators';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { ReportsService } from './reports.service';
+import { TaxReportService } from './tax-report.service';
 
 @ApiTags('reports')
 @Controller('reports')
 export class ReportsController {
-  constructor(private readonly reports: ReportsService) {}
+  constructor(
+    private readonly reports: ReportsService,
+    private readonly taxReport: TaxReportService,
+  ) {}
+
+  /**
+   * VAT or GST paid on expenses and charged on instalments (roadmap Phase 1, item 5). The same gate
+   * as expenses: it is a statement of what the company spent and billed.
+   */
+  @RequiresModule('expenses')
+  @RequiresPermission('expenses.view')
+  @Get('tax')
+  @ApiOperation({ summary: 'Input and output tax over a range, by month' })
+  tax(
+    @CurrentUser() user: RequestUser,
+    @Query(zodBody(taxReportQuerySchema)) query: TaxReportQuery,
+  ) {
+    return this.taxReport.report(user, query);
+  }
 
   /**
    * Gated on `labour` rather than `reports`: knowing this week's labour cost is
@@ -75,5 +96,4 @@ export class ReportsController {
   ) {
     return this.reports.personLedger(user, query);
   }
-
 }

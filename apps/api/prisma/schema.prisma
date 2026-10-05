@@ -40,6 +40,9 @@ model Plan {
   months      Int?
   /// Whole-term price in paise, like all money here.
   pricePaise  BigInt   @map("price_paise")
+  /// The price in other currencies, in each one's minor units: { "AED": 99900 } (roadmap Phase 0,
+  /// item 7). A company paying in a currency with no entry here cannot subscribe online yet.
+  prices      Json     @default("{}")
   /// A sentence under the price, for anything the name cannot carry.
   description String?
   /// A ribbon on the card: "Best value", "Most popular". Null for a plan that is not called out.
@@ -270,6 +273,7 @@ model Tenant {
   invoices           Invoice[]
   projectMedia       ProjectMedia[]
   billingIdentities  BillingIdentity[]
+  stripeIdentities   StripeIdentity[]
   siteMessages       SiteMessage[]
   messageAttachments SiteMessageAttachment[]
   messageReads       SiteMessageRead[]
@@ -983,24 +987,29 @@ model StockMovement {
 /// supervisor photographs a bill on Tuesday for a Saturday purchase, and the cost
 /// belongs to Saturday. Reports group on `spentOn` for that reason.
 model Expense {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String        @map("tenant_id") @db.Uuid
-  projectId   String        @map("project_id") @db.Uuid
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  projectId     String        @map("project_id") @db.Uuid
   /// Paise. Never a float (ADR 0003).
-  amount      BigInt
-  category    String
-  spentOn     DateTime      @map("spent_on") @db.Date
-  billS3Key   String?       @map("bill_s3_key")
-  note        String?
-  status      ExpenseStatus @default(pending)
-  submittedBy String        @map("submitted_by") @db.Uuid
-  approvedBy  String?       @map("approved_by") @db.Uuid
-  approvedAt  DateTime?     @map("approved_at") @db.Timestamptz(6)
+  amount        BigInt
+  category      String
+  spentOn       DateTime      @map("spent_on") @db.Date
+  billS3Key     String?       @map("bill_s3_key")
+  /// VAT or GST included in `amount` (roadmap Phase 1, item 5): the input tax a company can
+  /// reclaim. Zero when the bill showed none or nobody entered it.
+  taxAmount     BigInt        @default(0) @map("tax_amount")
+  /// The supplier's tax registration number, checked against the company's regime.
+  supplierTaxId String?       @map("supplier_tax_id")
+  note          String?
+  status        ExpenseStatus @default(pending)
+  submittedBy   String        @map("submitted_by") @db.Uuid
+  approvedBy    String?       @map("approved_by") @db.Uuid
+  approvedAt    DateTime?     @map("approved_at") @db.Timestamptz(6)
   /// Device-generated id when recorded offline; the sync idempotency key.
-  clientId    String?       @map("client_id") @db.Uuid
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  clientId      String?       @map("client_id") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
   tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1099,6 +1108,11 @@ model Subscription {
   status                 BillingStatus @default(none)
   razorpaySubscriptionId String?       @unique @map("razorpay_subscription_id")
   razorpayPlanId         String?       @map("razorpay_plan_id")
+  /// razorpay | stripe. Rupees go through Razorpay, every other currency through Stripe.
+  provider               String        @default("razorpay")
+  currency               String        @default("INR")
+  stripeSessionId        String?       @unique @map("stripe_session_id")
+  stripeSubscriptionId   String?       @unique @map("stripe_subscription_id")
   /// Paise per cycle, copied at subscribe time so a later price change cannot rewrite history.
   amount                 BigInt        @default(0)
   /// Access runs to here. A past-due tenant keeps working until it passes.
@@ -1146,7 +1160,8 @@ model Invoice {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId          String    @map("tenant_id") @db.Uuid
   subscriptionId    String    @map("subscription_id") @db.Uuid
-  razorpayInvoiceId String    @unique @map("razorpay_invoice_id")
+  razorpayInvoiceId String?   @unique @map("razorpay_invoice_id")
+  stripeInvoiceId   String?   @unique @map("stripe_invoice_id")
   razorpayPaymentId String?   @map("razorpay_payment_id")
   amount            BigInt
   /// `paid`, `issued`, `failed` â€” Razorpay's own words, not translated.
@@ -1449,6 +1464,8 @@ model PaymentStage {
   label       String
   /// Paise.
   amount      BigInt
+  /// VAT charged on top of `amount` (roadmap Phase 1, item 5); the client owes both.
+  taxAmount   BigInt    @default(0) @map("tax_amount")
   dueDate     DateTime? @map("due_date") @db.Date
   sortOrder   Int       @default(0) @map("sort_order")
   /// When the builder actually asked for it. Upcoming, due and paid are derived from this and the
@@ -1655,4 +1672,18 @@ model Camp {
 
   @@index([tenantId])
   @@map("camps")
+}
+
+/// Which tenant a Stripe subscription belongs to — the Stripe twin of BillingIdentity, and like it
+/// one of the few tables with no RLS: a webhook arrives with no tenant context, and the nightly
+/// lapse sweep needs the list of subscribed tenants without reading across them.
+model StripeIdentity {
+  stripeSubscriptionId String   @id @map("stripe_subscription_id")
+  tenantId             String   @map("tenant_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("stripe_identities")
 }

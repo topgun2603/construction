@@ -21,10 +21,10 @@ export function FormatProvider({
   settings: FormatLocale;
   children: React.ReactNode;
 }) {
-  const { currency, locale, timezone, country } = settings;
+  const { currency, locale, timezone, country, taxRegime } = settings;
   const format = useMemo(
-    () => createFormat({ currency, locale, timezone, country }),
-    [currency, locale, timezone, country],
+    () => createFormat({ currency, locale, timezone, country, taxRegime }),
+    [currency, locale, timezone, country, taxRegime],
   );
   return <FormatContext.Provider value={format}>{children}</FormatContext.Provider>;
 }

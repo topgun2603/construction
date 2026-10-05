@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { OverrunFilters } from './overrun-filters';
+import { canSeeTaxReport } from '../tax/access';
 import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Material overrun · BUILDR' };
@@ -53,6 +54,7 @@ export default async function OverrunPage({
         projectId={projectId}
         showAll={showAll}
         isOwnerOrAccounts={['owner', 'accounts'].includes(me.user.role)}
+        showTax={canSeeTaxReport(me)}
       />
 
       <div className="grid gap-3.5 sm:grid-cols-3">

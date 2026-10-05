@@ -15,6 +15,7 @@ import {
   currencyMinorDigits,
   decimalToMinor,
   taxRule,
+  validTaxIdOrNull,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
@@ -35,6 +36,8 @@ const SELECT = {
   spentOn: true,
   billS3Key: true,
   note: true,
+  taxAmount: true,
+  supplierTaxId: true,
   status: true,
   approvedAt: true,
   createdAt: true,
@@ -90,6 +93,10 @@ export class ExpensesService {
       vendor: draft.vendor,
       spent_on: spentOn,
       category: draft.category,
+      tax_amount:
+        draft.tax_amount === null
+          ? null
+          : (decimalToMinor(draft.tax_amount, currencyMinorDigits(actor.currency))?.toString() ?? null),
       tax_id: draft.tax_id,
       tax_id_label: taxRule(actor.taxRegime).idLabel,
       gstin: actor.taxRegime === 'gst_in' ? draft.tax_id : null,
@@ -171,6 +178,8 @@ export class ExpensesService {
           spentOn: isoDateToUtcDate(input.spent_on),
           billS3Key: input.bill_s3_key,
           note: input.note,
+          taxAmount: input.tax_amount ?? 0n,
+          supplierTaxId: supplierTaxId(actor, input.supplier_tax_id),
           submittedBy: actor.userId,
           clientId: input.client_id,
         },
@@ -186,7 +195,7 @@ export class ExpensesService {
     return this.tenantDb.transaction(actor.tenantId, async (tx) => {
       const expense = await tx.expense.findFirst({
         where: { id, deletedAt: null },
-        select: { id: true, projectId: true, status: true, submittedBy: true },
+        select: { id: true, projectId: true, status: true, submittedBy: true, amount: true, taxAmount: true },
       });
       if (!expense) throw ApiError.notFound('Expense');
       await this.access.assertAccess(actor, expense.projectId);
@@ -201,6 +210,17 @@ export class ExpensesService {
         throw ApiError.forbidden('Only the person who recorded this can edit it');
       }
 
+      // The tax is part of the amount, so it can never be more than it — checked against whichever
+      // of the two this edit leaves unchanged.
+      const amount = input.amount ?? expense.amount;
+      const tax = input.tax_amount ?? expense.taxAmount;
+      if (tax > amount) {
+        throw ApiError.validationFailed(
+          { tax_amount: 'more than the amount' },
+          'The tax cannot be more than the amount it is part of',
+        );
+      }
+
       const updated = await tx.expense.update({
         where: { id },
         data: {
@@ -209,6 +229,10 @@ export class ExpensesService {
           ...(input.spent_on === undefined ? {} : { spentOn: isoDateToUtcDate(input.spent_on) }),
           ...(input.bill_s3_key === undefined ? {} : { billS3Key: input.bill_s3_key }),
           ...(input.note === undefined ? {} : { note: input.note }),
+          ...(input.tax_amount === undefined ? {} : { taxAmount: input.tax_amount }),
+          ...(input.supplier_tax_id === undefined
+            ? {}
+            : { supplierTaxId: supplierTaxId(actor, input.supplier_tax_id) }),
         },
         select: SELECT,
       });
@@ -351,6 +375,8 @@ function toView(row: {
   spentOn: Date;
   billS3Key: string | null;
   note: string | null;
+  taxAmount: bigint;
+  supplierTaxId: string | null;
   status: string;
   approvedAt: Date | null;
   createdAt: Date;
@@ -368,6 +394,8 @@ function toView(row: {
     spent_on: utcDateToIsoDate(row.spentOn),
     bill_s3_key: row.billS3Key,
     note: row.note,
+    tax_amount: row.taxAmount,
+    supplier_tax_id: row.supplierTaxId,
     status: row.status,
     submitted_by: { id: row.submitter.id, name: row.submitter.name },
     approved_by: row.approver ? { id: row.approver.id, name: row.approver.name } : null,
@@ -378,3 +406,17 @@ function toView(row: {
 }
 
 export type ExpenseView = ReturnType<typeof toView>;
+
+/**
+ * A supplier's tax number in the company's regime's stored form. One that fails the regime's check
+ * is refused rather than stored: a wrong TRN on a VAT return is the accountant's problem in a year.
+ */
+function supplierTaxId(actor: RequestUser, raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const id = validTaxIdOrNull(actor.taxRegime, raw);
+  if (!id) {
+    const label = taxRule(actor.taxRegime).idLabel ?? 'tax number';
+    throw ApiError.validationFailed({ supplier_tax_id: 'invalid' }, `That is not a valid ${label}`);
+  }
+  return id;
+}

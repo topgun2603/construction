@@ -5,7 +5,7 @@ import { useTransition } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { expenseCategoryLabel } from '@sitebook/shared';
+import { expenseCategoryLabel, taxRule } from '@sitebook/shared';
 import { decideExpense, discardExpense } from '@/lib/actions';
 import { DataTable } from '@/components/data-table';
 import { DeleteRowButton } from '@/components/delete-row-button';
@@ -32,7 +32,8 @@ export function ExpensesTable({
   currentUserId: string;
 }) {
   const { t } = useLanguage();
-  const { money, shortDate } = useFormat();
+  const { money, shortDate, settings } = useFormat();
+  const taxName = taxRule(settings.taxRegime ?? 'none').taxName;
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -93,9 +94,21 @@ export function ExpensesTable({
       meta: { align: 'right' },
       // Sort on the paise integer; the rendered string would sort lexically.
       sortingFn: (a, b) => Number(BigInt(a.original.amount) - BigInt(b.original.amount)),
-      cell: ({ row }) => (
-        <span className="font-mono font-semibold">{money(row.original.amount)}</span>
-      ),
+      cell: ({ row }) => {
+        const { amount, tax_amount } = row.original;
+        // The tax is inside the amount, not added to it, so it sits underneath as a breakdown.
+        const hasTax = taxName !== null && BigInt(tax_amount || '0') > 0n;
+        return (
+          <div className="flex flex-col items-end">
+            <span className="font-mono font-semibold">{money(amount)}</span>
+            {hasTax && (
+              <span className="font-mono text-[11.5px] text-ink-muted">
+                {t('incl.')} {taxName} {money(tax_amount)}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'status',

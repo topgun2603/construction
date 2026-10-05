@@ -22,6 +22,8 @@ function stage(over: Partial<PaymentStage> = {}): PaymentStage {
     project_id: 'p1',
     label: 'On signing',
     amount: '1000000000',
+    tax_amount: '0',
+    total: '1000000000',
     paid: '0',
     outstanding: '1000000000',
     due_date: null,

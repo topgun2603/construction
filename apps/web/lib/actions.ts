@@ -71,6 +71,19 @@ export async function linkGoogle(firebaseToken: string): Promise<ActionResult<{ 
   return result;
 }
 
+/**
+ * Links the verified address from an email-and-password Firebase sign-in.
+ *
+ * The same endpoint as `linkGoogle`: the API reads the address out of any Firebase token that says
+ * the address is verified, whichever provider issued it. Named for what the account page is doing,
+ * so the call reads right where it is made.
+ */
+export async function linkEmailSignIn(
+  firebaseToken: string,
+): Promise<ActionResult<{ email: string }>> {
+  return linkGoogle(firebaseToken);
+}
+
 export async function unlinkGoogle(): Promise<ActionResult<null>> {
   const result = await runAction(() =>
     serverFetch<null>('/me/google', { method: 'DELETE' }),
@@ -395,6 +408,10 @@ export async function recordExpense(input: {
   spent_on: string;
   note?: string;
   bill_s3_key?: string;
+  /** VAT or GST included in `amount`, minor units. */
+  tax_amount?: string;
+  /** The supplier's TRN or GSTIN; the API checks it against the company's regime. */
+  supplier_tax_id?: string;
 }): Promise<ActionResult> {
   const result = await runAction(() => serverFetch('/expenses', { method: 'POST', body: input }));
   if (result.ok) {
@@ -840,6 +857,8 @@ export async function createPaymentStage(input: {
   projectId: string;
   label: string;
   amount: string;
+  /** VAT charged on top of `amount`, minor units. */
+  tax_amount?: string;
   milestone_id?: string | null;
   due_date?: string | null;
 }): Promise<ActionResult<PaymentStage>> {
@@ -859,6 +878,7 @@ export async function updatePaymentStage(input: {
   projectId: string;
   label?: string;
   amount?: string;
+  tax_amount?: string;
   milestone_id?: string | null;
   due_date?: string | null;
   /** Marks it asked-for; the server stamps when, and re-raising does not move that. */

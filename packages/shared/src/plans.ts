@@ -76,6 +76,8 @@ export interface PlanView {
   name: string;
   months: number | null;
   price: string;
+  /** The price in other currencies, minor units as strings: { AED: "99900" }. */
+  prices: Record<string, string>;
   description: string | null;
   /** A ribbon on the card — "Best value" — or null for a plan that is not called out. */
   badge: string | null;

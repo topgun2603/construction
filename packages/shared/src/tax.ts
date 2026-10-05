@@ -84,6 +84,20 @@ export function taxRule(regime: string): TaxRule {
   return TAX_RULES[regime as TaxRegime] ?? TAX_RULES.none;
 }
 
+/**
+ * The tax inside a tax-inclusive amount: AED 105 at 5% holds AED 5 of VAT. Rounded half up to the
+ * minor unit, the way a supplier's invoice rounds it.
+ */
+export function taxIncluded(gross: bigint, rateBp: number): bigint {
+  const rate = BigInt(rateBp);
+  return (gross * rate * 2n + (10_000n + rate)) / ((10_000n + rate) * 2n);
+}
+
+/** The tax to add on top of a net amount: 5% of AED 100 is AED 5. Rounded half up. */
+export function taxOnTop(net: bigint, rateBp: number): bigint {
+  return (net * BigInt(rateBp) * 2n + 10_000n) / 20_000n;
+}
+
 /** A supplier's registration number in the regime's stored form, or null if it is not a real one. */
 export function validTaxIdOrNull(regime: string, raw: string | null | undefined): string | null {
   if (!raw) return null;

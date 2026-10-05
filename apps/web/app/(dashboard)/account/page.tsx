@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { titleCase } from '@/lib/format';
 import { GoogleLink } from './google-link';
+import { EmailSignIn } from './email-sign-in';
 import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Your account · BUILDR' };
@@ -71,6 +72,8 @@ export default async function AccountPage() {
           </div>
         </div>
       </Card>
+
+      <EmailSignIn linkedEmail={me.user.email} />
     </FadeIn>
   );
 }

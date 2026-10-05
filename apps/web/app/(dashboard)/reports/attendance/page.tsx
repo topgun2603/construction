@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { ReportsNav } from '../reports-nav';
+import { canSeeTaxReport } from '../tax/access';
 import { RegisterGrid } from './register-grid';
 import { getT } from '@/lib/i18n-server';
 
@@ -59,6 +60,7 @@ export default async function AttendanceRegisterPage({
         from={from}
         to={to}
         isOwnerOrAccounts={isOwnerOrAccounts}
+        showTax={canSeeTaxReport(me)}
         maxDays={ATTENDANCE_REGISTER_MAX_DAYS}
       />
 

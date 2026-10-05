@@ -276,12 +276,35 @@ export interface Expense {
   spent_on: string;
   bill_s3_key: string | null;
   note: string | null;
+  /** VAT or GST included in `amount`, minor units; `0` when none was recorded. */
+  tax_amount: string;
+  /** The supplier's tax number (TRN, GSTIN), as checked by the API. */
+  supplier_tax_id: string | null;
   status: 'pending' | 'approved' | 'rejected';
   submitted_by: { id: string; name: string };
   approved_by: { id: string; name: string } | null;
   approved_at: string | null;
   created_at: string;
   client_id: string | null;
+}
+
+/**
+ * `GET /reports/tax` — VAT or GST paid on expenses (input) and charged on raised instalments
+ * (output) over a range. Money is minor units; `net_tax` positive is owed, negative reclaimable.
+ */
+export interface TaxReport {
+  tax_name: string | null;
+  standard_rate_bp: number | null;
+  from: string;
+  to: string;
+  input_tax: string;
+  output_tax: string;
+  net_tax: string;
+  taxable_sales: string;
+  expenses_with_tax: number;
+  /** Expenses carrying tax but no supplier tax number — input tax a return cannot claim. */
+  missing_supplier_tax_id: number;
+  by_month: Array<{ month: string; input_tax: string; output_tax: string }>;
 }
 
 export interface ExpenseSummary {
@@ -698,6 +721,10 @@ export interface PaymentStage {
   label: string;
   /** Paise, as decimal strings. Parse with BigInt, never Number. */
   amount: string;
+  /** VAT charged on top of `amount`; `0` when none. `paid` and `outstanding` include it. */
+  tax_amount: string;
+  /** `amount + tax_amount` — what the client is asked for. */
+  total: string;
   paid: string;
   outstanding: string;
   due_date: string | null;

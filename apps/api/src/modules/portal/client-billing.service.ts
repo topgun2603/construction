@@ -16,6 +16,7 @@ const STAGE_SELECT = {
   milestoneId: true,
   label: true,
   amount: true,
+  taxAmount: true,
   dueDate: true,
   sortOrder: true,
   raisedAt: true,
@@ -82,7 +83,8 @@ export class ClientBillingService {
     ]);
 
     const items = stages.map((stage) => view(stage));
-    const scheduled = stages.reduce((sum, stage) => sum + stage.amount, 0n);
+    // What the client owes includes the VAT on each instalment.
+    const scheduled = stages.reduce((sum, stage) => sum + stage.amount + stage.taxAmount, 0n);
     const allocated = stages.reduce(
       (sum, stage) => sum + stage.receipts.reduce((paid, r) => paid + r.amount, 0n),
       0n,
@@ -136,6 +138,7 @@ export class ClientBillingService {
         milestoneId: input.milestone_id ?? null,
         label: input.label,
         amount: input.amount,
+        taxAmount: input.tax_amount ?? 0n,
         dueDate: input.due_date ? new Date(input.due_date) : null,
         sortOrder: (last._max.sortOrder ?? -1) + 1,
         clientId: input.client_id ?? null,
@@ -163,6 +166,7 @@ export class ClientBillingService {
       data: {
         ...(input.label === undefined ? {} : { label: input.label }),
         ...(input.amount === undefined ? {} : { amount: input.amount }),
+        ...(input.tax_amount === undefined ? {} : { taxAmount: input.tax_amount }),
         ...(input.milestone_id === undefined ? {} : { milestoneId: input.milestone_id }),
         ...(input.due_date === undefined
           ? {}
@@ -324,6 +328,7 @@ function view(stage: {
   milestoneId: string | null;
   label: string;
   amount: bigint;
+  taxAmount: bigint;
   dueDate: Date | null;
   sortOrder: number;
   raisedAt: Date | null;
@@ -332,13 +337,17 @@ function view(stage: {
   receipts: Array<{ id: string; amount: bigint; receivedOn: Date }>;
 }) {
   const paid = stage.receipts.reduce((sum, receipt) => sum + receipt.amount, 0n);
-  const outstanding = stage.amount > paid ? stage.amount - paid : 0n;
+  // The client owes the instalment and the VAT on it together.
+  const due = stage.amount + stage.taxAmount;
+  const outstanding = due > paid ? due - paid : 0n;
 
   return {
     id: stage.id,
     project_id: stage.projectId,
     label: stage.label,
     amount: stage.amount.toString(),
+    tax_amount: stage.taxAmount.toString(),
+    total: due.toString(),
     paid: paid.toString(),
     outstanding: outstanding.toString(),
     due_date: stage.dueDate ? stage.dueDate.toISOString().slice(0, 10) : null,
@@ -357,7 +366,7 @@ function view(stage: {
      * `paid` wins over `overdue` deliberately: an instalment settled after its due date is settled,
      * and a screen that keeps shouting about it is a screen people stop reading.
      */
-    status: settled(stage, paid),
+    status: settled({ ...stage, amount: due }, paid),
     created_at: stage.createdAt.toISOString(),
   };
 }
