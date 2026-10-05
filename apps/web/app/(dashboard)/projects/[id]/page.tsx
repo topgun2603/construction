@@ -51,7 +51,7 @@ import { SiteApprovals } from './site-approvals';
 import { AskDocuments } from '@/components/ask-documents';
 import { DocumentsList } from '@/components/documents-list';
 import { getT } from '@/lib/i18n-server';
-import type { CostCodeTemplateSummary, CostReport } from '@/lib/cost-code-types';
+import type { CostCode, CostCodeTemplateSummary, CostReport } from '@/lib/cost-code-types';
 import { CostCodesTab } from './cost-codes';
 import type { SubcontractSummary } from '@/lib/subcontract-types';
 import type { Contractor } from '@/lib/api-types';
@@ -78,6 +78,8 @@ import type {
   SafetyTalkSummary,
 } from '@/lib/safety-types';
 import { SiteSafety } from './site-safety';
+import type { BoqView } from '@/lib/boq-types';
+import { BoqTab } from './boq-tab';
 
 const TABS = [
   'timeline',
@@ -90,6 +92,7 @@ const TABS = [
   'people',
   'materials',
   'cost',
+  'boq',
   'subcontracts',
   'purchases',
   'change-orders',
@@ -364,6 +367,19 @@ export default async function ProjectPage({
         ])
       : null;
 
+  // The bill of quantities (roadmap Phase 2, module 5), fetched only for its own tab. A supervisor
+  // measures against it without the money; the API leaves the rates out for them.
+  const canSeeBoq = ['boq.view', 'boq.measure', 'boq.bill'].some((p) => me.permissions.includes(p));
+  const [boq, boqCostCodes] =
+    active === 'boq' && canSeeBoq
+      ? await Promise.all([
+          serverFetch<BoqView>(`/projects/${id}/boq`),
+          me.permissions.includes('boq.manage')
+            ? serverFetch<CostCode[]>(`/projects/${id}/cost-codes`).catch(() => [] as CostCode[])
+            : ([] as CostCode[]),
+        ])
+      : [null, [] as CostCode[]];
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -427,6 +443,7 @@ export default async function ProjectPage({
         showQuality={canSeeQuality}
         showSchedule={canSeeSchedule}
         showSafety={canSeeSafety}
+        showBoq={canSeeBoq}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -555,6 +572,20 @@ export default async function ProjectPage({
           report={costReport}
           templates={costTemplates}
           canManage={me.permissions.includes('cost_codes.manage')}
+        />
+      )}
+
+      {active === 'boq' && boq && (
+        <BoqTab
+          projectId={id}
+          boq={boq}
+          costCodes={boqCostCodes}
+          can={{
+            view: me.permissions.includes('boq.view'),
+            manage: me.permissions.includes('boq.manage'),
+            measure: me.permissions.includes('boq.measure'),
+            bill: me.permissions.includes('boq.bill'),
+          }}
         />
       )}
 

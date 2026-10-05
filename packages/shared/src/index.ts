@@ -16,6 +16,7 @@ export * from './change-orders';
 export * from './quality';
 export * from './schedule';
 export * from './safety';
+export * from './boq';
 export * from './whatsapp';
 
 export * from './schemas/common';
@@ -34,6 +35,7 @@ export * from './schemas/change-orders';
 export * from './schemas/quality';
 export * from './schemas/schedule';
 export * from './schemas/safety';
+export * from './schemas/boq';
 export * from './schemas/audit';
 export * from './schemas/site';
 export * from './schemas/portal';

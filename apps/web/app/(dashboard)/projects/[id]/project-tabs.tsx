@@ -20,6 +20,7 @@ export function ProjectTabs({
   showQuality = false,
   showSchedule = false,
   showSafety = false,
+  showBoq = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -52,6 +53,8 @@ export function ProjectTabs({
   showSchedule?: boolean;
   /** Safety needs `safety.view`; anybody who can only report does it from the company page. */
   showSafety?: boolean;
+  /** The bill of quantities needs `boq.view`, `boq.measure` or `boq.bill`. */
+  showBoq?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -71,6 +74,7 @@ export function ProjectTabs({
     { key: 'people', label: t('People') },
     ...(showMaterials ? [{ key: 'materials', label: t('Materials') }] : []),
     ...(showCost ? [{ key: 'cost', label: t('Cost codes') }] : []),
+    ...(showBoq ? [{ key: 'boq', label: t('BOQ') }] : []),
     ...(showSubcontracts ? [{ key: 'subcontracts', label: t('Subcontracts') }] : []),
     ...(showPurchases ? [{ key: 'purchases', label: t('Purchases') }] : []),
     ...(showChangeOrders ? [{ key: 'change-orders', label: t('Change orders') }] : []),
