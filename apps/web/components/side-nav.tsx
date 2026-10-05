@@ -12,11 +12,13 @@ import {
   FolderOpen,
   CalendarCheck,
   ClipboardCheck,
+  FileSignature,
   HardHat,
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
   PieChart,
+  ShoppingCart,
   Settings,
   Wallet,
   Warehouse,
@@ -148,6 +150,28 @@ const GROUPS: NavGroup[] = [
         icon: Warehouse,
         module: 'stock',
         permission: 'stock.view',
+      },
+      // Buying for the sites. Receivers see it too: a store keeper signs for deliveries here.
+      {
+        href: '/procurement',
+        label: 'Procurement',
+        icon: ShoppingCart,
+        module: 'materials',
+        permission: [
+          'procurement.view',
+          'procurement.manage',
+          'procurement.receive',
+          'procurement.invoices',
+          'vendors.manage',
+        ],
+      },
+      // A supervisor measures work for a bill without seeing what it is worth.
+      {
+        href: '/subcontracts',
+        label: 'Subcontracts',
+        icon: FileSignature,
+        module: 'projects',
+        permission: ['subcontracts.view', 'subcontracts.measure'],
       },
       // Leak and fraud findings: money people can see, so the same gate as expenses.
       {
