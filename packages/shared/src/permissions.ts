@@ -87,6 +87,16 @@ export const PERMISSIONS = [
   'procurement.receive',
   'procurement.invoices',
 
+  /*
+   * Bill of quantities (roadmap Phase 2, module 5): the client-side BOQ and the running bills raised
+   * against it. Split along the same lines as subcontracts — who sees what the job is priced at, who
+   * writes the BOQ, who measures on site, and who bills the client.
+   */
+  'boq.view',
+  'boq.manage',
+  'boq.measure',
+  'boq.bill',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -302,6 +312,27 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Bill of quantities',
+    items: [
+      {
+        permission: 'boq.view',
+        label: 'See the BOQ, its rates and the bills to the client',
+        note: 'What each item is priced at and what has been billed',
+      },
+      { permission: 'boq.manage', label: 'Import and edit the BOQ and the client’s billing terms' },
+      {
+        permission: 'boq.measure',
+        label: 'Record measurements against BOQ items',
+        note: 'Without “see the BOQ” the rates and amounts stay hidden.',
+      },
+      {
+        permission: 'boq.bill',
+        label: 'Raise, certify and invoice running bills to the client',
+        note: 'An invoiced bill becomes an instalment in the payment schedule',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -433,6 +464,11 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'procurement.manage',
     'procurement.approve',
     'procurement.receive',
+    // The BOQ is the job's: the manager imports it, measures against it and bills the client on it.
+    'boq.view',
+    'boq.manage',
+    'boq.measure',
+    'boq.bill',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -467,6 +503,8 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Measures the subcontractor's work on their own site for the running bill. Not the rates or
     // the bill's money: what a subcontract is worth is the margin, the same as a budget line.
     'subcontracts.measure',
+    // Measures the work against the BOQ on their own site; what it is billed at is not theirs to see.
+    'boq.measure',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.
@@ -508,6 +546,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'vendors.manage',
     'procurement.view',
     'procurement.invoices',
+    // Reads the BOQ and raises the client's bills on it, the same half of the ledger as receipts.
+    'boq.view',
+    'boq.bill',
     'messages.post',
     'messages.internal',
     'documents.view',

@@ -22,6 +22,8 @@ const STAGE_SELECT = {
   raisedAt: true,
   createdAt: true,
   milestone: { select: { id: true, name: true, actualDate: true } },
+  // The BOQ running bill this instalment was raised from, if any (Phase 2, module 5).
+  boqBill: { select: { id: true, number: true } },
   receipts: {
     where: { deletedAt: null },
     select: { id: true, amount: true, receivedOn: true },
@@ -152,10 +154,18 @@ export class ClientBillingService {
     const db = this.tenantDb.clientFor(actor.tenantId);
     const existing = await db.paymentStage.findFirst({
       where: { id: stageId, deletedAt: null },
-      select: { id: true, projectId: true, raisedAt: true },
+      select: { id: true, projectId: true, raisedAt: true, boqBill: { select: { number: true } } },
     });
     if (!existing) throw ApiError.notFound('That instalment');
     await this.access.assertAccess(actor, existing.projectId);
+
+    // An instalment raised from a certified BOQ bill is that bill's figures; changing them here would
+    // leave the bill saying one amount and the schedule another.
+    if (existing.boqBill && (input.amount !== undefined || input.tax_amount !== undefined)) {
+      throw ApiError.conflict(
+        `This instalment is BOQ bill RA-${existing.boqBill.number}; its amount is what the client certified`,
+      );
+    }
 
     if (input.milestone_id) {
       await this.assertMilestoneOnProject(actor, existing.projectId, input.milestone_id);
@@ -200,10 +210,17 @@ export class ClientBillingService {
         id: true,
         projectId: true,
         _count: { select: { receipts: { where: { deletedAt: null } } } },
+        boqBill: { select: { number: true } },
       },
     });
     if (!stage) throw ApiError.notFound('That instalment');
     await this.access.assertAccess(actor, stage.projectId);
+
+    if (stage.boqBill) {
+      throw ApiError.conflict(
+        `This instalment is BOQ bill RA-${stage.boqBill.number}. It stays while the bill does.`,
+      );
+    }
 
     if (stage._count.receipts > 0) {
       throw ApiError.conflict(
@@ -334,6 +351,7 @@ function view(stage: {
   raisedAt: Date | null;
   createdAt: Date;
   milestone: { id: string; name: string; actualDate: Date | null } | null;
+  boqBill: { id: string; number: number } | null;
   receipts: Array<{ id: string; amount: bigint; receivedOn: Date }>;
 }) {
   const paid = stage.receipts.reduce((sum, receipt) => sum + receipt.amount, 0n);
@@ -367,6 +385,8 @@ function view(stage: {
      * and a screen that keeps shouting about it is a screen people stop reading.
      */
     status: settled({ ...stage, amount: due }, paid),
+    /** Set when this instalment is a certified BOQ bill; its amount is then not editable here. */
+    boq_bill: stage.boqBill,
     created_at: stage.createdAt.toISOString(),
   };
 }

@@ -16,6 +16,7 @@ export function ProjectTabs({
   showCost = false,
   showSubcontracts = false,
   showPurchases = false,
+  showBoq = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -40,6 +41,8 @@ export function ProjectTabs({
   showSubcontracts?: boolean;
   /** Purchase orders need `procurement.view` or `procurement.receive`. */
   showPurchases?: boolean;
+  /** The bill of quantities needs `boq.view`, `boq.measure` or `boq.bill`. */
+  showBoq?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -58,6 +61,7 @@ export function ProjectTabs({
     { key: 'people', label: t('People') },
     ...(showMaterials ? [{ key: 'materials', label: t('Materials') }] : []),
     ...(showCost ? [{ key: 'cost', label: t('Cost codes') }] : []),
+    ...(showBoq ? [{ key: 'boq', label: t('BOQ') }] : []),
     ...(showSubcontracts ? [{ key: 'subcontracts', label: t('Subcontracts') }] : []),
     ...(showPurchases ? [{ key: 'purchases', label: t('Purchases') }] : []),
   ];
