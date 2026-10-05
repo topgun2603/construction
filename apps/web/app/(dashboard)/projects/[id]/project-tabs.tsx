@@ -14,6 +14,7 @@ export function ProjectTabs({
   showPayments = false,
   showApprovals = false,
   showCost = false,
+  showPurchases = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -34,6 +35,8 @@ export function ProjectTabs({
   showApprovals?: boolean;
   /** Cost codes and budgets need `cost_codes.view`: what a line is priced at is the margin. */
   showCost?: boolean;
+  /** Purchase orders need `procurement.view` or `procurement.receive`. */
+  showPurchases?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -52,6 +55,7 @@ export function ProjectTabs({
     { key: 'people', label: t('People') },
     ...(showMaterials ? [{ key: 'materials', label: t('Materials') }] : []),
     ...(showCost ? [{ key: 'cost', label: t('Cost codes') }] : []),
+    ...(showPurchases ? [{ key: 'purchases', label: t('Purchases') }] : []),
   ];
 
   return (

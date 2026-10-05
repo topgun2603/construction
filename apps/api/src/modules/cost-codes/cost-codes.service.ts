@@ -140,9 +140,12 @@ export class CostCodesService {
     await this.access.assertAccess(actor, projectId);
     await this.tenantDb.transaction(actor.tenantId, async (tx) => {
       await findCode(tx, projectId, id);
-      const [children, expenses] = await Promise.all([
+      const [children, expenses, orderLines] = await Promise.all([
         tx.costCode.count({ where: { parentId: id } }),
         tx.expense.count({ where: { costCodeId: id, deletedAt: null } }),
+        // A purchase order commits money against the line; the foreign key would refuse anyway,
+        // but with a message about a missing record rather than the order that holds it.
+        tx.purchaseOrderLine.count({ where: { costCodeId: id } }),
       ]);
       if (children > 0) {
         throw ApiError.conflict('This line has lines under it. Remove or move those first.', {
@@ -153,6 +156,12 @@ export class CostCodesService {
         throw ApiError.conflict(
           'Expenses are booked to this line. Rename it, or move the expenses, instead.',
           { expenses },
+        );
+      }
+      if (orderLines > 0) {
+        throw ApiError.conflict(
+          'Purchase orders are booked to this line. Rename it, or change the orders, instead.',
+          { purchase_order_lines: orderLines },
         );
       }
       await tx.costCode.delete({ where: { id } });

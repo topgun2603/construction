@@ -263,7 +263,10 @@ export class StockService {
   }
 
   private async estimatesFor(db: TenantTx | TenantClient, projectId: string) {
-    const rows = await db.materialEstimate.findMany({
+    // Narrowed to one of the two: calling through the union makes TypeScript compare both clients'
+    // argument types structurally, which overflows its stack once the schema is large enough.
+    // Either one runs the same query.
+    const rows = await (db as TenantTx).materialEstimate.findMany({
       where: { projectId },
       select: {
         id: true,

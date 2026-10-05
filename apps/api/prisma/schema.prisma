@@ -235,6 +235,8 @@ model Tenant {
   /// bank or exchange house that pays the salaries. Both appear in every salary file (SIF).
   wpsEmployerId      String?      @map("wps_employer_id")
   wpsBankCode        String?      @map("wps_bank_code")
+  /// Procurement's three-way match tolerance, in basis points (200 = 2%).
+  matchToleranceBp   Int          @default(200) @map("invoice_match_tolerance_bp")
   status             TenantStatus @default(active)
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -288,6 +290,20 @@ model Tenant {
   clientPayments     ClientPayment[]
   approvals          Approval[]
 
+  // Procurement
+  vendors                Vendor[]
+  purchaseApprovalLimits PurchaseApprovalLimit[]
+  purchaseRfqs           PurchaseRfq[]
+  purchaseRfqItems       PurchaseRfqItem[]
+  purchaseQuotes         PurchaseQuote[]
+  purchaseQuoteLines     PurchaseQuoteLine[]
+  purchaseOrders         PurchaseOrder[]
+  purchaseOrderLines     PurchaseOrderLine[]
+  goodsReceipts          GoodsReceipt[]
+  goodsReceiptLines      GoodsReceiptLine[]
+  purchaseInvoices       PurchaseInvoice[]
+  purchaseInvoiceLines   PurchaseInvoiceLine[]
+
   @@map("tenants")
 }
 
@@ -313,6 +329,8 @@ model Role {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users  User[]
+
+  purchaseApprovalLimits PurchaseApprovalLimit[]
 
   @@unique([tenantId, name], map: "roles_tenant_id_name_key")
   @@index([tenantId])
@@ -361,6 +379,15 @@ model User {
   approvalsDecided   Approval[]        @relation("approval_decider")
   messageReads       SiteMessageRead[]
   documentsUploaded  Document[]        @relation("document_uploader")
+
+  // Procurement
+  purchaseApprovalLimits   PurchaseApprovalLimit[]
+  rfqsCreated              PurchaseRfq[]           @relation("rfq_created_by")
+  purchaseOrdersCreated    PurchaseOrder[]         @relation("po_created_by")
+  purchaseOrdersApproved   PurchaseOrder[]         @relation("po_approved_by")
+  goodsReceived            GoodsReceipt[]          @relation("grn_received_by")
+  purchaseInvoicesRecorded PurchaseInvoice[]       @relation("pinv_recorded_by")
+  purchaseInvoicesApproved PurchaseInvoice[]       @relation("pinv_approved_by")
 
   /// Phone is unique within a tenant, not globally â€” the same person can be a
   /// supervisor at one builder and an owner at another.
@@ -434,6 +461,10 @@ model Project {
   stockMovements    StockMovement[]
   media             ProjectMedia[]
   costCodes         CostCode[]
+  purchaseRfqs      PurchaseRfq[]
+  purchaseOrders    PurchaseOrder[]
+  goodsReceipts     GoodsReceipt[]
+  purchaseInvoices  PurchaseInvoice[]
 
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
@@ -866,6 +897,8 @@ model Material {
   indentItems    IndentItem[]
   estimates      MaterialEstimate[]
   stockMovements StockMovement[]
+  rfqItems       PurchaseRfqItem[]
+  orderLines     PurchaseOrderLine[]
 
   @@unique([tenantId, name], map: "materials_tenant_id_name_key")
   @@index([tenantId, updatedAt])
@@ -895,6 +928,8 @@ model MaterialIndent {
 
   items          IndentItem[]
   stockMovements StockMovement[]
+  rfqs           PurchaseRfq[]
+  purchaseOrders PurchaseOrder[]
 
   @@unique([tenantId, clientId], map: "material_indents_tenant_id_client_id_key")
   @@index([tenantId, status])
@@ -980,6 +1015,8 @@ model StockMovement {
   indent   MaterialIndent? @relation(fields: [indentId], references: [id], onDelete: SetNull)
   recorder User            @relation("stock_recorded_by", fields: [recordedBy], references: [id], onDelete: Restrict)
 
+  goodsReceiptLine GoodsReceiptLine?
+
   @@unique([tenantId, clientId], map: "stock_movements_tenant_id_client_id_key")
   @@index([tenantId, projectId, materialId])
   @@index([projectId, movedOn])
@@ -1024,6 +1061,8 @@ model Expense {
   submitter User      @relation("expense_submitted_by", fields: [submittedBy], references: [id], onDelete: Restrict)
   approver  User?     @relation("expense_approved_by", fields: [approvedBy], references: [id], onDelete: SetNull)
   costCode  CostCode? @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+
+  purchaseInvoiceLines PurchaseInvoiceLine[]
 
   @@unique([tenantId, clientId], map: "expenses_tenant_id_client_id_key")
   @@index([tenantId, status])
@@ -1749,6 +1788,9 @@ model CostCode {
   children CostCode[] @relation("cost_code_tree")
   expenses Expense[]
 
+  rfqItems   PurchaseRfqItem[]
+  orderLines PurchaseOrderLine[]
+
   @@unique([projectId, code])
   @@index([tenantId])
   @@index([parentId])
@@ -1792,4 +1834,378 @@ model CostCodeTemplateItem {
   @@unique([templateId, code])
   @@index([tenantId])
   @@map("cost_code_template_items")
+}
+
+// ---------------------------------------------------------------------------
+// Procurement (roadmap Phase 2, module 2)
+// ---------------------------------------------------------------------------
+
+enum PurchaseOrderStatus {
+  draft
+  pending_approval
+  approved
+  sent
+  partially_received
+  received
+  closed
+  cancelled
+
+  @@map("purchase_order_status")
+}
+
+enum RfqStatus {
+  open
+  awarded
+  cancelled
+
+  @@map("rfq_status")
+}
+
+enum PurchaseInvoiceStatus {
+  matched
+  mismatch
+  approved
+  rejected
+
+  @@map("purchase_invoice_status")
+}
+
+/// A supplier of materials. Not a `Contractor`: a contractor supplies labour and is paid through
+/// wage periods; a vendor supplies goods against purchase orders and is paid on invoices.
+/// Never hard-deleted once anything was ordered from it — it is made inactive instead.
+model Vendor {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  name             String
+  contactName      String?  @map("contact_name")
+  /// E.164 without the plus, like every phone in the product.
+  phone            String?
+  email            String?
+  address          String?
+  /// GSTIN, TRN or VAT number, normalised and checked against the company's regime.
+  taxId            String?  @map("tax_id")
+  /// Days after the invoice date the supplier expects payment.
+  paymentTermsDays Int?     @map("payment_terms_days")
+  notes            String?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  quotes         PurchaseQuote[]
+  purchaseOrders PurchaseOrder[]
+  invoices       PurchaseInvoice[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active])
+  @@map("vendors")
+}
+
+/// The most a role or a person may approve on one purchase order (company setting). Exactly one of
+/// `roleId` and `userId`; a person's own row wins over their role's. `maxAmount` null is unlimited.
+/// Anybody no row covers may approve nothing — owners are always unlimited.
+model PurchaseApprovalLimit {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  roleId    String?  @map("role_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  maxAmount BigInt?  @map("max_amount")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role?  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, roleId])
+  @@unique([tenantId, userId])
+  @@map("purchase_approval_limits")
+}
+
+/// A request for quotation: what a site needs, sent to several suppliers to price.
+model PurchaseRfq {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  projectId      String    @map("project_id") @db.Uuid
+  /// `RFQ-0001`, per company.
+  number         String
+  title          String
+  notes          String?
+  status         RfqStatus @default(open)
+  indentId       String?   @map("indent_id") @db.Uuid
+  requiredBy     DateTime? @map("required_by") @db.Date
+  createdBy      String    @map("created_by") @db.Uuid
+  /// The quote that won. Not a foreign key: the quote belongs to this RFQ and goes with it.
+  awardedQuoteId String?   @map("awarded_quote_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  indent         MaterialIndent?   @relation(fields: [indentId], references: [id], onDelete: SetNull)
+  creator        User              @relation("rfq_created_by", fields: [createdBy], references: [id], onDelete: Restrict)
+  items          PurchaseRfqItem[]
+  quotes         PurchaseQuote[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([projectId])
+  @@map("purchase_rfqs")
+}
+
+model PurchaseRfqItem {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  rfqId       String  @map("rfq_id") @db.Uuid
+  materialId  String? @map("material_id") @db.Uuid
+  description String
+  unit        String
+  quantity    Decimal @db.Decimal(14, 3)
+  costCodeId  String? @map("cost_code_id") @db.Uuid
+  position    Int     @default(0)
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rfq        PurchaseRfq         @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  material   Material?           @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  costCode   CostCode?           @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  quoteLines PurchaseQuoteLine[]
+
+  @@index([rfqId])
+  @@index([tenantId])
+  @@map("purchase_rfq_items")
+}
+
+/// One supplier's answer to an RFQ. One per supplier per RFQ; entering it again replaces it.
+model PurchaseQuote {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  rfqId        String    @map("rfq_id") @db.Uuid
+  vendorId     String    @map("vendor_id") @db.Uuid
+  deliveryDays Int?      @map("delivery_days")
+  validUntil   DateTime? @map("valid_until") @db.Date
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rfq    PurchaseRfq         @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  lines  PurchaseQuoteLine[]
+
+  @@unique([rfqId, vendorId])
+  @@index([tenantId])
+  @@map("purchase_quotes")
+}
+
+model PurchaseQuoteLine {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  quoteId   String @map("quote_id") @db.Uuid
+  rfqItemId String @map("rfq_item_id") @db.Uuid
+  /// Minor units per unit, before tax.
+  unitRate  BigInt @map("unit_rate")
+  /// Basis points: 500 = 5%.
+  taxRateBp Int    @map("tax_rate_bp")
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  quote   PurchaseQuote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  rfqItem PurchaseRfqItem @relation(fields: [rfqItemId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteId, rfqItemId])
+  @@index([tenantId])
+  @@map("purchase_quote_lines")
+}
+
+/// An order to a supplier. Totals are stored, added from the lines whenever they change, because
+/// the approval limit is checked against them and a list of orders is sorted and summed by them.
+model PurchaseOrder {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  projectId       String              @map("project_id") @db.Uuid
+  vendorId        String              @map("vendor_id") @db.Uuid
+  /// `PO-00001`, per company.
+  number          String
+  status          PurchaseOrderStatus @default(draft)
+  rfqId           String?             @map("rfq_id") @db.Uuid
+  indentId        String?             @map("indent_id") @db.Uuid
+  notes           String?
+  deliveryAddress String?             @map("delivery_address")
+  expectedOn      DateTime?           @map("expected_on") @db.Date
+  subtotal        BigInt              @default(0)
+  taxTotal        BigInt              @default(0) @map("tax_total")
+  total           BigInt              @default(0)
+  createdBy       String              @map("created_by") @db.Uuid
+  submittedAt     DateTime?           @map("submitted_at") @db.Timestamptz(6)
+  approvedBy      String?             @map("approved_by") @db.Uuid
+  approvedAt      DateTime?           @map("approved_at") @db.Timestamptz(6)
+  /// The approver's note, or why it was sent back.
+  decisionNote    String?             @map("decision_note")
+  sentAt          DateTime?           @map("sent_at") @db.Timestamptz(6)
+  closedAt        DateTime?           @map("closed_at") @db.Timestamptz(6)
+  cancelledAt     DateTime?           @map("cancelled_at") @db.Timestamptz(6)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project  Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vendor   Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  rfq      PurchaseRfq?        @relation(fields: [rfqId], references: [id], onDelete: SetNull)
+  indent   MaterialIndent?     @relation(fields: [indentId], references: [id], onDelete: SetNull)
+  creator  User                @relation("po_created_by", fields: [createdBy], references: [id], onDelete: Restrict)
+  approver User?               @relation("po_approved_by", fields: [approvedBy], references: [id], onDelete: SetNull)
+  lines    PurchaseOrderLine[]
+  receipts GoodsReceipt[]
+  invoices PurchaseInvoice[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([projectId, status])
+  @@index([vendorId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  purchaseOrderId  String  @map("purchase_order_id") @db.Uuid
+  /// From the catalogue where there is one: only those lines can be booked into stock.
+  materialId       String? @map("material_id") @db.Uuid
+  description      String
+  unit             String
+  quantity         Decimal @db.Decimal(14, 3)
+  unitRate         BigInt  @map("unit_rate")
+  taxRateBp        Int     @map("tax_rate_bp")
+  /// quantity × unitRate, rounded; and the tax on it. Stored so the order prints what was agreed.
+  amount           BigInt
+  taxAmount        BigInt  @map("tax_amount")
+  /// Restrict: a cost code with an order against it cannot be deleted out from under it.
+  costCodeId       String? @map("cost_code_id") @db.Uuid
+  /// Sum of goods received against this line; kept in step by the receipt that changes it.
+  receivedQuantity Decimal @default(0) @map("received_quantity") @db.Decimal(14, 3)
+  position         Int     @default(0)
+
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order        PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  material     Material?             @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  costCode     CostCode?             @relation(fields: [costCodeId], references: [id], onDelete: Restrict)
+  receiptLines GoodsReceiptLine[]
+  invoiceLines PurchaseInvoiceLine[]
+
+  @@index([purchaseOrderId])
+  @@index([costCodeId])
+  @@index([tenantId])
+  @@map("purchase_order_lines")
+}
+
+/// A delivery signed for against an order (GRN). Each line books stock in on the site.
+model GoodsReceipt {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  purchaseOrderId String   @map("purchase_order_id") @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  receivedOn      DateTime @map("received_on") @db.Date
+  /// Delivery challan number.
+  ref             String?
+  note            String?
+  receivedBy      String   @map("received_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order    PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  project  Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  receiver User               @relation("grn_received_by", fields: [receivedBy], references: [id], onDelete: Restrict)
+  lines    GoodsReceiptLine[]
+
+  @@index([purchaseOrderId])
+  @@index([tenantId, receivedOn])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  id                  String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String  @map("tenant_id") @db.Uuid
+  receiptId           String  @map("receipt_id") @db.Uuid
+  purchaseOrderLineId String  @map("purchase_order_line_id") @db.Uuid
+  quantity            Decimal @db.Decimal(14, 3)
+  /// The stock ledger row this line wrote; null for a line with no catalogue material.
+  stockMovementId     String? @unique @map("stock_movement_id") @db.Uuid
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receipt       GoodsReceipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  orderLine     PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Cascade)
+  stockMovement StockMovement?    @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+
+  @@index([receiptId])
+  @@index([purchaseOrderLineId])
+  @@index([tenantId])
+  @@map("goods_receipt_lines")
+}
+
+/// A supplier's invoice against an order, matched to the order and to what was received.
+/// Approving it books the expense; until then the order's value stays committed.
+model PurchaseInvoice {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                @map("tenant_id") @db.Uuid
+  purchaseOrderId String                @map("purchase_order_id") @db.Uuid
+  projectId       String                @map("project_id") @db.Uuid
+  vendorId        String                @map("vendor_id") @db.Uuid
+  invoiceNumber   String                @map("invoice_number")
+  invoiceDate     DateTime              @map("invoice_date") @db.Date
+  dueDate         DateTime?             @map("due_date") @db.Date
+  subtotal        BigInt
+  taxTotal        BigInt                @map("tax_total")
+  total           BigInt
+  attachmentS3Key String?               @map("attachment_s3_key")
+  status          PurchaseInvoiceStatus
+  /// What the three-way match found, as `MatchFlag[]`. Empty when it matched.
+  flags           Json                  @default("[]") @db.JsonB
+  /// The tolerance it was matched with, so a later change of setting does not rewrite history.
+  toleranceBp     Int                   @map("tolerance_bp")
+  note            String?
+  recordedBy      String                @map("recorded_by") @db.Uuid
+  approvedBy      String?               @map("approved_by") @db.Uuid
+  approvedAt      DateTime?             @map("approved_at") @db.Timestamptz(6)
+  decisionNote    String?               @map("decision_note")
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order    PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  project  Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vendor   Vendor                @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  recorder User                  @relation("pinv_recorded_by", fields: [recordedBy], references: [id], onDelete: Restrict)
+  approver User?                 @relation("pinv_approved_by", fields: [approvedBy], references: [id], onDelete: SetNull)
+  lines    PurchaseInvoiceLine[]
+
+  /// The same supplier invoice entered twice is how a bill gets paid twice.
+  @@unique([vendorId, invoiceNumber])
+  @@index([tenantId, status])
+  @@index([purchaseOrderId])
+  @@index([projectId])
+  @@map("purchase_invoices")
+}
+
+model PurchaseInvoiceLine {
+  id                  String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String  @map("tenant_id") @db.Uuid
+  invoiceId           String  @map("invoice_id") @db.Uuid
+  purchaseOrderLineId String  @map("purchase_order_line_id") @db.Uuid
+  quantity            Decimal @db.Decimal(14, 3)
+  unitRate            BigInt  @map("unit_rate")
+  amount              BigInt
+  taxAmount           BigInt  @map("tax_amount")
+  /// The expense this line was booked into when the invoice was approved (one per cost code).
+  expenseId           String? @map("expense_id") @db.Uuid
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice   PurchaseInvoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  orderLine PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Cascade)
+  expense   Expense?          @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([purchaseOrderLineId])
+  @@index([expenseId])
+  @@index([tenantId])
+  @@map("purchase_invoice_lines")
 }
