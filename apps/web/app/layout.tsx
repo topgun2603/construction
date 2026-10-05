@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
+import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 import { ServiceWorkerGuard } from '@/components/service-worker-guard';
 import './globals.css';
@@ -8,17 +8,28 @@ import './globals.css';
  * IBM Plex Sans and Plex Mono, self-hosted by next/font — no CDN request, no
  * layout shift. Plex has Devanagari and Tamil siblings at the same weights, which
  * is why the design picked it: localisation lands without a type change.
+ *
+ * The files live in ./fonts rather than coming from next/font/google: that one
+ * downloads from Google at compile time, and a single failed fetch bakes the
+ * fallback face into the build. Latin subset, from @fontsource; OFL in ./fonts.
  */
-const plexSans = IBM_Plex_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const plexSans = localFont({
+  src: [
+    { path: './fonts/ibm-plex-sans-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/ibm-plex-sans-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/ibm-plex-sans-latin-600-normal.woff2', weight: '600', style: 'normal' },
+    { path: './fonts/ibm-plex-sans-latin-700-normal.woff2', weight: '700', style: 'normal' },
+  ],
   variable: '--font-plex-sans',
   display: 'swap',
 });
 
-const plexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const plexMono = localFont({
+  src: [
+    { path: './fonts/ibm-plex-mono-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/ibm-plex-mono-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/ibm-plex-mono-latin-600-normal.woff2', weight: '600', style: 'normal' },
+  ],
   variable: '--font-plex-mono',
   display: 'swap',
 });
