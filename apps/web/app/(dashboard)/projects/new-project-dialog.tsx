@@ -17,12 +17,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
-import { rupeesToPaiseString } from '@/lib/money-input';
+import { amountToMinorString } from '@/lib/money-input';
 import { LocationField } from '@/components/location-field';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 export function NewProjectDialog() {
   const { t } = useLanguage();
+  const { currencyDigits, currencySymbol } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,9 @@ export function NewProjectDialog() {
         address: optional(formData.get('address')),
         start_date: optional(formData.get('start_date')),
         target_end_date: optional(formData.get('target_end_date')),
-        ...(budget ? { budget_amount: rupeesToPaiseString(budget) } : {}),
+        ...(budget
+          ? { budget_amount: amountToMinorString(budget, currencyDigits, currencySymbol) }
+          : {}),
         ...(hasLocation ? { lat, lng } : {}),
       });
 
@@ -86,7 +90,11 @@ export function NewProjectDialog() {
             <Field label={t('Client')} htmlFor="client_name">
               <Input id="client_name" name="client_name" placeholder={t('Optional')} />
             </Field>
-            <Field label={t('Budget (₹)')} htmlFor="budget" hint={t('Whole rupees')}>
+            <Field
+              label={t('Budget (₹)').replace('₹', currencySymbol)}
+              htmlFor="budget"
+              hint={t('Whole rupees')}
+            >
               <Input id="budget" name="budget" inputMode="numeric" placeholder="42000000" />
             </Field>
           </div>

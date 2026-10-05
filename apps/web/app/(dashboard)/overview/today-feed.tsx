@@ -3,7 +3,7 @@ import { FileText } from 'lucide-react';
 import type { DashboardToday } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { timeOfDay } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { cn } from '@/lib/utils';
 import { getT } from '@/lib/i18n-server';
 
@@ -23,6 +23,7 @@ export async function TodayFeed({
   className?: string;
 }) {
   const t = await getT();
+  const { timeOfDay } = await getFormat();
   return (
     <Card className={cn('flex flex-col', className)}>
       <div className="flex flex-none items-center justify-between gap-3 border-b border-line-soft px-4 py-3">

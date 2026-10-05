@@ -11,9 +11,10 @@ import { ReceiveDialog } from './receive-dialog';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { shortDate, titleCase } from '@/lib/format';
+import { titleCase } from '@/lib/format';
 import type { Indent } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const STATUS_TONE: Record<Indent['status'], Tone> = {
   requested: 'pending',
@@ -25,6 +26,7 @@ const STATUS_TONE: Record<Indent['status'], Tone> = {
 
 export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove: boolean }) {
   const { t } = useLanguage();
+  const { instantDate, shortDate } = useFormat();
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -47,7 +49,7 @@ export function IndentCard({ indent, canApprove }: { indent: Indent; canApprove:
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-[16px] font-semibold">{indent.project_name}</span>
             <span className="text-[12.5px] text-ink-muted">
-              {indent.requested_by.name} · {shortDate(indent.created_at.slice(0, 10))}
+              {indent.requested_by.name} · {instantDate(indent.created_at)}
               {indent.required_by && ` · needed by ${shortDate(indent.required_by)}`}
             </span>
           </div>

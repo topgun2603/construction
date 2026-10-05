@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import type { PlanView } from '@sitebook/shared';
 import { platformFetch, type PlatformTenantDetail } from '@/lib/platform-session';
-import { longDate, money, shortDate, titleCase } from '@/lib/format';
+// The platform bills in rupees; a tenant's own currency does not apply here.
+import { indiaFormat, titleCase } from '@/lib/format';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
@@ -10,6 +11,8 @@ import { StatTile } from '@/components/stat-tile';
 import { DangerZone } from './danger-zone';
 import { TenantControls } from './tenant-controls';
 import { getT } from '@/lib/i18n-server';
+
+const { longDate, money, shortDate } = indiaFormat;
 
 export const metadata = { title: 'Tenant · BUILDR platform' };
 

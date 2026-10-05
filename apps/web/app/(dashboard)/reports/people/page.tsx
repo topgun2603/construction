@@ -2,7 +2,8 @@ import { UserCog } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { PersonLedger } from '@/lib/api-types';
-import { addDaysIso, moneyShort, todayIso } from '@/lib/format';
+import { addDaysIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
@@ -27,6 +28,7 @@ export default async function PeopleReportPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const t = await getT();
+  const { moneyShort, todayIso } = await getFormat();
   const params = await searchParams;
   const to = params.to ?? todayIso();
   const from = params.from ?? addDaysIso(to, -29);

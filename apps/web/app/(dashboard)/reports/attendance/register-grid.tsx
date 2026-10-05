@@ -6,7 +6,7 @@ import type { AttendanceRegister } from '@/lib/api-types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { money } from '@/lib/format';
+import { useFormat } from '@/components/format-provider';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
 
@@ -30,6 +30,7 @@ const CELL: Record<string, { label: string; className: string; title: string }> 
 
 export function RegisterGrid({ register }: { register: AttendanceRegister }) {
   const { t } = useLanguage();
+  const { money, weekday, settings, currencyDigits } = useFormat();
   const [query, setQuery] = useState('');
 
   const workers = useMemo(() => {
@@ -50,7 +51,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
       ...register.dates,
       'Days present',
       'Overtime hours',
-      'Earned (INR)',
+      `Earned (${settings.currency})`,
     ];
     const rows = workers.map((worker) => [
       worker.worker_name,
@@ -63,15 +64,15 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
       }),
       worker.days_present,
       worker.overtime_hours,
-      // Rupees with two decimals for a spreadsheet, which has no concept of paise.
-      (Number(BigInt(worker.earned)) / 100).toFixed(2),
+      // Whole units with the currency's decimals for a spreadsheet, which has no concept of minor units.
+      (Number(BigInt(worker.earned)) / 10 ** currencyDigits).toFixed(currencyDigits),
     ]);
 
     const csv = [header, ...rows]
       .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
       .join('\r\n');
 
-    // A BOM so Excel on Windows reads the rupee figures and Indian names as UTF-8
+    // A BOM so Excel on Windows reads the currency figures and Indian names as UTF-8
     // rather than mangling them into the system codepage.
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -123,7 +124,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                   >
                     <span className="block">{date.slice(8)}</span>
                     <span className="block text-[9.5px] uppercase">
-                      {day.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'UTC' })}
+                      {weekday(date)}
                     </span>
                   </th>
                 );

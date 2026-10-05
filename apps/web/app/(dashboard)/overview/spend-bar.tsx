@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card';
-import { moneyShort } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { getT } from '@/lib/i18n-server';
 
 /**
@@ -24,6 +24,7 @@ export async function SpendBar({
   budgetCommitted: string;
 }) {
   const t = await getT();
+  const { moneyShort } = await getFormat();
   const spend = BigInt(spendMonth);
   const labour = BigInt(labourMonth);
   const expenses = BigInt(expensesMonth);

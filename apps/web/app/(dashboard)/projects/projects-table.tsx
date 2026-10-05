@@ -8,13 +8,16 @@ import { DataTable } from '@/components/data-table';
 import { DeleteRowButton } from '@/components/delete-row-button';
 import { deleteProject } from '@/lib/actions';
 import { Badge } from '@/components/ui/badge';
-import { moneyShort, shortDate } from '@/lib/format';
+import type { Format } from '@/lib/format';
 import { schedule, statusLabel, statusTone } from '@/lib/projects';
 import type { ProjectSummary } from '@/lib/api-types';
 import type { Translator } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
-function buildColumns(canDelete: boolean, t: Translator): ColumnDef<ProjectSummary>[] {
+function buildColumns(canDelete: boolean, t: Translator, fmt: Format): ColumnDef<ProjectSummary>[] {
+  const { moneyShort, shortDate } = fmt;
+  const today = fmt.todayIso();
   return [
   {
     accessorKey: 'name',
@@ -38,9 +41,9 @@ function buildColumns(canDelete: boolean, t: Translator): ColumnDef<ProjectSumma
     header: 'Schedule',
     // Sort on the raw number of days left, not the rendered label, so "9 days
     // past target" ranks below "2 days left" instead of alphabetically.
-    accessorFn: (row) => schedule(row)?.daysRemaining ?? Number.MAX_SAFE_INTEGER,
+    accessorFn: (row) => schedule(row, today)?.daysRemaining ?? Number.MAX_SAFE_INTEGER,
     cell: ({ row }) => {
-      const timeline = schedule(row.original);
+      const timeline = schedule(row.original, today);
       if (!timeline) return <span className="text-ink-faint">{t('No dates')}</span>;
       return (
         <div className="flex items-center gap-2">
@@ -114,8 +117,9 @@ export function ProjectsTable({
   toolbar?: ReactNode;
 }) {
   const { t } = useLanguage();
+  const fmt = useFormat();
   const router = useRouter();
-  const columns = buildColumns(canDelete, t);
+  const columns = buildColumns(canDelete, t, fmt);
   return (
     <DataTable
       columns={columns}

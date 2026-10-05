@@ -58,8 +58,32 @@ export type WagePeriodStatus = (typeof WAGE_PERIOD_STATUSES)[number];
 export const LABOUR_PAYMENT_TYPES = ['advance', 'wage', 'bonus', 'deduction'] as const;
 export type LabourPaymentType = (typeof LABOUR_PAYMENT_TYPES)[number];
 
-export const PAYMENT_MODES = ['cash', 'upi', 'bank'] as const;
+/**
+ * How money left. The mobile wallets are record-only (roadmap Phase 1B): the app notes that a
+ * worker was paid by bKash, it does not move the money.
+ */
+export const PAYMENT_MODES = ['cash', 'upi', 'bank', 'bkash', 'nagad', 'esewa', 'khalti'] as const;
 export type PaymentMode = (typeof PAYMENT_MODES)[number];
+
+export const PAYMENT_MODE_LABELS: Readonly<Record<PaymentMode, string>> = Object.freeze({
+  cash: 'Cash',
+  upi: 'UPI',
+  bank: 'Bank transfer',
+  bkash: 'bKash',
+  nagad: 'Nagad',
+  esewa: 'eSewa',
+  khalti: 'Khalti',
+});
+
+/** The modes worth offering in a country: cash and bank everywhere, and the local wallets. */
+export function paymentModesFor(country: string | undefined): PaymentMode[] {
+  const local: Partial<Record<string, PaymentMode[]>> = {
+    IN: ['upi'],
+    BD: ['bkash', 'nagad'],
+    NP: ['esewa', 'khalti'],
+  };
+  return ['cash', ...(local[country ?? 'IN'] ?? []), 'bank'];
+}
 
 export const INDENT_STATUSES = [
   'requested',

@@ -1,5 +1,6 @@
 'use client';
 
+import { PAYMENT_MODE_LABELS, paymentModesFor, type PaymentMode } from '@sitebook/shared';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { BadgeIndianRupee, Check, Loader2, Plus, Send, Trash2 } from 'lucide-react';
@@ -40,9 +41,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { money, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const STATUS: Record<PaymentStage['status'], { label: string; tone: Tone }> = {
   paid: { label: 'Paid', tone: 'done' },
@@ -76,6 +77,7 @@ export function PaymentScheduleTab({
   canManage: boolean;
 }) {
   const { t } = useLanguage();
+  const { money } = useFormat();
   const scheduled = BigInt(schedule.totals.scheduled);
   const budget = schedule.totals.budget ? BigInt(schedule.totals.budget) : null;
   // A schedule that does not add up to the contract is one with an instalment missing from it.
@@ -145,6 +147,7 @@ export function PaymentScheduleTab({
 }
 
 function Total({ label, value, tone }: { label: string; value: string; tone?: 'done' | 'pending' }) {
+  const { money } = useFormat();
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[12.5px] leading-tight text-ink-muted">{label}</span>
@@ -163,6 +166,7 @@ function Total({ label, value, tone }: { label: string; value: string; tone?: 'd
 
 function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolean }) {
   const { t } = useLanguage();
+  const { money, shortDate } = useFormat();
   const router = useRouter();
   const [pending, start] = useTransition();
   const status = STATUS[stage.status];
@@ -252,6 +256,7 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
 
 function ReceiptRow({ receipt, canManage }: { receipt: ClientPayment; canManage: boolean }) {
   const { t } = useLanguage();
+  const { money, shortDate } = useFormat();
   return (
     <div className="flex flex-wrap items-center gap-4 p-4">
       <Check className="size-4 flex-none text-done" />
@@ -260,7 +265,7 @@ function ReceiptRow({ receipt, canManage }: { receipt: ClientPayment; canManage:
           {receipt.stage_label ?? 'Against no particular instalment'}
         </span>
         <span className="text-[12.5px] text-ink-muted">
-          {shortDate(receipt.received_on)} · {receipt.mode.toUpperCase()}
+          {shortDate(receipt.received_on)} · {t(PAYMENT_MODE_LABELS[receipt.mode as PaymentMode] ?? receipt.mode)}
           {receipt.reference && ` · ${receipt.reference}`} · {receipt.recorded_by.name}
         </span>
       </div>
@@ -290,16 +295,19 @@ function ReceiptRow({ receipt, canManage }: { receipt: ClientPayment; canManage:
   );
 }
 
-/** Rupees in the box, paise on the wire. */
-function toPaise(rupees: string): string | null {
+/** Major units in the box, minor units on the wire — `digits` is the currency's, 2 for rupees. */
+function toPaise(rupees: string, digits = 2): string | null {
   const trimmed = rupees.trim().replace(/,/g, '');
-  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
-  const [whole, fraction = ''] = trimmed.split('.');
-  return (BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))).toString();
+  const fraction = digits > 0 ? `(\\.\\d{1,${digits}})?` : '';
+  if (!new RegExp(`^\\d+${fraction}$`).test(trimmed)) return null;
+  const [whole, part = ''] = trimmed.split('.');
+  const minor = BigInt(part.padEnd(digits, '0') || '0');
+  return (BigInt(whole!) * 10n ** BigInt(digits) + minor).toString();
 }
 
 function StageDialog({ projectId, milestones }: { projectId: string; milestones: Milestone[] }) {
   const { t } = useLanguage();
+  const { currencyDigits } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
@@ -310,7 +318,7 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
   const [pending, start] = useTransition();
 
   function submit() {
-    const paise = toPaise(amount);
+    const paise = toPaise(amount, currencyDigits);
     if (!label.trim()) return setError('Give it a name the client will recognise');
     if (!paise || paise === '0') return setError('Enter the amount in rupees, like 250000');
     setError(null);
@@ -410,11 +418,12 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
 
 function ReceiptDialog({ projectId, stages }: { projectId: string; stages: PaymentStage[] }) {
   const { t } = useLanguage();
+  const { money, currencyDigits, todayIso, settings } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState('');
-  const [receivedOn, setReceivedOn] = useState(() => new Date().toISOString().slice(0, 10));
-  const [mode, setMode] = useState<'cash' | 'upi' | 'bank'>('bank');
+  const [receivedOn, setReceivedOn] = useState(() => todayIso());
+  const [mode, setMode] = useState<PaymentMode>('bank');
   const [stageId, setStageId] = useState('none');
   const [reference, setReference] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -423,7 +432,7 @@ function ReceiptDialog({ projectId, stages }: { projectId: string; stages: Payme
   const owing = stages.filter((stage) => BigInt(stage.outstanding) > 0n);
 
   function submit() {
-    const paise = toPaise(amount);
+    const paise = toPaise(amount, currencyDigits);
     if (!paise || paise === '0') return setError('Enter the amount in rupees, like 250000');
     setError(null);
 
@@ -484,9 +493,11 @@ function ReceiptDialog({ projectId, stages }: { projectId: string; stages: Payme
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bank">{t('Bank transfer')}</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="cash">{t('Cash')}</SelectItem>
+                  {paymentModesFor(settings.country).map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t(PAYMENT_MODE_LABELS[option])}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>

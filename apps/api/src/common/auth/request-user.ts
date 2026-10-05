@@ -22,6 +22,17 @@ export interface RequestUser {
   seesAllProjects: boolean;
   plan: Plan;
   enabledModules: string[];
+  /**
+   * The company's clock and money, so a service can say "today" and print an amount the way the
+   * company does without another query. From the same cached tenant read as the plan.
+   */
+  timezone: string;
+  currency: string;
+  locale: string;
+  /** One of TAX_REGIMES — which tax number a bill should carry, for instance. */
+  taxRegime: string;
+  /** ISO country, for anything that reads differently by country: a bill, a phone number. */
+  country: string;
 }
 
 /**

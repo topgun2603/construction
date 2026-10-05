@@ -21,8 +21,9 @@ import type {
   SiteDocument,
   SiteMessagePage,
   TeamMember,
+  SiteForecast,
 } from '@/lib/api-types';
-import { moneyShort, shortDate, timeOfDay } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ import { ProjectTabs } from './project-tabs';
 import { SiteMap } from '@/components/site-map';
 import { WhatsappButton } from '@/components/whatsapp-button';
 import { MaterialEstimates } from './material-estimates';
+import { ForecastCard } from './forecast-card';
 import { EditSiteDialog } from './edit-site-dialog';
 import { AddMemberDialog } from './add-member-dialog';
 import { FileReportDialog } from './file-report-dialog';
@@ -76,6 +78,7 @@ export default async function ProjectPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const t = await getT();
+  const { moneyShort, shortDate, timeOfDay, todayIso } = await getFormat();
   const { id } = await params;
   const { tab } = await searchParams;
   const active: TabKey = (TABS as readonly string[]).includes(tab ?? '')
@@ -227,8 +230,14 @@ export default async function ProjectPage({
   // are exactly the ones that would succeed.
   const canEditTimeline = ['owner', 'project_manager'].includes(me.user.role);
   const canEditSite = me.permissions.includes('projects.manage');
-  const timeline = schedule(project);
+  const timeline = schedule(project, todayIso());
   const budget = project.budget_amount ? BigInt(project.budget_amount) : null;
+
+  // Same gate as the overview: what the site costs the builder, never shown to a client.
+  const forecast =
+    me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
+      ? await serverFetch<SiteForecast | null>(`/projects/${id}/forecast`).catch(() => null)
+      : null;
 
   return (
     <FadeIn className="flex flex-col gap-5">
@@ -268,6 +277,8 @@ export default async function ProjectPage({
           </dl>
         </div>
       </div>
+
+      {forecast && <ForecastCard forecast={forecast} projectId={id} />}
 
       <ProjectTabs
         projectId={id}

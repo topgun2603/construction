@@ -12,6 +12,9 @@ import {
   type ScanBillInput,
   type ScanBillResult,
   type UpdateExpenseInput,
+  currencyMinorDigits,
+  decimalToMinor,
+  taxRule,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
@@ -23,18 +26,6 @@ import { UploadsService } from '../uploads/uploads.service';
 
 /** A photograph of a piece of paper. Anything bigger is not one. */
 const MAX_BILL_BYTES = 8_000_000;
-
-/**
- * "1250" or "1250.5" to integer paise, without a float in the middle.
- *
- * `Number(rupees) * 100` is wrong for exactly the amounts a bill carries: 1250.29 becomes
- * 125028.99999999999, and a rounding there is a rupee out on somebody's accounts.
- */
-function rupeeStringToPaise(rupees: string): bigint {
-  const [whole = '0', fraction = ''] = rupees.split('.');
-  const paise = (fraction + '00').slice(0, 2);
-  return BigInt(whole) * 100n + BigInt(paise);
-}
 
 const SELECT = {
   id: true,
@@ -81,9 +72,16 @@ export class ExpensesService {
       );
     }
 
-    const draft = await this.bills.read(file.body, file.contentType);
+    const draft = await this.bills.read(file.body, file.contentType, {
+      country: actor.country,
+      currency: actor.currency,
+      taxRegime: actor.taxRegime,
+    });
 
-    const amount = draft.amount === null ? null : rupeeStringToPaise(draft.amount);
+    // In the company's minor units: a KWD bill has three decimals, and reading it as paise would
+    // put every Kuwaiti expense out by a factor of ten.
+    const amount =
+      draft.amount === null ? null : decimalToMinor(draft.amount, currencyMinorDigits(actor.currency));
     // Transcribed by the model, interpreted here: a date is the field a vision model gets wrong
     // most quietly, and a month out is an expense in the wrong month's spend.
     const spentOn = draft.date_printed === null ? null : parseBillDate(draft.date_printed, new Date());
@@ -92,7 +90,9 @@ export class ExpensesService {
       vendor: draft.vendor,
       spent_on: spentOn,
       category: draft.category,
-      gstin: draft.gstin,
+      tax_id: draft.tax_id,
+      tax_id_label: taxRule(actor.taxRegime).idLabel,
+      gstin: actor.taxRegime === 'gst_in' ? draft.tax_id : null,
       summary: draft.summary,
       // Named rather than counted, so the form can mark the fields somebody still has to fill.
       unread: Object.entries({

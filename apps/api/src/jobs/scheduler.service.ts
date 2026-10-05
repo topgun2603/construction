@@ -4,6 +4,7 @@ import type { Queue } from 'bullmq';
 import { APP_TIMEZONE } from '@sitebook/shared';
 import { env } from '../config/env';
 import { DEFAULT_JOB_OPTIONS, QUEUE } from './job-types';
+import { TICK_CRON } from './tenant-clock';
 
 /**
  * Registers the cron entries from spec §10.
@@ -13,8 +14,10 @@ import { DEFAULT_JOB_OPTIONS, QUEUE } from './job-types';
  * Stale keys are removed first: changing a cron in config would otherwise leave
  * the old schedule running alongside the new one forever.
  *
- * Every schedule is expressed in Asia/Kolkata. A summary that says "today" has to
- * mean the builder's today, not the server's.
+ * The four per-company jobs register the 15-minute tick in UTC, not their own cron: each run
+ * checks every company against the configured cron on that company's clock (tenant-clock.ts), so
+ * a Dubai owner's 7 pm summary arrives at 7 pm in Dubai. The billing sweep is platform
+ * housekeeping with no company's clock to follow, and stays on Asia/Kolkata.
  */
 @Injectable()
 export class SchedulerService implements OnApplicationBootstrap {
@@ -27,31 +30,18 @@ export class SchedulerService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const schedules: Array<{ queue: Queue; name: string; pattern: string }> = [
-      {
-        queue: this.whatsapp,
-        name: 'fan-out-daily-summary',
-        pattern: this.config.WHATSAPP_SUMMARY_CRON,
-      },
-      {
-        queue: this.whatsapp,
-        name: 'fan-out-dpr-reminder',
-        pattern: this.config.WHATSAPP_DPR_REMINDER_CRON,
-      },
-      {
-        queue: this.reports,
-        name: 'fan-out-labour-rollup',
-        pattern: this.config.REPORTS_ROLLUP_CRON,
-      },
-      {
-        queue: this.reports,
-        name: 'fan-out-wage-period-draft',
-        pattern: this.config.WAGE_PERIOD_DRAFT_CRON,
-      },
+    const schedules: Array<{ queue: Queue; name: string; pattern: string; tz: string }> = [
+      { queue: this.whatsapp, name: 'fan-out-daily-summary', pattern: TICK_CRON, tz: 'UTC' },
+      { queue: this.whatsapp, name: 'fan-out-dpr-reminder', pattern: TICK_CRON, tz: 'UTC' },
+      { queue: this.reports, name: 'fan-out-labour-rollup', pattern: TICK_CRON, tz: 'UTC' },
+      { queue: this.reports, name: 'fan-out-wage-period-draft', pattern: TICK_CRON, tz: 'UTC' },
+      { queue: this.reports, name: 'fan-out-site-forecast', pattern: TICK_CRON, tz: 'UTC' },
+      { queue: this.reports, name: 'fan-out-leak-checks', pattern: TICK_CRON, tz: 'UTC' },
       {
         queue: this.reports,
         name: 'drop-lapsed-subscriptions',
         pattern: this.config.BILLING_SWEEP_CRON,
+        tz: APP_TIMEZONE,
       },
     ];
 
@@ -64,12 +54,12 @@ export class SchedulerService implements OnApplicationBootstrap {
           {},
           {
             ...DEFAULT_JOB_OPTIONS,
-            repeat: { pattern: schedule.pattern, tz: APP_TIMEZONE },
+            repeat: { pattern: schedule.pattern, tz: schedule.tz },
             jobId: schedule.name,
           },
         );
         this.logger.log(
-          { job: schedule.name, cron: schedule.pattern, tz: APP_TIMEZONE },
+          { job: schedule.name, cron: schedule.pattern, tz: schedule.tz },
           'Scheduled',
         );
       }
@@ -81,7 +71,7 @@ export class SchedulerService implements OnApplicationBootstrap {
 
   /** Drops repeatables whose cron no longer matches what config asks for. */
   private async clearStale(
-    schedules: Array<{ queue: Queue; name: string; pattern: string }>,
+    schedules: Array<{ queue: Queue; name: string; pattern: string; tz: string }>,
   ): Promise<void> {
     const wanted = new Map(schedules.map((s) => [s.name, s.pattern]));
 

@@ -15,12 +15,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/phone-input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { rupeesToPaiseString } from '@/lib/money-input';
-import { todayIso } from '@/lib/format';
+import { amountToMinorString } from '@/lib/money-input';
 import type { Contractor, ProjectSummary } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const DIRECT = 'direct';
 
@@ -32,6 +33,7 @@ export function AddWorkerDialog({
   projects: ProjectSummary[];
 }) {
   const { t } = useLanguage();
+  const { currencyDigits, currencySymbol, todayIso } = useFormat();
   const [open, setOpen] = useState(false);
   const [contractorId, setContractorId] = useState<string>(DIRECT);
   const [projectId, setProjectId] = useState<string>('');
@@ -49,8 +51,16 @@ export function AddWorkerDialog({
         // "Direct labour" is an explicit choice in the UI and a null in the API.
         contractor_id: contractorId === DIRECT ? null : contractorId,
         skill_level: skill,
-        daily_wage: rupeesToPaiseString(String(formData.get('daily_wage') ?? '0')),
-        overtime_rate_per_hour: rupeesToPaiseString(String(formData.get('ot_rate') ?? '0')),
+        daily_wage: amountToMinorString(
+          String(formData.get('daily_wage') ?? '0'),
+          currencyDigits,
+          currencySymbol,
+        ),
+        overtime_rate_per_hour: amountToMinorString(
+          String(formData.get('ot_rate') ?? '0'),
+          currencyDigits,
+          currencySymbol,
+        ),
         ...(projectId ? { project_id: projectId, from_date: todayIso() } : {}),
       });
 
@@ -84,7 +94,7 @@ export function AddWorkerDialog({
               <Input id="name" name="name" required placeholder="Raju M" />
             </Field>
             <Field label={t('Phone')} htmlFor="phone">
-              <Input id="phone" name="phone" inputMode="numeric" placeholder={t('Optional')} />
+              <PhoneInput id="phone" name="phone" />
             </Field>
           </div>
 
@@ -107,10 +117,10 @@ export function AddWorkerDialog({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('Daily wage (₹)')} htmlFor="daily_wage">
+            <Field label={t('Daily wage (₹)').replace('₹', currencySymbol)} htmlFor="daily_wage">
               <Input id="daily_wage" name="daily_wage" required inputMode="decimal" placeholder="850" />
             </Field>
-            <Field label={t('Overtime per hour (₹)')} htmlFor="ot_rate">
+            <Field label={t('Overtime per hour (₹)').replace('₹', currencySymbol)} htmlFor="ot_rate">
               <Input id="ot_rate" name="ot_rate" inputMode="decimal" defaultValue="0" />
             </Field>
           </div>

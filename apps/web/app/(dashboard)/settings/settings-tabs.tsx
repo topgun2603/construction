@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
 
 const TABS = [
+  { href: '/settings/company', label: 'Company' },
   { href: '/settings/team', label: 'Team' },
   { href: '/settings/roles', label: 'Roles' },
   { href: '/settings/contractors', label: 'Contractors' },

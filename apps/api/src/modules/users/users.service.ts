@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { planStanding } from '@sitebook/shared';
+import { planStanding, type TenantLocaleInput } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { PhoneAuthService } from '../auth/phone-auth.service';
 import { PlansService } from '../plans/plans.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { selectTenantLocale, tenantLocaleView } from '../../common/tenant-locale';
 
 export interface SelfView {
   user: {
@@ -25,7 +26,7 @@ export interface SelfView {
     plan_name: string | null;
     plan_expires_on: string | null;
     plan_standing: string;
-  };
+  } & TenantLocaleInput;
   enabled_modules: string[];
   /**
    * What this person may do. The web gates its UI on these rather than on the role name, so
@@ -64,6 +65,7 @@ export class UsersService {
           logoUrl: true,
           plan: true,
           planExpiresOn: true,
+          ...selectTenantLocale,
         },
       }),
       db.notification.count({ where: { userId: actor.userId, readAt: null } }),
@@ -97,6 +99,8 @@ export class UsersService {
          */
         plan_expires_on: tenant.planExpiresOn?.toISOString() ?? null,
         plan_standing: planStanding(tenant.planExpiresOn, new Date(), env().BILLING_GRACE_DAYS),
+        // Currency, zone and display locale: what every client formats money and "today" with.
+        ...tenantLocaleView(tenant),
       },
       enabled_modules: actor.enabledModules,
       permissions: [...actor.permissions],

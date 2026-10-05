@@ -5,7 +5,8 @@ import type { PersonLedger } from '@/lib/api-types';
 import { DataTable } from '@/components/data-table';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { money, titleCase } from '@/lib/format';
+import { titleCase } from '@/lib/format';
+import { useFormat } from '@/components/format-provider';
 import { useLanguage } from '@/components/language-provider';
 
 type Row = PersonLedger['people'][number];
@@ -26,6 +27,7 @@ export function PeopleTable({
   currentUserId: string;
 }) {
   const { t } = useLanguage();
+  const { money } = useFormat();
   const columns: ColumnDef<Row>[] = [
     {
       accessorKey: 'name',

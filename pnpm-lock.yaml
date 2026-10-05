@@ -53,6 +53,9 @@ importers:
       bullmq:
         specifier: ^5.21.2
         version: 5.81.4
+      cron-parser:
+        specifier: ^4.9.0
+        version: 4.9.0
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
@@ -207,6 +210,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      country-flag-icons:
+        specifier: ^1.6.20
+        version: 1.6.20
       firebase:
         specifier: ^10.14.0
         version: 10.14.1
@@ -3169,6 +3175,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  country-flag-icons@1.6.20:
+    resolution: {integrity: sha512-py8JiEKzjhYw6HPJ0L7SxLgCYim36UPRTZX43/kqGueUCZLSvnrqAiwW8HtQibur7mdkFQUkjOgdK+o/9FBtaw==}
 
   create-jest@29.7.0:
     resolution: {integrity: sha512-Adz2bdH0Vq3F53KEMJOoftQFutWCukm6J24wbPWRO4k1kMY7gS7ds/uoJkNuV8wDCtWWnuwGcJwpWcih+zEW1Q==}
@@ -8994,6 +9003,8 @@ snapshots:
       path-type: 4.0.0
     optionalDependencies:
       typescript: 5.7.2
+
+  country-flag-icons@1.6.20: {}
 
   create-jest@29.7.0(@types/node@22.20.1)(ts-node@10.9.2(@types/node@22.20.1)(typescript@5.9.3)):
     dependencies:

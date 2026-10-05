@@ -18,14 +18,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { addDaysIso, todayIso, weekStart } from '@/lib/format';
+import { addDaysIso, weekStart } from '@/lib/format';
 import type { Contractor } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const DIRECT = 'direct';
 
 export function GeneratePeriodDialog({ contractors }: { contractors: Contractor[] }) {
   const { t } = useLanguage();
+  const { todayIso } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [contractorId, setContractorId] = useState<string>(DIRECT);

@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type {
   AskDocumentsResult,
+  PaymentMode,
   ScanBillResult,
   TranslateInput,
   TranslateResult,
@@ -17,6 +18,9 @@ import type {
   AttendanceDay,
   Billing,
   ClientPayment,
+  CompanySettings,
+  SiteCheck,
+  SiteForecast,
   DailyReport,
   PaymentStage,
   SiteDocument,
@@ -399,6 +403,72 @@ export async function discardExpense(id: string): Promise<ActionResult> {
  * people on it.
  */
 
+/** Confirm or dismiss a leak or fraud finding. Either way it leaves the open list for good. */
+export async function decideCheck(input: {
+  id: string;
+  decision: 'confirmed' | 'dismissed';
+  note?: string;
+}): Promise<ActionResult<SiteCheck>> {
+  const result = await runAction(() =>
+    serverFetch<SiteCheck>(`/checks/${input.id}`, {
+      method: 'PATCH',
+      body: { decision: input.decision, ...(input.note ? { note: input.note } : {}) },
+    }),
+  );
+  if (result.ok) {
+    revalidatePath('/overview');
+    revalidatePath('/checks');
+  }
+  return result;
+}
+
+/** Run the leak checks now rather than waiting for the night. */
+export async function runChecks(): Promise<ActionResult<{ found: number; added: number }>> {
+  const result = await runAction(() =>
+    serverFetch<{ found: number; added: number }>('/checks/run', { method: 'POST' }),
+  );
+  if (result.ok) {
+    revalidatePath('/overview');
+    revalidatePath('/checks');
+  }
+  return result;
+}
+
+/**
+ * Works a site's cost forecast out again now, rather than waiting for the night's run —
+ * after a big expense, say, when the owner wants to see what it did to the projection.
+ */
+export async function refreshForecast(projectId: string): Promise<ActionResult<SiteForecast>> {
+  const result = await runAction(() =>
+    serverFetch<SiteForecast>(`/projects/${projectId}/forecast/refresh`, { method: 'POST' }),
+  );
+  if (result.ok) {
+    revalidatePath(`/projects/${projectId}`);
+    revalidatePath('/overview');
+  }
+  return result;
+}
+
+/**
+ * The company's country, currency, time zone, display format and tax regime.
+ *
+ * Revalidates the whole layout, not one path: these settings change how every amount and date in
+ * the app is printed, so every cached page is now wrong.
+ */
+export async function updateCompanySettings(input: {
+  country: string;
+  currency: string;
+  timezone: string;
+  locale: string;
+  tax_regime: string;
+}): Promise<ActionResult<CompanySettings>> {
+  const result = await runAction(() =>
+    serverFetch<CompanySettings>('/tenants/current', { method: 'PATCH', body: input }),
+  );
+  if (result.ok) revalidatePath('/', 'layout');
+  return result;
+}
+
 export async function createRole(input: {
   name: string;
   base_role: string;
@@ -681,7 +751,7 @@ export async function recordClientPayment(input: {
   projectId: string;
   amount: string;
   received_on: string;
-  mode: 'cash' | 'upi' | 'bank';
+  mode: PaymentMode;
   stage_id?: string | null;
   reference?: string;
   note?: string;

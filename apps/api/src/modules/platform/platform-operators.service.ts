@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { toE164Indian } from '@sitebook/shared';
+import { toE164 } from '@sitebook/shared';
 import { ApiError } from '../../common/errors/api-error';
 import { normaliseEmail } from '../auth/phone-auth.service';
 import { PlatformAdmins } from './platform-admins.service';
@@ -157,8 +157,8 @@ export class PlatformOperators {
   ): Promise<OperatorView> {
     this.assertRoot(actorPhone);
 
-    const phone = toE164Indian(rawPhone);
-    if (!phone) throw ApiError.validationFailed(undefined, 'That is not an Indian mobile number');
+    const phone = toE164(rawPhone);
+    if (!phone) throw ApiError.validationFailed(undefined, 'That is not a mobile number. Numbers outside India need their country code, like +971.');
 
     // Normalised to the same form sign-in arrives in — trimmed and lower-cased, and nothing
     // cleverer: Gmail ignores dots and `+` suffixes, other providers do not, and normalising on
@@ -229,8 +229,8 @@ export class PlatformOperators {
   async grant(actorPhone: string, input: { phone: string; name?: string }): Promise<OperatorView> {
     this.assertRoot(actorPhone);
 
-    const phone = toE164Indian(input.phone);
-    if (!phone) throw ApiError.validationFailed(undefined, 'That is not an Indian mobile number');
+    const phone = toE164(input.phone);
+    if (!phone) throw ApiError.validationFailed(undefined, 'That is not a mobile number. Numbers outside India need their country code, like +971.');
     if (this.isRoot(phone)) {
       throw ApiError.conflict('That number already has access from the deployment config');
     }
@@ -265,8 +265,8 @@ export class PlatformOperators {
   async revoke(actorPhone: string, rawPhone: string): Promise<void> {
     this.assertRoot(actorPhone);
 
-    const phone = toE164Indian(rawPhone);
-    if (!phone) throw ApiError.validationFailed(undefined, 'That is not an Indian mobile number');
+    const phone = toE164(rawPhone);
+    if (!phone) throw ApiError.validationFailed(undefined, 'That is not a mobile number. Numbers outside India need their country code, like +971.');
     if (this.isRoot(phone)) {
       // The console must not be able to lock out the deployment's owners. Removing a root
       // operator is an environment change, which leaves a record the application cannot rewrite.

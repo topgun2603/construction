@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { instantDate, timeOfDay } from '@/lib/format';
+import { useFormat } from '@/components/format-provider';
 import type { SiteDocument } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
 
@@ -37,6 +37,7 @@ export function DocumentHistoryDialog({
   trigger: ReactNode;
 }) {
   const { t } = useLanguage();
+  const { instantDate, timeOfDay } = useFormat();
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<SiteDocument[] | null>(null);
   const [error, setError] = useState<string | null>(null);

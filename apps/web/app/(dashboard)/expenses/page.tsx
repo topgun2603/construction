@@ -1,6 +1,7 @@
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
-import { addDaysIso, money, todayIso } from '@/lib/format';
+import { addDaysIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import type { Expense, ExpenseSummary, Page, ProjectSummary } from '@/lib/api-types';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
@@ -18,6 +19,7 @@ export const metadata = { title: 'Expenses · BUILDR' };
  */
 export default async function ExpensesPage() {
   const t = await getT();
+  const { money, todayIso } = await getFormat();
   const to = todayIso();
   const from = addDaysIso(to, -29);
 

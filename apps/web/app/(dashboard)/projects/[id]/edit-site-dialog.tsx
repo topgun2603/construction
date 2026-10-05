@@ -27,9 +27,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { LocationField } from '@/components/location-field';
-import { paiseToRupeesInput, rupeesToPaiseString } from '@/lib/money-input';
+import { amountToMinorString, minorToAmountInput } from '@/lib/money-input';
 import { statusLabel } from '@/lib/projects';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /**
  * Editing a site.
@@ -52,6 +53,7 @@ export function EditSiteDialog({
   trigger?: ReactNode;
 }) {
   const { t } = useLanguage();
+  const { currencyDigits, currencySymbol } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export function EditSiteDialog({
     address: project.address ?? '',
     start_date: project.start_date ?? '',
     target_end_date: project.target_end_date ?? '',
-    budget: project.budget_amount ? paiseToRupeesInput(project.budget_amount) : '',
+    budget: project.budget_amount ? minorToAmountInput(project.budget_amount, currencyDigits) : '',
     status: project.status,
   });
   const [coords, setCoords] = useState({
@@ -113,7 +115,9 @@ export function EditSiteDialog({
     }
     if (form.status !== project.status) patch['status'] = form.status;
 
-    const budgetPaise = form.budget.trim() ? rupeesToPaiseString(form.budget.trim()) : null;
+    const budgetPaise = form.budget.trim()
+      ? amountToMinorString(form.budget.trim(), currencyDigits, currencySymbol)
+      : null;
     if (budgetPaise !== (project.budget_amount ?? null)) patch['budget_amount'] = budgetPaise;
 
     if (hasCoords && (lat !== project.lat || lng !== project.lng)) {

@@ -14,10 +14,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { PlanView } from '@sitebook/shared';
-import { money } from '@/lib/format';
+// The platform bills in rupees; a tenant's own currency does not apply here.
+import { indiaFormat } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MODULES, moduleLabel } from './modules';
 import { useLanguage } from '@/components/language-provider';
+
+const { money } = indiaFormat;
 
 /**
  * The levers: plan, modules, and whether the account works at all.

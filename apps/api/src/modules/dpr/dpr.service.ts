@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   isoDateToUtcDate,
   MAX_UPLOAD_BYTES,
-  todayInIst,
+  todayIn,
   utcDateToIsoDate,
   type CreateDprInput,
   type ListDprQuery,
@@ -385,7 +385,7 @@ export class DprService {
       transcript: text,
       language,
       draft: {
-        report_date: input.report_date ?? todayInIst(),
+        report_date: input.report_date ?? todayIn(actor.timezone),
         weather: speech.weather,
         work_done: speech.work_done,
         issues: speech.issues,

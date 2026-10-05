@@ -98,6 +98,11 @@ export class JwtAuthGuard implements CanActivate {
       seesAllProjects: role.seesAllProjects,
       plan: tenant.plan,
       enabledModules: tenant.enabledModules,
+      timezone: tenant.timezone,
+      currency: tenant.currency,
+      locale: tenant.locale,
+      taxRegime: tenant.taxRegime,
+      country: tenant.country,
     };
 
     return true;

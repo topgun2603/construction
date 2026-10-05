@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
-import { inviteMessageText, toE164Indian } from '@sitebook/shared';
+import { inviteMessageText, toE164 } from '@sitebook/shared';
 import { inviteTeamMember } from '@/lib/actions';
 import { WhatsappButton } from '@/components/whatsapp-button';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/phone-input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ProjectSummary } from '@/lib/api-types';
@@ -84,7 +85,7 @@ export function InviteDialog({
       setInvited({
         name,
         // Stored E.164 is what WhatsApp wants; the form takes ten digits.
-        phone: toE164Indian(phone) ?? phone,
+        phone: toE164(phone) ?? phone,
         roleLabel: ROLES.find((entry) => entry.value === role)?.label ?? role,
         siteNames: needsProjects
           ? projects.filter((project) => projectIds.includes(project.id)).map((p) => p.name)
@@ -172,8 +173,8 @@ export function InviteDialog({
             <Field label={t('Name')} htmlFor="name">
               <Input id="name" name="name" required placeholder="Suresh Babu" />
             </Field>
-            <Field label={t('Mobile number')} htmlFor="phone" hint="10 digits">
-              <Input id="phone" name="phone" required inputMode="numeric" placeholder="9876543210" />
+            <Field label={t('Mobile number')} htmlFor="phone">
+              <PhoneInput id="phone" name="phone" required />
             </Field>
           </div>
 

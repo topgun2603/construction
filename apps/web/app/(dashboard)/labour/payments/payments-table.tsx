@@ -1,14 +1,16 @@
 'use client';
 
+import { PAYMENT_MODE_LABELS, type PaymentMode } from '@sitebook/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import { DeleteRowButton } from '@/components/delete-row-button';
 import { deletePayment } from '@/lib/actions';
 import { Badge, type Tone } from '@/components/ui/badge';
-import { money, shortDate, titleCase } from '@/lib/format';
+import { titleCase, type Format } from '@/lib/format';
 import type { LabourPayment } from '@/lib/api-types';
 import type { Translator } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const TYPE_TONE: Record<LabourPayment['type'], Tone> = {
   wage: 'done',
@@ -17,7 +19,7 @@ const TYPE_TONE: Record<LabourPayment['type'], Tone> = {
   deduction: 'blocked',
 };
 
-function buildColumns(t: Translator): ColumnDef<LabourPayment>[] {
+function buildColumns(t: Translator, { money, shortDate }: Format): ColumnDef<LabourPayment>[] {
   return [
   {
     accessorKey: 'paid_on',
@@ -50,7 +52,7 @@ function buildColumns(t: Translator): ColumnDef<LabourPayment>[] {
     accessorKey: 'mode',
     header: t('Mode'),
     cell: ({ row }) => (
-      <span className="text-ink-muted">{row.original.mode.toUpperCase()}</span>
+      <span className="text-ink-muted">{t(PAYMENT_MODE_LABELS[row.original.mode as PaymentMode] ?? row.original.mode)}</span>
     ),
   },
   {
@@ -104,9 +106,10 @@ function buildColumns(t: Translator): ColumnDef<LabourPayment>[] {
 
 export function PaymentsTable({ payments }: { payments: LabourPayment[] }) {
   const { t } = useLanguage();
+  const fmt = useFormat();
   return (
     <DataTable
-      columns={buildColumns(t)}
+      columns={buildColumns(t, fmt)}
       data={payments}
       searchPlaceholder="Search people, references"
       pageSize={25}

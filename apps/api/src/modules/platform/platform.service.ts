@@ -12,7 +12,7 @@ import {
   permissionsForSystemRole,
   planStanding,
   systemRoleSeesAllProjects,
-  toE164Indian,
+  toE164,
   type CreateTenantPlatformInput,
   type PlanStanding,
   type UserRole,
@@ -717,8 +717,8 @@ export class PlatformService {
    * takes.
    */
   async createTenant(actorPhone: string, input: CreateTenantPlatformInput) {
-    const phone = toE164Indian(input.owner_phone);
-    if (!phone) throw ApiError.validationFailed(undefined, 'That is not an Indian mobile number');
+    const phone = toE164(input.owner_phone);
+    if (!phone) throw ApiError.validationFailed(undefined, 'That is not a mobile number. Numbers outside India need their country code, like +971.');
 
     const prisma = this.db.client;
 

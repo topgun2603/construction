@@ -152,6 +152,10 @@ enum PaymentMode {
   cash
   upi
   bank
+  bkash
+  nagad
+  esewa
+  khalti
 
   @@map("payment_mode")
 }
@@ -209,6 +213,19 @@ model Tenant {
   planExpiresOn      DateTime?    @map("plan_expires_on") @db.Timestamptz(6)
   enabledModules     String[]     @default([]) @map("enabled_modules")
   razorpayCustomerId String?      @map("razorpay_customer_id")
+  /// Locale settings (roadmap Phase 0). Defaults are India's, so every existing company reads
+  /// exactly as before. Validated by `tenantLocaleSchema` in @sitebook/shared.
+  /// ISO 3166-1 alpha-2.
+  country            String       @default("IN") @db.Char(2)
+  /// ISO 4217. Fixes the exponent of every minor-unit amount this company has stored, so it is
+  /// set at onboarding and not editable afterwards — changing it would re-read paise as fils.
+  currency           String       @default("INR") @db.Char(3)
+  /// IANA zone. "Today" for attendance and reports, and when scheduled jobs fire.
+  timezone           String       @default("Asia/Kolkata")
+  /// BCP 47 tag for number and date display.
+  locale             String       @default("en-IN")
+  /// One of TAX_REGIMES in @sitebook/shared.
+  taxRegime          String       @default("gst_in") @map("tax_regime")
   status             TenantStatus @default(active)
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -233,6 +250,8 @@ model Tenant {
   materialIndents MaterialIndent[]
   indentItems     IndentItem[]
   expenses        Expense[]
+  siteForecasts   SiteForecast[]
+  siteChecks      SiteCheck[]
   notifications   Notification[]
   syncLogs        SyncLog[]
   auditLogs       AuditLog[]
@@ -389,6 +408,8 @@ model Project {
   labourPayments    LabourPayment[]
   indents           MaterialIndent[]
   expenses          Expense[]
+  siteForecasts     SiteForecast[]
+  siteChecks        SiteCheck[]
   messages          SiteMessage[]
   messageReads      SiteMessageRead[]
   documents         Document[]
@@ -1019,13 +1040,12 @@ model AuthIdentity {
   phone    String
   /// Mirrors `users.email`. What a Google sign-in is looked up by, before any tenant is known.
   email    String?
-
-  @@unique([phone, tenantId], map: "auth_identities_phone_tenant_id_key")
-  @@index([phone])
   // The email index and its per-tenant unique are partial — `WHERE email IS NOT NULL`, so the
   // rows without one cost nothing and do not collide with each other. Prisma cannot express a
   // partial index, so both live in the migration SQL and are deliberately absent here.
 
+  @@unique([phone, tenantId], map: "auth_identities_phone_tenant_id_key")
+  @@index([phone])
   @@map("auth_identities")
 }
 
@@ -1171,10 +1191,10 @@ model PlatformAuditLog {
 /// No `tenant_id` and no RLS, like `platform_audit_log`: it is read before any tenant context
 /// exists, by the BYPASSRLS connection the console uses for everything.
 model PlatformOperator {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// Stored form, `91XXXXXXXXXX`, matching how a verified phone arrives from Firebase.
-  phone      String    @unique
-  name       String?
+  phone     String    @unique
+  name      String?
   /// A Google address this operator may also sign in with.
   ///
   /// An alternative key to the same person, never a second identity: a sign-in by address is
@@ -1183,14 +1203,14 @@ model PlatformOperator {
   ///
   /// Nullable, because most operators never link one, and unique where present so one address can
   /// never open two operator accounts.
-  email      String?   @unique
+  email     String?   @unique
   /// The root operator who granted this. Kept as a phone, not a foreign key, because the
   /// grantor is usually an env entry with no row here at all.
-  grantedBy  String    @map("granted_by")
-  grantedAt  DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  grantedBy String    @map("granted_by")
+  grantedAt DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
   /// Revoked rather than deleted, so the trail of who had access when survives.
-  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
-  revokedBy  String?   @map("revoked_by")
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedBy String?   @map("revoked_by")
 
   @@index([revokedAt])
   @@map("platform_operators")
@@ -1491,4 +1511,71 @@ model Approval {
   @@unique([tenantId, clientId], map: "approvals_tenant_id_client_id_key")
   @@index([projectId, status, createdAt(sort: Desc)])
   @@map("approvals")
+}
+
+/// One forecast per site per day (roadmap: AI agent 2, overrun early warning).
+///
+/// Written nightly on the company's clock and on demand. Kept per day rather than overwritten so
+/// "it was fine last week" can be checked, and so a warning an owner acted on can be found again.
+/// Figures are minor units in the company's currency, like every other amount.
+model SiteForecast {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  asOf        DateTime @map("as_of") @db.Date
+  /// progress | burn_rate | spend_only
+  method      String
+  spent       BigInt
+  budget      BigInt?
+  forecast    BigInt?
+  overrunPct  Int?     @map("overrun_pct")
+  progressPct Int?     @map("progress_pct")
+  elapsedPct  Int?     @map("elapsed_pct")
+  /// ok | watch | warning | critical
+  severity    String
+  /// ForecastDriver[] from @sitebook/shared, amounts as strings.
+  drivers     Json
+  explanation String
+  /// template | ai — whether a language model reworded the explanation.
+  explainedBy String   @map("explained_by")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, asOf])
+  @@index([tenantId, asOf])
+  @@map("site_forecasts")
+}
+
+/// A leak or fraud finding for a person to confirm or dismiss (roadmap: AI agent 3).
+///
+/// Unique on kind + subject so a finding is raised once and a dismissal sticks: the nightly run
+/// inserts what is new and never reopens what somebody has already decided.
+model SiteCheck {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  projectId  String?   @map("project_id") @db.Uuid
+  /// double_booked | never_off | headcount_gap | duplicate_expense | unusual_expense | unidentified_paid
+  kind       String
+  subjectKey String    @map("subject_key")
+  /// high | medium
+  severity   String
+  title      String
+  details    Json
+  /// open | confirmed | dismissed
+  status     String    @default("open")
+  decidedBy  String?   @map("decided_by") @db.Uuid
+  decidedAt  DateTime? @map("decided_at") @db.Timestamptz(6)
+  note       String?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, kind, subjectKey])
+  @@index([tenantId, status])
+  @@map("site_checks")
 }

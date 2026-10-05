@@ -3,11 +3,11 @@
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
-import { APP_TIMEZONE } from '@sitebook/shared';
 import { SearchCommand } from '@/components/search-command';
 import { NotificationBell, type NotificationRow } from '@/components/notification-bell';
 import { UserMenu } from '@/components/user-menu';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /*
  * The header bar: who is here, what they are looking at, when it is, and the three controls that
@@ -82,23 +82,24 @@ export function TopBar({
 }
 
 /**
- * Rendered after mount, not on the server: the site clock must read in
- * Asia/Kolkata regardless of where the app is deployed, and a server-rendered
- * timestamp would hydrate stale and mismatch.
+ * Rendered after mount, not on the server: the site clock must read in the
+ * company's own time zone regardless of where the app is deployed, and a
+ * server-rendered timestamp would hydrate stale and mismatch.
  */
 function Clock() {
+  const { locale, timezone } = useFormat().settings;
   const [now, setNow] = useState<string | null>(null);
 
   useEffect(() => {
     const format = () =>
-      new Intl.DateTimeFormat('en-IN', {
+      new Intl.DateTimeFormat(locale, {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
-        timeZone: APP_TIMEZONE,
+        timeZone: timezone,
       })
         .format(new Date())
         .replace(',', ' ·');
@@ -106,7 +107,7 @@ function Clock() {
     setNow(format());
     const timer = setInterval(() => setNow(format()), 30_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [locale, timezone]);
 
   // Nothing at all until it has mounted: an empty pill with a calendar icon in it reads as a
   // control that failed to load.

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { toE164Indian } from '@sitebook/shared';
+import { toE164 } from '@sitebook/shared';
 import { normaliseEmail } from '../auth/phone-auth.service';
 
 /**
@@ -60,7 +60,7 @@ export class PlatformAdmins {
       const rawPhone = divider === -1 ? trimmed : trimmed.slice(0, divider);
       const rawEmail = divider === -1 ? '' : trimmed.slice(divider + 1).trim();
 
-      const phone = toE164Indian(rawPhone);
+      const phone = toE164(rawPhone);
       if (!phone) {
         // Warn rather than throw: one typo in the list must not take the API down, but
         // it must not silently shrink the allowlist without saying so either.

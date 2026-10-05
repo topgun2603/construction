@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowRight, Building2, Users, Wallet } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
-import { moneyShort } from '@/lib/format';
-import type { DashboardOverview, DashboardToday } from '@/lib/api-types';
+import { getFormat } from '@/lib/format-server';
+import type { DashboardOverview, DashboardToday, SiteCheck, SiteForecast } from '@/lib/api-types';
 import { Button } from '@/components/ui/button';
 import { FadeIn, Stagger, StaggerItem } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils';
 import { StartBanner } from './start-banner';
 import { AttentionStrip } from './attention-strip';
 import { OverrunAlert } from './overrun-alert';
+import { ForecastAlert } from './forecast-alert';
+import { ChecksAlert } from './checks-alert';
 import { SpendBar } from './spend-bar';
 import { TodayFeed } from './today-feed';
 import { getT } from '@/lib/i18n-server';
@@ -31,9 +33,13 @@ export const metadata = { title: 'Overview · BUILDR' };
  */
 export default async function OverviewPage() {
   const t = await getT();
-  const [data, today, me] = await Promise.all([
+  const { moneyShort } = await getFormat();
+  const [data, today, forecasts, checks, me] = await Promise.all([
     serverFetch<DashboardOverview>('/dashboard/overview'),
     serverFetch<DashboardToday>('/dashboard/today'),
+    // A failed forecast read must not take the overview down with it; the card simply stays away.
+    serverFetch<SiteForecast[]>('/forecasts').catch(() => [] as SiteForecast[]),
+    serverFetch<SiteCheck[]>('/checks').catch(() => [] as SiteCheck[]),
     // Shares the layout's `/me` rather than issuing a second one.
     requireSelf(),
   ]);
@@ -116,6 +122,9 @@ export default async function OverviewPage() {
           <AttentionStrip sites={sites} totals={totals} wagePeriods={data.wage_periods} />
         </FadeIn>
       )}
+
+      <ForecastAlert forecasts={forecasts} />
+      <ChecksAlert checks={checks} canDecide={me.permissions.includes('expenses.approve')} />
 
       {sorted.length > 0 && (
         <div className="flex items-center justify-between gap-4">

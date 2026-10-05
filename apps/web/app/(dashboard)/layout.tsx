@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { LANGUAGE_COOKIE } from '@/lib/i18n';
 import { LanguageProvider } from '@/components/language-provider';
+import { FormatProvider } from '@/components/format-provider';
+import { formatLocaleOf } from '@/lib/format-server';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
 import { loadSelf } from '@/lib/session';
@@ -56,6 +58,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       down carries the navigation off the top of the window.
     */
     <LanguageProvider initial={language}>
+    <FormatProvider settings={formatLocaleOf(self)}>
     <div className="flex h-dvh overflow-hidden">
       <SideNav
         tenantName={self.tenant.name}
@@ -78,6 +81,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       </div>
       <Toaster />
     </div>
+    </FormatProvider>
     </LanguageProvider>
   );
 }

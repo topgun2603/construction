@@ -3,6 +3,8 @@ import { Global, Module, type DynamicModule, type Provider } from '@nestjs/commo
 import { ObjectStore } from '../common/storage/object-store.service';
 import { env } from '../config/env';
 import { BillingModule } from '../modules/billing/billing.module';
+import { ForecastsModule } from '../modules/forecasts/forecasts.module';
+import { ChecksModule } from '../modules/checks/checks.module';
 import { DocumentTextService } from '../modules/portal/document-text.service';
 import { WagePeriodsModule } from '../modules/wage-periods/wage-periods.module';
 import { DEFAULT_JOB_OPTIONS, QUEUE } from './job-types';
@@ -67,7 +69,8 @@ export class JobsModule {
         ...queues.map((name) => BullModule.registerQueue({ name })),
         // Only the worker drafts wage periods, and only it needs the service.
         // Only the worker runs these: it drafts wage periods and sweeps lapsed subscriptions.
-        ...(isWorker ? [WagePeriodsModule, BillingModule] : []),
+        // And it works out the nightly cost forecasts with the same service the refresh button uses.
+        ...(isWorker ? [WagePeriodsModule, BillingModule, ForecastsModule, ChecksModule] : []),
       ],
       providers,
       exports: [JobQueueService],

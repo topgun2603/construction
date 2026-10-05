@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  ShieldAlert,
   Banknote,
   Receipt,
   Building2,
@@ -134,6 +135,14 @@ const GROUPS: NavGroup[] = [
         permission: 'expenses.view',
       },
       { href: '/stock', label: 'Stock', icon: Warehouse, module: 'stock', permission: 'stock.view' },
+      // Leak and fraud findings: money people can see, so the same gate as expenses.
+      {
+        href: '/checks',
+        label: 'Checks',
+        icon: ShieldAlert,
+        module: 'dashboard',
+        permission: 'expenses.view',
+      },
     ],
   },
   {

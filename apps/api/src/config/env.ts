@@ -106,6 +106,10 @@ const envSchema = z
     REPORTS_ROLLUP_CRON: z.string().default('0 1 * * *'),
     /** Auto-draft wage periods for contractors whose period just ended. */
     WAGE_PERIOD_DRAFT_CRON: z.string().default('0 2 * * *'),
+    // Cost forecasts per site, on each company's clock: after the night's rollup and drafts.
+    SITE_FORECAST_CRON: z.string().default('0 3 * * *'),
+    // Leak and fraud checks, on each company's clock, after the forecasts.
+    LEAK_CHECK_CRON: z.string().default('30 3 * * *'),
     /**
      * Drops the plan for subscriptions whose paid period and grace window have both passed. Runs after
      * the wage drafts so a tenant losing Pro does so on a quiet database rather than mid-rollup.

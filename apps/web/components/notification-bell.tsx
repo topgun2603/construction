@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { markAllNotificationsRead } from '@/lib/actions';
-import { relativeTime } from '@/lib/format';
+import { useFormat } from '@/components/format-provider';
 import { useLanguage } from '@/components/language-provider';
 
 export interface NotificationRow {
@@ -33,6 +33,7 @@ export interface NotificationRow {
  */
 export function NotificationBell({ items }: { items: NotificationRow[] }) {
   const { t } = useLanguage();
+  const { relativeTime } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();

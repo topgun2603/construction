@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { toE164Indian } from '@sitebook/shared';
+import { toE164 } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
 
@@ -66,10 +66,10 @@ export class PhoneAuthService {
     if (decoded.phone_number) {
       const normalised = normalisePhone(decoded.phone_number);
       if (!normalised) {
-        // Firebase will happily verify a number from any country; we only issue
-        // sessions for Indian mobiles, which is what every stored phone is.
+        // Firebase will happily verify a number from any country; we only issue sessions for
+        // mobiles in a country a company can be in (PHONE_COUNTRIES in @sitebook/shared).
         this.logger.warn('Firebase token carried a phone we cannot store');
-        throw ApiError.invalidToken('Only Indian mobile numbers can sign in');
+        throw ApiError.invalidToken('Mobile numbers from this country cannot sign in yet');
       }
       return { kind: 'phone', phone: normalised };
     }
@@ -172,8 +172,9 @@ export function normaliseEmail(email: string): string {
 }
 
 /**
- * Store phones as `91XXXXXXXXXX`: E.164 without the plus. Returns null when the
- * input is not an Indian mobile.
+ * Store phones as E.164 without the plus (`919876543210`, `971501234567`). Returns null when
+ * the input is not a mobile in a supported country. Firebase sends `+`-prefixed numbers, and dev
+ * tokens spell them with their calling code, so neither depends on the Indian default.
  *
  * Delegates to the shared helper rather than repeating the rules, because this and
  * `phoneSchema` have to agree exactly: invite writes the phone through the schema
@@ -181,5 +182,5 @@ export function normaliseEmail(email: string): string {
  * person out of their account with nothing to show in the logs.
  */
 export function normalisePhone(phone: string): string | null {
-  return toE164Indian(phone);
+  return toE164(phone);
 }

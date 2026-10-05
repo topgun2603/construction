@@ -2,7 +2,7 @@ import { serverFetch } from '@/lib/server-api';
 import type { Contractor, LabourPayment, Page, Worker } from '@/lib/api-types';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
-import { money } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { RecordPaymentDialog } from './record-payment-dialog';
 import { PaymentsTable } from './payments-table';
 import { getT } from '@/lib/i18n-server';
@@ -11,6 +11,7 @@ export const metadata = { title: 'Labour payments · BUILDR' };
 
 export default async function PaymentsPage() {
   const t = await getT();
+  const { money } = await getFormat();
   const [payments, workers, contractors] = await Promise.all([
     serverFetch<Page<LabourPayment>>('/labour-payments?limit=200'),
     serverFetch<Page<Worker>>('/workers?limit=500&status=active'),

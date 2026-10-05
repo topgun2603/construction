@@ -19,13 +19,14 @@ import {
 import { Input, Textarea } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { rupeesToPaiseString } from '@/lib/money-input';
-import { todayIso } from '@/lib/format';
+import { amountToMinorString } from '@/lib/money-input';
 import type { ProjectSummary } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }) {
   const { t } = useLanguage();
+  const { settings, currencySymbol, currencyDigits, todayIso } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [projectId, setProjectId] = useState(projects[0]?.id ?? '');
@@ -89,15 +90,18 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
         const spentOn = form.elements.namedItem('spent_on') as HTMLInputElement | null;
         const note = form.elements.namedItem('note') as HTMLTextAreaElement | null;
         // Rupees back out of paise for the field, which is what a person is reading.
-        if (amount && draft.amount) amount.value = (Number(draft.amount) / 100).toFixed(2);
+        if (amount && draft.amount) {
+          amount.value = (Number(draft.amount) / 10 ** currencyDigits).toFixed(currencyDigits);
+        }
         if (spentOn && draft.spent_on) spentOn.value = draft.spent_on;
         if (note) {
-          // The GSTIN only reaches here if its check digit validated, so it is worth keeping for
-          // whoever reconciles the input credit. Expenses have no column for it; the note does.
+          // The supplier's tax number (GSTIN, TRN, VAT number — whatever the company's regime uses)
+          // only reaches here if it passed that regime's check, so it is worth keeping for whoever
+          // reconciles the input credit. Expenses have no column for it; the note does.
           note.value = [
             draft.vendor,
             draft.summary,
-            draft.gstin ? `GSTIN ${draft.gstin}` : null,
+            draft.tax_id ? `${draft.tax_id_label ?? 'Tax no.'} ${draft.tax_id}` : null,
           ]
             .filter(Boolean)
             .join(' — ');
@@ -121,7 +125,11 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
     start(async () => {
       const result = await recordExpense({
         project_id: projectId,
-        amount: rupeesToPaiseString(String(formData.get('amount') ?? '0')),
+        amount: amountToMinorString(
+          String(formData.get('amount') ?? '0'),
+          currencyDigits,
+          currencySymbol,
+        ),
         category,
         spent_on: String(formData.get('spent_on') ?? todayIso()),
         note: String(formData.get('note') ?? '').trim() || undefined,
@@ -210,7 +218,15 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
                 </SelectContent>
               </Select>
             </Field>
-            <Field label={t('Amount (Rs)')} htmlFor="amount">
+            <Field
+              label={
+                // Indian companies keep the "Rs" this label has always had; anyone else sees their sign.
+                settings.currency === 'INR'
+                  ? t('Amount (Rs)')
+                  : t('Amount (Rs)').replace(/Rs|ரூ/, currencySymbol)
+              }
+              htmlFor="amount"
+            >
               <Input id="amount" name="amount" required inputMode="decimal" placeholder="4200" />
             </Field>
           </div>

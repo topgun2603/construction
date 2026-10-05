@@ -8,9 +8,9 @@ import { SiteCoverFallback } from '@/components/site-cover-fallback';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { MeterRow } from '@/components/ui/meter';
-import { moneyShort, shortDate } from '@/lib/format';
 import { byTrouble, schedule, statusLabel, statusTone } from '@/lib/projects';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /**
  * The sites list as cards, led by photographs of the site.
@@ -34,6 +34,7 @@ export function SiteCardGrid({
   toolbar?: ReactNode;
 }) {
   const { t } = useLanguage();
+  const { todayIso } = useFormat();
   const [query, setQuery] = useState('');
 
   const visible = useMemo(() => {
@@ -45,8 +46,9 @@ export function SiteCardGrid({
             .some((field) => (field as string).toLowerCase().includes(needle)),
         )
       : projects;
-    return [...matched].sort(byTrouble);
-  }, [projects, query]);
+    const today = todayIso();
+    return [...matched].sort((a, b) => byTrouble(a, b, today));
+  }, [projects, query, todayIso]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -86,7 +88,8 @@ export function SiteCardGrid({
 
 function SiteCard({ project }: { project: ProjectListItem }) {
   const { t } = useLanguage();
-  const timeline = schedule(project);
+  const { moneyShort, shortDate, todayIso } = useFormat();
+  const timeline = schedule(project, todayIso());
 
   return (
     <Link

@@ -6,7 +6,8 @@ import { Check, Infinity as InfinityIcon, Pencil, Plus, Trash2 } from 'lucide-re
 import { toast } from 'sonner';
 import type { PlanView } from '@sitebook/shared';
 import { createPlan, deletePlan, updatePlan } from '@/lib/platform-actions';
-import { money } from '@/lib/format';
+// The platform bills in rupees; a tenant's own currency does not apply here.
+import { indiaFormat } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,6 +16,8 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useLanguage } from '@/components/language-provider';
+
+const { money } = indiaFormat;
 
 /**
  * The catalogue, and the form that edits it.

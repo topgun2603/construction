@@ -24,9 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { todayIso } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /**
  * Record material arriving or leaving by hand.
@@ -48,6 +48,7 @@ export function RecordMovementDialog({
   materials: Material[];
 }) {
   const { t } = useLanguage();
+  const { todayIso } = useFormat();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<'in' | 'out'>('in');
   const [site, setSite] = useState(projectId);

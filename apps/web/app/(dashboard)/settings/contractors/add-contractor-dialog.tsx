@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/phone-input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/components/language-provider';
@@ -71,7 +72,7 @@ export function AddContractorDialog() {
               <Input id="trade" name="trade" placeholder={t('Masonry')} />
             </Field>
             <Field label={t('Phone')} htmlFor="phone">
-              <Input id="phone" name="phone" inputMode="numeric" placeholder={t('Optional')} />
+              <PhoneInput id="phone" name="phone" />
             </Field>
           </div>
           <Field label={t('Payment terms')}>

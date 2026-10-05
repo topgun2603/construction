@@ -52,7 +52,10 @@ export interface NotificationJobs {
 
 /** Fan-out job: enumerates tenants and queues one summary each. */
 export interface FanOutJob {
-  /** ISO date the run is *for*; absent means "today in IST". */
+  /**
+   * ISO date of a manual re-run, sent to every company. Absent on the scheduled ticks, which work
+   * out each company's own date from its time zone.
+   */
   date?: string;
 }
 

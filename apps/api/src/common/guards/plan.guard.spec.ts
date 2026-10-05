@@ -25,6 +25,11 @@ function userWith(modules: string[]): RequestUser {
     seesAllProjects: true,
     plan: 'three_months',
     enabledModules: modules,
+    timezone: 'Asia/Kolkata',
+    currency: 'INR',
+    locale: 'en-IN',
+    taxRegime: 'gst_in',
+    country: 'IN',
   };
 }
 

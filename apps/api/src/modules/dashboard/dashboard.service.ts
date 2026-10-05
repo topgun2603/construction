@@ -3,7 +3,7 @@ import {
   addDays,
   attendanceEarning,
   isoDateToUtcDate,
-  todayInIst,
+  todayIn,
   utcDateToIsoDate,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
@@ -28,7 +28,7 @@ export class DashboardService {
    */
   async overview(actor: RequestUser) {
     const db = this.tenantDb.clientFor(actor.tenantId);
-    const today = todayInIst();
+    const today = todayIn(actor.timezone);
     const todayUtc = isoDateToUtcDate(today);
     const weekStart = isoDateToUtcDate(addDays(today, -6));
     const fortnightStart = isoDateToUtcDate(addDays(today, -13));
@@ -327,7 +327,7 @@ export class DashboardService {
   /** Today's DPR feed and the approvals waiting on the caller. */
   async today(actor: RequestUser) {
     const db = this.tenantDb.clientFor(actor.tenantId);
-    const today = todayInIst();
+    const today = todayIn(actor.timezone);
 
     const [reports, indents, headcountRows] = await Promise.all([
       db.dailyReport.findMany({

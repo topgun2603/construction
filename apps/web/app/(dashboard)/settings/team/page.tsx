@@ -10,7 +10,8 @@ import { WhatsappButton } from '@/components/whatsapp-button';
 import { RolePicker } from './role-picker';
 import { removeTeamMember } from '@/lib/actions';
 import { requireSelf } from '@/lib/session';
-import { titleCase, timeOfDay } from '@/lib/format';
+import { titleCase } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { InviteDialog } from './invite-dialog';
 import { getT } from '@/lib/i18n-server';
 
@@ -18,6 +19,7 @@ export const metadata = { title: 'Team · BUILDR' };
 
 export default async function TeamPage() {
   const t = await getT();
+  const { timeOfDay } = await getFormat();
   const [team, projects, roles, me] = await Promise.all([
     serverFetch<TeamMember[]>('/tenants/current/team'),
     serverFetch<Page<ProjectSummary>>('/projects?limit=200'),

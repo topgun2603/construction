@@ -19,6 +19,8 @@ import { BillingModule } from './modules/billing/billing.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ContractorsModule } from './modules/contractors/contractors.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ForecastsModule } from './modules/forecasts/forecasts.module';
+import { ChecksModule } from './modules/checks/checks.module';
 import { DprModule } from './modules/dpr/dpr.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { GeocodeModule } from './modules/geocode/geocode.module';
@@ -101,6 +103,8 @@ import { WorkersModule } from './modules/workers/workers.module';
     GeocodeModule,
     UploadsModule,
     DashboardModule,
+    ForecastsModule,
+    ChecksModule,
     ReportsModule,
     StockModule,
     SyncModule,

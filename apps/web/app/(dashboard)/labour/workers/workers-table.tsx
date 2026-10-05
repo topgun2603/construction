@@ -7,13 +7,14 @@ import { DeleteRowButton } from '@/components/delete-row-button';
 import { deleteWorker } from '@/lib/actions';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { money } from '@/lib/format';
+import type { Format } from '@/lib/format';
 import { titleCase } from '@/lib/format';
 import type { Worker } from '@/lib/api-types';
 import type { Translator } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
-function buildColumns(t: Translator): ColumnDef<Worker>[] {
+function buildColumns(t: Translator, { money }: Format): ColumnDef<Worker>[] {
   return [
   {
     accessorKey: 'name',
@@ -101,9 +102,10 @@ function buildColumns(t: Translator): ColumnDef<Worker>[] {
 
 export function WorkersTable({ workers }: { workers: Worker[] }) {
   const { t } = useLanguage();
+  const fmt = useFormat();
   return (
     <DataTable
-      columns={buildColumns(t)}
+      columns={buildColumns(t, fmt)}
       data={workers}
       searchPlaceholder="Search workers, trades, contractors"
       pageSize={25}

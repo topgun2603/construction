@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { platformFetch } from '@/lib/platform-session';
-import { longDate, titleCase } from '@/lib/format';
+// The console is the platform's own view, read in Indian format rather than a tenant's.
+import { indiaFormat, titleCase } from '@/lib/format';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { getT } from '@/lib/i18n-server';
+
+const { longDate } = indiaFormat;
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Support · BUILDR platform' };

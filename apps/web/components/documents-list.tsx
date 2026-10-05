@@ -42,7 +42,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { instantDate, timeOfDay, titleCase } from '@/lib/format';
+import { titleCase } from '@/lib/format';
+import { useFormat } from '@/components/format-provider';
 import { useLanguage } from '@/components/language-provider';
 
 const CATEGORIES: DocumentCategory[] = [
@@ -137,6 +138,7 @@ function DocumentsTable({
   showProject: boolean;
 }) {
   const { t } = useLanguage();
+  const fmt = useFormat();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
@@ -243,7 +245,7 @@ function DocumentsTable({
             {/* The clock as well as the day. Two revisions of a drawing on the same afternoon is
                 the normal shape of a correction, and a date alone cannot tell them apart. */}
             <span className="font-mono">
-              {instantDate(row.original.created_at)} · {timeOfDay(row.original.created_at)}
+              {fmt.instantDate(row.original.created_at)} · {fmt.timeOfDay(row.original.created_at)}
             </span>
             {row.original.uploaded_by.name}
           </span>
@@ -258,7 +260,7 @@ function DocumentsTable({
     );
 
     return defined;
-  }, [canManage, showProject]);
+  }, [canManage, showProject, fmt]);
 
   const filtered = Boolean(from || to);
 

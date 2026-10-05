@@ -29,9 +29,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { relativeTime, titleCase } from '@/lib/format';
+import { titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const STATUS: Record<Approval['status'], { label: string; tone: Tone }> = {
   pending: { label: 'Waiting', tone: 'pending' },
@@ -132,6 +133,7 @@ function Row({
   canRequest: boolean;
 }) {
   const { t } = useLanguage();
+  const { relativeTime } = useFormat();
   const status = STATUS[approval.status];
 
   return (

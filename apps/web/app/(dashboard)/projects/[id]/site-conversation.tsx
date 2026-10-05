@@ -37,9 +37,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { relativeTime, titleCase } from '@/lib/format';
+import { titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 interface Pending {
   file: File;
@@ -408,6 +409,7 @@ export function SiteConversation({
 
 function Message({ message, projectId }: { message: SiteMessage; projectId: string }) {
   const { t } = useLanguage();
+  const { relativeTime } = useFormat();
   const router = useRouter();
   const [pending, start] = useTransition();
   const team = message.audience === 'team';

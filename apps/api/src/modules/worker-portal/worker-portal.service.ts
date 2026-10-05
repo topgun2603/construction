@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { attendanceEarning, utcDateToIsoDate } from '@sitebook/shared';
 import { oneDecimal } from '../../common/decimal';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { selectTenantLocale, tenantLocaleView } from '../../common/tenant-locale';
 import { ApiError } from '../../common/errors/api-error';
 import { TokenService } from '../../common/auth/token.service';
 
@@ -39,7 +40,7 @@ export class WorkerPortalService {
     const [tenant, worker] = await Promise.all([
       db.tenant.findUnique({
         where: { id: claims.tenantId },
-        select: { name: true, status: true, logoUrl: true },
+        select: { name: true, status: true, logoUrl: true, ...selectTenantLocale },
       }),
       db.worker.findFirst({
         where: { id: claims.workerId, deletedAt: null },
@@ -117,7 +118,8 @@ export class WorkerPortalService {
     }
 
     return {
-      company: { name: tenant.name, logo_url: tenant.logoUrl },
+      // The company's currency and zone: a worker in Dubai is paid in dirhams, not rupees.
+      company: { name: tenant.name, logo_url: tenant.logoUrl, ...tenantLocaleView(tenant) },
       worker: {
         name: worker.name,
         trade: worker.trade,

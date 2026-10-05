@@ -1,7 +1,7 @@
 import { serverFetch } from '@/lib/server-api';
 import { CalendarCheck } from 'lucide-react';
 import type { AttendanceDay, Page, ProjectSummary, Worker } from '@/lib/api-types';
-import { todayIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { RollCall } from './roll-call';
@@ -35,7 +35,7 @@ export default async function AttendancePage({
   }
 
   const projectId = params.project ?? projects.items[0]!.id;
-  const date = params.date ?? todayIso();
+  const date = params.date ?? (await getFormat()).todayIso();
 
   const [roster, recorded] = await Promise.all([
     serverFetch<Page<Worker>>(

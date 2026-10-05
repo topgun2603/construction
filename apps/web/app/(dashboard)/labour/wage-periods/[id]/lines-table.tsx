@@ -3,12 +3,13 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
-import { money } from '@/lib/format';
+import type { Format } from '@/lib/format';
 import type { WageLine } from '@/lib/api-types';
 import type { Translator } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
-function buildColumns(t: Translator): ColumnDef<WageLine>[] {
+function buildColumns(t: Translator, { money }: Format): ColumnDef<WageLine>[] {
   return [
   {
     accessorKey: 'worker_name',
@@ -80,9 +81,10 @@ function buildColumns(t: Translator): ColumnDef<WageLine>[] {
 
 export function LinesTable({ lines }: { lines: WageLine[] }) {
   const { t } = useLanguage();
+  const fmt = useFormat();
   return (
     <DataTable
-      columns={buildColumns(t)}
+      columns={buildColumns(t, fmt)}
       data={lines}
       searchPlaceholder="Search workers"
       emptyMessage="No attendance in this range — nothing to pay."

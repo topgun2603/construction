@@ -18,10 +18,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
-import { moneyShort, titleCase } from '@/lib/format';
+// The platform bills in rupees; a tenant's own currency does not apply here.
+import { indiaFormat, titleCase } from '@/lib/format';
 import { EngagementChart, FunnelChart, GrowthChart, PlanMixBar, VolumeChart } from './charts';
 import { RangePicker } from './range-picker';
 import { getT } from '@/lib/i18n-server';
+
+const { moneyShort } = indiaFormat;
 
 export const metadata = { title: 'Overview · BUILDR platform' };
 

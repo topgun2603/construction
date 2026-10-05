@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
 import type { WageSheet } from '@/lib/api-types';
-import { money, longDate } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { PrintButton } from './print-button';
 import { getT } from '@/lib/i18n-server';
 
@@ -16,6 +16,7 @@ export const metadata = { title: 'Wage sheet · BUILDR' };
  */
 export default async function WageSheetPage({ params }: { params: Promise<{ id: string }> }) {
   const t = await getT();
+  const { money, longDate } = await getFormat();
   const { id } = await params;
 
   let sheet: WageSheet;

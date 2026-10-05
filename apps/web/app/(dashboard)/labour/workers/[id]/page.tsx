@@ -4,7 +4,8 @@ import { ArrowLeft, HardHat } from 'lucide-react';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
 import type { WorkerLedger } from '@/lib/api-types';
-import { money, shortDate, titleCase } from '@/lib/format';
+import { titleCase } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -35,6 +36,7 @@ export default async function WorkerPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const t = await getT();
+  const { money } = await getFormat();
   const { id } = await params;
   const { from, to } = await searchParams;
 
@@ -140,6 +142,7 @@ export default async function WorkerPage({
  */
 async function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
   const t = await getT();
+  const { money, shortDate } = await getFormat();
   return (
     <Card className="flex flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">

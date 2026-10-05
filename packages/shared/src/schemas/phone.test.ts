@@ -57,7 +57,7 @@ describe('phoneSchema', () => {
     const result = phoneSchema.safeParse('12345');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toMatch(/10-digit Indian mobile/);
+      expect(result.error.issues[0]?.message).toMatch(/10 digits for India, or with its country code/);
     }
   });
 });

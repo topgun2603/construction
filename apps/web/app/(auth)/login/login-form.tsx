@@ -1,7 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import {
@@ -11,7 +18,14 @@ import {
   signInWithPopup,
   type ConfirmationResult,
 } from 'firebase/auth';
-import { toE164Indian } from '@sitebook/shared';
+import {
+  COUNTRY_PRESETS,
+  countryOfPhone,
+  displayPhone,
+  phoneCountry,
+  presetFor,
+  toE164,
+} from '@sitebook/shared';
 import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +33,14 @@ import { Field } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
 import { GoogleMark } from '@/components/ui/google-mark';
+import { CallingCodeSelect } from '@/components/phone-input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3000/v1';
 /**
@@ -63,6 +85,17 @@ export function LoginForm() {
   const [code, setCode] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [country, setCountry] = useState('IN');
+  /** The calling code in front of the number. India until the browser's zone says otherwise. */
+  const [phoneCode, setPhoneCode] = useState('IN');
+  /** The number as it will be stored, once it has passed the check. */
+  const [signedInPhone, setSignedInPhone] = useState<string | null>(null);
+  // The same number for code that runs before the state update lands (`exchange`, same tick).
+  const signedInPhoneRef = useRef<string | null>(null);
+
+  // After mount, not in the initial state: the server has no time zone to guess from, and a
+  // different first render in the browser would be a hydration mismatch.
+  useEffect(() => setPhoneCode(guessCountry()), []);
 
   const confirmation = useRef<ConfirmationResult | null>(null);
   const onboardingToken = useRef<string | null>(null);
@@ -81,6 +114,8 @@ export function LoginForm() {
     if (payload.onboarding_required && payload.onboarding_token) {
       // A number nobody has registered yet is a new builder, not a failed login.
       onboardingToken.current = payload.onboarding_token;
+      // The country of the number that just signed in is the best guess for the company's.
+      setCountry(countryOfPhone(signedInPhoneRef.current ?? '')?.country ?? guessCountry());
       setStep('onboard');
       return;
     }
@@ -110,12 +145,13 @@ export function LoginForm() {
     try {
       // The shared helper, not a local regex: this is the same normalisation the
       // API uses to look the person up, so the two must not drift.
-      const e164 = toE164Indian(phone);
-      if (!e164) throw new Error('Enter a 10-digit mobile number');
-      const digits = e164.slice(2);
+      const e164 = toE164(phone, phoneCode);
+      if (!e164) throw new Error('Enter a mobile number for the country selected');
+      signedInPhoneRef.current = e164;
+      setSignedInPhone(e164);
 
       if (DEV_AUTH_BYPASS || !isFirebaseConfigured()) {
-        await exchange(`dev:91${digits}`);
+        await exchange(`dev:${e164}`);
         return;
       }
 
@@ -125,7 +161,7 @@ export function LoginForm() {
       const verifier = new RecaptchaVerifier(auth, recaptchaHost.current ?? 'recaptcha-host', {
         size: 'invisible',
       });
-      confirmation.current = await signInWithPhoneNumber(auth, `+91${digits}`, verifier);
+      confirmation.current = await signInWithPhoneNumber(auth, `+${e164}`, verifier);
       setStep('code');
       setTimeout(() => otpRefs.current[0]?.focus(), 60);
     } catch (cause) {
@@ -244,6 +280,9 @@ export function LoginForm() {
         body: JSON.stringify({
           name: String(form.get('company') ?? ''),
           owner_name: String(form.get('owner') ?? ''),
+          // The country's preset fills currency, zone, format and tax; each is editable later in
+          // Settings → Company. Currency is the one that matters now: it fixes how amounts are stored.
+          ...localeBody(country),
         }),
       });
       const payload = (await response.json()) as { tokens?: TokenPair; message?: string };
@@ -294,15 +333,17 @@ export function LoginForm() {
 
                 <Field label={t('Mobile number')} htmlFor="phone">
                   <div className="flex items-center gap-0 overflow-hidden rounded-btn border border-line-strong bg-surface transition focus-within:border-accent">
-                    <span className="flex h-12 select-none items-center border-r border-line px-3.5 font-mono text-[15px] text-ink-muted">
-                      +91
-                    </span>
+                    <CallingCodeSelect
+                      value={phoneCode}
+                      onChange={setPhoneCode}
+                      className="h-12 px-3.5 text-[15px]"
+                    />
                     <input
                       id="phone"
                       autoFocus
                       inputMode="numeric"
                       autoComplete="tel-national"
-                      placeholder="98765 43210"
+                      placeholder={phoneCountry(phoneCode)?.example}
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
                       required
@@ -369,7 +410,7 @@ export function LoginForm() {
                     {t('Enter the code')}
                   </h1>
                   <p className="text-[14.5px] leading-relaxed text-ink-muted">
-                    {t('Sent to')} <span className="font-mono font-semibold text-ink">+91 {phone}</span>
+                    {t('Sent to')} <span className="font-mono font-semibold text-ink">{signedInPhone ? displayPhone(signedInPhone) : phone}</span>
                   </p>
                 </header>
 
@@ -441,6 +482,24 @@ export function LoginForm() {
                 <Field label={t('Your name')} htmlFor="owner">
                   <Input id="owner" name="owner" required placeholder="Gowtham Kumar" className="h-12 text-[16px]" />
                 </Field>
+                <Field
+                  label={t('Country')}
+                  htmlFor="country"
+                  hint={`${t('Amounts will be in')} ${presetFor(country)?.currency ?? 'INR'}. ${t('Time zone and tax can be changed later in Settings.')}`}
+                >
+                  <Select value={country} onValueChange={setCountry}>
+                    <SelectTrigger id="country" className="h-12 text-[16px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRY_PRESETS.map((preset) => (
+                        <SelectItem key={preset.country} value={preset.country}>
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
 
                 <Submit busy={busy}>{t('Create account')}</Submit>
               </form>
@@ -507,4 +566,27 @@ function isPopupDismissal(cause: unknown): boolean {
 function messageOf(cause: unknown): string {
   if (cause instanceof Error) return cause.message;
   return 'Something went wrong';
+}
+
+/**
+ * The country whose preset zone is the browser's, or India.
+ *
+ * Only a default for the picker: somebody signing up from Dubai starts on the UAE, and anybody
+ * the guess gets wrong changes it in one tap.
+ */
+function guessCountry(): string {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return COUNTRY_PRESETS.find((preset) => preset.timezone === zone)?.country ?? 'IN';
+}
+
+/** The onboarding fields for a country, in the API's names. */
+function localeBody(country: string) {
+  const preset = presetFor(country) ?? COUNTRY_PRESETS[0]!;
+  return {
+    country: preset.country,
+    currency: preset.currency,
+    timezone: preset.timezone,
+    locale: preset.locale,
+    tax_regime: preset.taxRegime,
+  };
 }

@@ -16,7 +16,6 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { todayInIst } from '@sitebook/shared';
 import { addMilestone, deleteMilestone, reorderMilestones, updateMilestone } from '@/lib/actions';
 import type { Milestone } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
@@ -26,9 +25,9 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
-import { shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /**
  * The site timeline: the milestones of a project, in order, with everything needed
@@ -52,11 +51,12 @@ export function ProjectTimeline({
   canEdit: boolean;
 }) {
   const { t } = useLanguage();
+  const { todayIso } = useFormat();
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const today = todayInIst();
+  const today = todayIso();
 
   const done = milestones.filter((m) => m.actual_date).length;
 
@@ -192,6 +192,7 @@ function MilestoneRow({
   onMove: (direction: -1 | 1) => void;
 }) {
   const { t } = useLanguage();
+  const { shortDate } = useFormat();
   const complete = Boolean(milestone.actual_date);
   // Overdue only matters for a stage that is still open: a stage finished late is
   // history, and painting it red forever hides the stages still at risk.

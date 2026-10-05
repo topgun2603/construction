@@ -11,9 +11,10 @@ import { DataTable } from '@/components/data-table';
 import { DeleteRowButton } from '@/components/delete-row-button';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { money, shortDate, titleCase } from '@/lib/format';
+import { titleCase } from '@/lib/format';
 import type { Expense } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const STATUS_TONE: Record<Expense['status'], Tone> = {
   pending: 'pending',
@@ -31,6 +32,7 @@ export function ExpensesTable({
   currentUserId: string;
 }) {
   const { t } = useLanguage();
+  const { money, shortDate } = useFormat();
   const router = useRouter();
   const [pending, start] = useTransition();
 

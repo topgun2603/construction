@@ -1,5 +1,6 @@
 'use client';
 
+import { PAYMENT_MODE_LABELS, paymentModesFor } from '@sitebook/shared';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { HandCoins } from 'lucide-react';
@@ -18,10 +19,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { rupeesToPaiseString } from '@/lib/money-input';
-import { todayIso } from '@/lib/format';
+import { amountToMinorString } from '@/lib/money-input';
 import type { Contractor, Worker } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const HINTS: Record<string, string> = {
   advance: 'Deducted from this worker’s next wage period.',
@@ -41,6 +42,7 @@ export function RecordPaymentDialog({
   contractors: Contractor[];
 }) {
   const { t } = useLanguage();
+  const { currencySymbol, currencyDigits, todayIso, settings } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<'advance' | 'bonus' | 'deduction'>('advance');
@@ -59,7 +61,11 @@ export function RecordPaymentDialog({
     start(async () => {
       const result = await recordPayment({
         type,
-        amount: rupeesToPaiseString(String(formData.get('amount') ?? '0')),
+        amount: amountToMinorString(
+          String(formData.get('amount') ?? '0'),
+          currencyDigits,
+          currencySymbol,
+        ),
         paid_on: String(formData.get('paid_on') ?? todayIso()),
         mode,
         ...(payeeKind === 'worker' ? { worker_id: payeeId } : { contractor_id: payeeId }),
@@ -103,7 +109,7 @@ export function RecordPaymentDialog({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label={t('Amount (₹)')} htmlFor="amount">
+            <Field label={t('Amount (₹)').replace('₹', currencySymbol)} htmlFor="amount">
               <Input id="amount" name="amount" required inputMode="decimal" placeholder="300" />
             </Field>
           </div>
@@ -152,9 +158,11 @@ export function RecordPaymentDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cash">{t('Cash')}</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="bank">{t('Bank transfer')}</SelectItem>
+                  {paymentModesFor(settings.country).map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t(PAYMENT_MODE_LABELS[option])}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>

@@ -1,3 +1,5 @@
+import type { PaymentMode } from '@sitebook/shared';
+
 /**
  * Response shapes from the API.
  *
@@ -433,6 +435,19 @@ export interface Milestone {
   sort_order: number;
 }
 
+/** `GET`/`PATCH /tenants/current` — the company and its locale settings. */
+export interface CompanySettings {
+  id: string;
+  name: string;
+  country: string;
+  currency: string;
+  timezone: string;
+  locale: string;
+  tax_regime: string;
+  /** True once any amount is stored in `currency`, which then cannot change. */
+  currency_locked: boolean;
+}
+
 export interface Role {
   id: string;
   name: string;
@@ -680,7 +695,7 @@ export interface ClientPayment {
   stage_label: string | null;
   amount: string;
   received_on: string;
-  mode: 'cash' | 'upi' | 'bank';
+  mode: PaymentMode;
   reference: string | null;
   note: string | null;
   recorded_by: { id: string; name: string };
@@ -724,4 +739,51 @@ export interface SiteDocument {
   created_at: string;
   uploaded_by: { id: string; name: string };
   url: string | null;
+}
+
+/** `GET /forecasts`, `GET /projects/:id/forecast` — the overrun early warning for a site. */
+export interface SiteForecast {
+  project_id: string;
+  project_name: string;
+  as_of: string;
+  /** How the end cost was projected: from milestones, from the recent spend rate, or not at all. */
+  method: 'progress' | 'burn_rate' | 'spend_only';
+  spent: string;
+  budget: string | null;
+  forecast: string | null;
+  overrun_pct: number | null;
+  progress_pct: number | null;
+  elapsed_pct: number | null;
+  severity: 'ok' | 'watch' | 'warning' | 'critical';
+  drivers: ForecastDriverView[];
+  /** One or two sentences; reworded by a language model only when `explained_by` is `ai`. */
+  explanation: string;
+  explained_by: 'template' | 'ai';
+}
+
+export type ForecastDriverView =
+  | { kind: 'spend_trend'; line: string; recent: string; previous: string; changePct: number | null }
+  | { kind: 'material'; name: string; unit: string; usedPct: number; progressPct: number | null }
+  | { kind: 'schedule'; progressPct: number; elapsedPct: number }
+  | { kind: 'overdue'; daysPast: number };
+
+/** `GET /checks` — a leak or fraud finding for a person to confirm or dismiss. */
+export interface SiteCheck {
+  id: string;
+  project_id: string | null;
+  project_name: string | null;
+  kind:
+    | 'double_booked'
+    | 'never_off'
+    | 'headcount_gap'
+    | 'duplicate_expense'
+    | 'unusual_expense'
+    | 'unidentified_paid';
+  severity: 'high' | 'medium';
+  title: string;
+  details: Record<string, unknown>;
+  status: 'open' | 'confirmed' | 'dismissed';
+  note: string | null;
+  decided_at: string | null;
+  created_at: string;
 }

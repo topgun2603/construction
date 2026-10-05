@@ -3,7 +3,8 @@ import { PieChart } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { LabourCostReport } from '@/lib/api-types';
-import { addDaysIso, money, moneyShort, shortDate, todayIso } from '@/lib/format';
+import { addDaysIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { Card } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/meter';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -29,6 +30,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ group_by?: string; from?: string; to?: string }>;
 }) {
   const t = await getT();
+  const { money, moneyShort, shortDate, todayIso } = await getFormat();
   const params = await searchParams;
   const to = params.to ?? todayIso();
   const from = params.from ?? addDaysIso(to, -29);

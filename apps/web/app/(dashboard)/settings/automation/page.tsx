@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { getT } from '@/lib/i18n-server';
+import { getFormat } from '@/lib/format-server';
 
 export const metadata = { title: 'Automation · BUILDR' };
 
@@ -73,6 +74,7 @@ export default async function AutomationPage() {
                   readable={job.readable}
                   cron={job.cron}
                   nextRun={job.next_run}
+                  timezone={job.timezone}
                   enabled={job.enabled}
                 />
               </div>
@@ -101,6 +103,7 @@ export default async function AutomationPage() {
                 readable={job.readable}
                 cron={job.cron}
                 nextRun={job.next_run}
+                timezone={job.timezone}
                 enabled={job.enabled}
               />
             </div>
@@ -118,17 +121,22 @@ export default async function AutomationPage() {
  * description of when something fires is worse than showing the expression and letting whoever
  * set it read it back.
  */
-function ScheduleStamp({
+async function ScheduleStamp({
   readable,
   cron,
   nextRun,
+  timezone,
   enabled,
 }: {
   readable: string | null;
   cron: string;
   nextRun: string | null;
+  timezone: string;
   enabled: boolean;
 }) {
+  // In the company's conventions, but on the job's own clock: `readable` is written in that
+  // zone, and a next run in another one would sit beside it and disagree.
+  const { settings } = await getFormat();
   return (
     <div className="flex flex-none flex-col items-end gap-0.5">
       <span className="flex items-center gap-1.5 text-[13px] font-medium">
@@ -138,14 +146,14 @@ function ScheduleStamp({
       {enabled && nextRun ? (
         <span className="font-mono text-[12px] text-ink-muted">
           next{' '}
-          {new Intl.DateTimeFormat('en-IN', {
+          {new Intl.DateTimeFormat(settings.locale, {
             weekday: 'short',
             day: 'numeric',
             month: 'short',
             hour: 'numeric',
             minute: '2-digit',
             hour12: true,
-            timeZone: 'Asia/Kolkata',
+            timeZone: timezone,
           }).format(new Date(nextRun))}
         </span>
       ) : (

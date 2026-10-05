@@ -19,8 +19,8 @@ import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
-import { shortDate } from '@/lib/format';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /**
  * Photos and videos of the site.
@@ -274,6 +274,7 @@ function MediaTile({
   onMove: (to: number) => void;
 }) {
   const { t } = useLanguage();
+  const { shortDate } = useFormat();
   const router = useRouter();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);

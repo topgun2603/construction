@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
 import type { WagePeriodDetail } from '@/lib/api-types';
-import { money, shortDate } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -21,6 +21,7 @@ const STATUS_TONE: Record<WagePeriodDetail['status'], Tone> = {
 
 export default async function WagePeriodPage({ params }: { params: Promise<{ id: string }> }) {
   const t = await getT();
+  const { money, shortDate } = await getFormat();
   const { id } = await params;
 
   let period: WagePeriodDetail;

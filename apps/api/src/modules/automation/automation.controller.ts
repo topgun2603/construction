@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { RequiresPermission } from '../../common/decorators';
+import type { RequestUser } from '../../common/auth/request-user';
+import { CurrentUser, RequiresPermission } from '../../common/decorators';
 import { AutomationService } from './automation.service';
 
 /**
@@ -17,7 +18,7 @@ export class AutomationController {
   @RequiresPermission('tenant.manage', 'wages.view')
   @Get()
   @ApiOperation({ summary: 'Scheduled jobs, when they run and what they touch' })
-  list() {
-    return this.automation.list();
+  list(@CurrentUser() user: RequestUser) {
+    return this.automation.list(user);
   }
 }

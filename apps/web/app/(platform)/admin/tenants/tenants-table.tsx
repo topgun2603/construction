@@ -6,9 +6,12 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { PlatformTenantRow } from '@/lib/platform-session';
 import { DataTable } from '@/components/data-table';
 import { Badge, type Tone } from '@/components/ui/badge';
-import { shortDate, titleCase } from '@/lib/format';
+// The console is the platform's own view, read in Indian format rather than a tenant's.
+import { indiaFormat, titleCase } from '@/lib/format';
 import type { Translator } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
+
+const { shortDate } = indiaFormat;
 
 const STATUS_TONE: Record<string, Tone> = {
   active: 'done',

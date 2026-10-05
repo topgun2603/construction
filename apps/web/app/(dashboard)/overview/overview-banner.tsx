@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { longDate, todayIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 
 /**
  * The day, over the site.
@@ -11,7 +11,7 @@ import { longDate, todayIso } from '@/lib/format';
  *
  * The same photograph the phone opens with, so the two halves of the product are recognisably one.
  */
-export function OverviewBanner({
+export async function OverviewBanner({
   name,
   siteCount,
   headcount,
@@ -20,8 +20,16 @@ export function OverviewBanner({
   siteCount: number;
   headcount: number;
 }) {
+  const { longDate, todayIso, settings } = await getFormat();
   const first = name.trim().split(' ')[0] ?? '';
-  const hour = new Date().getHours();
+  // The company's hour, not the server's: a Dubai owner at 9 am is not in the afternoon.
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      hourCycle: 'h23',
+      timeZone: settings.timezone,
+    }).format(new Date()),
+  );
   const part = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (

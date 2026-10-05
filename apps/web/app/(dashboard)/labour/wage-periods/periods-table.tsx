@@ -4,10 +4,11 @@ import { useRouter } from 'next/navigation';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import { Badge, type Tone } from '@/components/ui/badge';
-import { money, shortDate } from '@/lib/format';
+import type { Format } from '@/lib/format';
 import type { WagePeriod } from '@/lib/api-types';
 import type { Translator } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const STATUS_TONE: Record<WagePeriod['status'], Tone> = {
   open: 'neutral',
@@ -21,7 +22,7 @@ const STATUS_LABEL: Record<WagePeriod['status'], string> = {
   paid: 'Paid',
 };
 
-function buildColumns(t: Translator): ColumnDef<WagePeriod>[] {
+function buildColumns(t: Translator, { money, shortDate }: Format): ColumnDef<WagePeriod>[] {
   return [
   {
     accessorKey: 'contractor_name',
@@ -99,10 +100,11 @@ function buildColumns(t: Translator): ColumnDef<WagePeriod>[] {
 
 export function PeriodsTable({ periods }: { periods: WagePeriod[] }) {
   const { t } = useLanguage();
+  const fmt = useFormat();
   const router = useRouter();
   return (
     <DataTable
-      columns={buildColumns(t)}
+      columns={buildColumns(t, fmt)}
       data={periods}
       searchPlaceholder="Search contractors"
       pageSize={20}
