@@ -78,7 +78,9 @@ export class TenantsController {
     return this.tenants.invite(user, body);
   }
 
-  @RequiresPermission('team.manage', 'projects.manage', 'wages.view')
+  // `audit.view` too: the audit log's "who" filter is this list, and a role made to read the log
+  // has to be able to pick a person in it.
+  @RequiresPermission('team.manage', 'projects.manage', 'wages.view', 'audit.view')
   @Get('current/team')
   @ApiOperation({ summary: 'List team members' })
   async team(@CurrentUser() user: RequestUser) {

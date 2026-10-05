@@ -9,6 +9,7 @@ import { PlanGuard } from './common/guards/plan.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { AuditContextMiddleware } from './common/audit/audit-context';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { env } from './config/env';
 import { IntegrationsModule } from './integrations/integrations.module';
@@ -23,6 +24,7 @@ import { ForecastsModule } from './modules/forecasts/forecasts.module';
 import { ChecksModule } from './modules/checks/checks.module';
 import { WorkerDocumentsModule } from './modules/worker-documents/worker-documents.module';
 import { CampsModule } from './modules/camps/camps.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { DprModule } from './modules/dpr/dpr.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { GeocodeModule } from './modules/geocode/geocode.module';
@@ -109,6 +111,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     ChecksModule,
     WorkerDocumentsModule,
     CampsModule,
+    AuditModule,
     ReportsModule,
     StockModule,
     SyncModule,
@@ -127,6 +130,7 @@ import { WorkersModule } from './modules/workers/workers.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    // Audit context second: it reads the request id the first one settles.
+    consumer.apply(RequestIdMiddleware, AuditContextMiddleware).forRoutes('*');
   }
 }

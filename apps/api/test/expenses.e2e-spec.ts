@@ -127,7 +127,8 @@ describe('expenses', () => {
     expect(response.body.approved_by.name).toBe('Priya');
 
     const audit = await test.tenantDb.clientFor(tenant.tenantId).auditLog.findFirst({
-      where: { entity: 'expenses', entityId: id },
+      // The named decision, beside the row-level create and update the audit trigger writes.
+      where: { entity: 'expenses', entityId: id, action: { startsWith: 'expense.' } },
     });
     expect(audit?.action).toBe('expense.approved');
   });
