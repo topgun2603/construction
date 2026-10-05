@@ -41,6 +41,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { PortalModule } from './modules/portal/portal.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { QualityModule } from './modules/quality/quality.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { StockModule } from './modules/stock/stock.module';
@@ -119,6 +120,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     SubcontractsModule,
     ProcurementModule,
     ChangeOrdersModule,
+    QualityModule,
     AuditModule,
     ReportsModule,
     StockModule,

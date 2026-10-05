@@ -96,6 +96,18 @@ export const PERMISSIONS = [
   'change_orders.manage',
   'change_orders.approve',
 
+  /*
+   * QA/QC (roadmap Phase 2, module 7): inspections, material tests and snag lists. Split along who
+   * does what on a real job — anyone running the site reads the quality record; supervisors and
+   * engineers inspect, record tests and raise snags; the checklist library is a quality manager's
+   * to write; and saying a snag is really fixed (or that it is not) is the one decision kept from
+   * whoever fixed it.
+   */
+  'quality.view',
+  'quality.inspect',
+  'quality.manage',
+  'quality.verify',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -331,6 +343,29 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Quality',
+    items: [
+      {
+        permission: 'quality.view',
+        label: 'See inspections, test results and snag lists',
+      },
+      {
+        permission: 'quality.inspect',
+        label: 'Run inspections, record tests and raise snags',
+        note: 'Includes marking a snag fixed with its “after” photo',
+      },
+      {
+        permission: 'quality.manage',
+        label: 'Edit the checklist library',
+      },
+      {
+        permission: 'quality.verify',
+        label: 'Close or reopen fixed snags, and countersign inspections',
+        note: 'The check on whoever did the fixing',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -467,6 +502,11 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'change_orders.view',
     'change_orders.manage',
     'change_orders.approve',
+    // Quality on their jobs end to end, including the library and closing what was fixed.
+    'quality.view',
+    'quality.inspect',
+    'quality.manage',
+    'quality.verify',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -501,6 +541,10 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Measures the subcontractor's work on their own site for the running bill. Not the rates or
     // the bill's money: what a subcontract is worth is the margin, the same as a budget line.
     'subcontracts.measure',
+    // Walks the floors: runs the pour card, records the cube results and raises snags — and marks
+    // their own fixes done. Saying a fix is good enough to close stays with the manager.
+    'quality.view',
+    'quality.inspect',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.

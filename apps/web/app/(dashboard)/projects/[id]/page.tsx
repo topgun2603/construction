@@ -66,6 +66,7 @@ import type {
 } from '@/lib/change-order-types';
 import { SiteChangeOrders } from '../../change-orders/site-change-orders';
 import { ClientChangeOrders } from '../../change-orders/client-change-order';
+import { SiteQuality } from './site-quality';
 
 const TABS = [
   'timeline',
@@ -80,6 +81,7 @@ const TABS = [
   'subcontracts',
   'purchases',
   'change-orders',
+  'quality',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -309,6 +311,14 @@ export default async function ProjectPage({
         ])
       : [null, null, null];
 
+  // QA/QC (roadmap Phase 2, module 7). The team sees it with a quality permission; a client sees
+  // their punch list and the inspections shared with them. Its fetches live in SiteQuality, which
+  // only renders on its own tab.
+  const canSeeQuality =
+    me.permissions.includes('quality.view') ||
+    me.permissions.includes('quality.inspect') ||
+    me.user.role === 'client';
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -369,6 +379,7 @@ export default async function ProjectPage({
         showSubcontracts={canSeeSubcontracts}
         showPurchases={canSeePurchases}
         showChangeOrders={canSeeChangeOrders || clientSeesChangeOrders}
+        showQuality={canSeeQuality}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -514,6 +525,9 @@ export default async function ProjectPage({
       )}
       {active === 'change-orders' && clientSeesChangeOrders && (
         <ClientChangeOrders projectId={id} approvals={approvals} />
+      )}
+      {active === 'quality' && canSeeQuality && (
+        <SiteQuality projectId={id} projectName={project.name} me={me} />
       )}
 
       {active === 'materials' && (

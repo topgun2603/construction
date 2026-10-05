@@ -7,6 +7,7 @@ import { BillReader } from './bill-reader.service';
 import { DocumentQaService } from './document-qa.service';
 import { VoiceReader } from './voice-reader.service';
 import { ScopeCreepReader } from './scope-creep-reader.service';
+import { SnagReader } from './snag-reader.service';
 
 /**
  * Everything that asks a model a question.
@@ -17,7 +18,7 @@ import { ScopeCreepReader } from './scope-creep-reader.service';
  */
 @Module({
   controllers: [AskController, TranslateController],
-  providers: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, ScopeCreepReader],
-  exports: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, ScopeCreepReader],
+  providers: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, ScopeCreepReader, SnagReader],
+  exports: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, ScopeCreepReader, SnagReader],
 })
 export class AiModule {}

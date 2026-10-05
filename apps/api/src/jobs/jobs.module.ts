@@ -6,6 +6,7 @@ import { BillingModule } from '../modules/billing/billing.module';
 import { ForecastsModule } from '../modules/forecasts/forecasts.module';
 import { ChecksModule } from '../modules/checks/checks.module';
 import { WorkerDocumentsModule } from '../modules/worker-documents/worker-documents.module';
+import { QualityModule } from '../modules/quality/quality.module';
 import { DocumentTextService } from '../modules/portal/document-text.service';
 import { WagePeriodsModule } from '../modules/wage-periods/wage-periods.module';
 import { DEFAULT_JOB_OPTIONS, QUEUE } from './job-types';
@@ -72,7 +73,15 @@ export class JobsModule {
         // Only the worker runs these: it drafts wage periods and sweeps lapsed subscriptions.
         // And it works out the nightly cost forecasts with the same service the refresh button uses.
         ...(isWorker
-          ? [WagePeriodsModule, BillingModule, ForecastsModule, ChecksModule, WorkerDocumentsModule]
+          ? [
+              WagePeriodsModule,
+              BillingModule,
+              ForecastsModule,
+              ChecksModule,
+              WorkerDocumentsModule,
+              // The morning "cubes due for crushing" reminder.
+              QualityModule,
+            ]
           : []),
       ],
       providers,
