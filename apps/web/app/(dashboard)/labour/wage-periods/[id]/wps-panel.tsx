@@ -6,6 +6,7 @@ import { Download, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { wpsFile } from '@/lib/actions';
 import type { WpsFile } from '@/lib/api-types';
+import { mudadFile } from '@/lib/billing-actions';
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -17,15 +18,26 @@ import { Card } from '@/components/ui/card';
  * and most visits to a wage period are not to pay it. What comes back says what still stands in
  * the way — company ids not set, a period still open — and which workers are left out for want of
  * their own details, each linked to where they can be filled in.
+ *
+ * The file is the country's: a UAE company gets the SIF, a Saudi one the Mudad payroll file. The
+ * two answer in the same shape, so one panel serves both.
  */
-export function WpsPanel({ periodId }: { periodId: string }) {
+export function WpsPanel({
+  periodId,
+  format = 'sif',
+}: {
+  periodId: string;
+  /** `sif` for the UAE, `mudad` for Saudi Arabia. */
+  format?: 'sif' | 'mudad';
+}) {
   const { t } = useLanguage();
   const [file, setFile] = useState<WpsFile | null>(null);
   const [pending, start] = useTransition();
+  const saudi = format === 'mudad';
 
   function prepare() {
     start(async () => {
-      const result = await wpsFile(periodId);
+      const result = saudi ? await mudadFile(periodId) : await wpsFile(periodId);
       if (!result.ok || !result.data) {
         toast.error(result.error ?? t('Could not prepare the salary file'));
         return;
@@ -36,7 +48,9 @@ export function WpsPanel({ periodId }: { periodId: string }) {
 
   function download() {
     if (!file?.content || !file.file_name) return;
-    const url = URL.createObjectURL(new Blob([file.content], { type: 'text/plain' }));
+    const url = URL.createObjectURL(
+      new Blob([file.content], { type: saudi ? 'text/csv' : 'text/plain' }),
+    );
     const link = document.createElement('a');
     link.href = url;
     link.download = file.file_name;
@@ -52,11 +66,18 @@ export function WpsPanel({ periodId }: { periodId: string }) {
         <div className="flex flex-col gap-0.5">
           <span className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
             <FileSpreadsheet className="size-3.5" />
-            {t('WPS salary file')}
+            {saudi ? t('Mudad payroll file') : t('WPS salary file')}
           </span>
           <span className="text-[13px] text-ink-muted">
-            {t('The file your bank or exchange house needs to pay this period through WPS.')}
+            {saudi
+              ? t('The payroll file to upload to Mudad or your bank to pay this period through WPS.')
+              : t('The file your bank or exchange house needs to pay this period through WPS.')}
           </span>
+          {saudi && (
+            <span className="text-[12px] text-ink-faint">
+              {t('Check the first file with your bank or in Mudad before it carries a real payroll.')}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={prepare} disabled={pending}>

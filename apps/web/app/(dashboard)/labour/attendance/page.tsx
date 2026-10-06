@@ -35,7 +35,10 @@ export default async function AttendancePage({
   }
 
   const projectId = params.project ?? projects.items[0]!.id;
-  const date = params.date ?? (await getFormat()).todayIso();
+  // Today at the chosen site, on its own clock — a Dubai site of a Mumbai company is still on
+  // yesterday for ninety minutes after Mumbai's midnight.
+  const site = projects.items.find((project) => project.id === projectId);
+  const date = params.date ?? site?.today ?? (await getFormat()).todayIso();
 
   const [roster, recorded] = await Promise.all([
     serverFetch<Page<Worker>>(

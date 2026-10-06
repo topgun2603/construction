@@ -19,6 +19,7 @@ import { can, type RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { siteActor } from '../../common/site-clock';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
@@ -116,6 +117,8 @@ export class SafetyPermitsService {
         ...row.photos.map((photo) => photo.uploadedBy),
       ]);
       const now = new Date();
+      // Validity reads on the site's clock, the same one it was entered on.
+      const site = await siteActor(tx, actor, row.projectId);
       const photos = await Promise.all(
         row.photos.map(async (photo) => ({
           ...photoView(photo, names),
@@ -135,8 +138,8 @@ export class SafetyPermitsService {
         checklist_complete: checklist.every((item) => item.checked),
         valid_from: row.validFrom.toISOString(),
         valid_to: row.validTo.toISOString(),
-        valid_from_local: companyLocal(actor, row.validFrom),
-        valid_to_local: companyLocal(actor, row.validTo),
+        valid_from_local: companyLocal(site, row.validFrom),
+        valid_to_local: companyLocal(site, row.validTo),
         status: row.status,
         expired: row.status === 'active' && row.validTo < now,
         requested_by: person(names, row.requestedBy),
@@ -162,7 +165,9 @@ export class SafetyPermitsService {
 
   async create(actor: RequestUser, input: CreateSafetyPermitInput) {
     await this.access.assertAccess(actor, input.project_id);
-    const { from, to } = this.window(actor, input.valid_from, input.valid_to);
+    // A permit's hours are the site's wall clock — the shift on site, not the head office's.
+    const site = await siteActor(this.tenantDb.clientFor(actor.tenantId), actor, input.project_id);
+    const { from, to } = this.window(site, input.valid_from, input.valid_to);
     if (to.getTime() <= Date.now()) {
       throw ApiError.validationFailed({ valid_to: input.valid_to }, 'That permit would already have expired');
     }
@@ -203,12 +208,13 @@ export class SafetyPermitsService {
       if (row.status !== 'requested') {
         throw ApiError.conflict('A permit can only change before it is issued. Close it and raise a new one.');
       }
+      const site = await siteActor(tx, actor, row.projectId);
       const window =
         input.valid_from || input.valid_to
           ? this.window(
-              actor,
-              input.valid_from ?? companyLocal(actor, row.validFrom),
-              input.valid_to ?? companyLocal(actor, row.validTo),
+              site,
+              input.valid_from ?? companyLocal(site, row.validFrom),
+              input.valid_to ?? companyLocal(site, row.validTo),
             )
           : null;
       await tx.safetyPermit.update({

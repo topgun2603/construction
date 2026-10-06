@@ -616,6 +616,8 @@ export async function updateCompanySettings(input: {
   /** UAE WPS ids; null clears one. Left out, they are not touched. */
   wps_employer_id?: string | null;
   wps_bank_code?: string | null;
+  /** Saudi WPS (Mudad) establishment number; null clears it. */
+  mudad_establishment_id?: string | null;
 }): Promise<ActionResult<CompanySettings>> {
   const result = await runAction(() =>
     serverFetch<CompanySettings>('/tenants/current', { method: 'PATCH', body: input }),

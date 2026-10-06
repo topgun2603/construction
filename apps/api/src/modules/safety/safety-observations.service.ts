@@ -14,6 +14,7 @@ import { can, type RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { siteActor } from '../../common/site-clock';
 import { SafetyReader } from '../ai/safety-reader.service';
 import { VoiceReader } from '../ai/voice-reader.service';
 import { AiGateway } from '../ai/ai-gateway.service';
@@ -113,6 +114,7 @@ export class SafetyObservationsService {
         ...row.photos.map((p) => p.uploadedBy),
       ]);
       const today = companyToday(actor);
+      const site = await siteActor(tx, actor, row.projectId);
       const photos = await Promise.all(
         row.photos.map(async (photo) => ({
           ...photoView(photo, names),
@@ -124,7 +126,7 @@ export class SafetyObservationsService {
         number: safetyNumber('OBS', row.number),
         project: row.project,
         observed_at: row.observedAt.toISOString(),
-        observed_local: companyLocal(actor, row.observedAt),
+        observed_local: companyLocal(site, row.observedAt),
         observed_on: isoDay(row.observedOn),
         type: row.type,
         category: row.category,
@@ -151,7 +153,9 @@ export class SafetyObservationsService {
     const existing = await this.byClientId(actor, input.client_id);
     if (existing) return this.get(actor, existing);
     for (const key of input.photo_keys ?? []) assertSafetyPhotoKey(actor, key);
-    const observedAt = input.observed_at ? companyInstant(actor, input.observed_at) : new Date();
+    // A time typed on site is the site's wall clock.
+    const site = await siteActor(this.tenantDb.clientFor(actor.tenantId), actor, input.project_id);
+    const observedAt = input.observed_at ? companyInstant(site, input.observed_at) : new Date();
 
     const id = await withNumberRetry(() =>
       this.tenantDb.transaction(actor.tenantId, async (tx) => {
@@ -312,7 +316,7 @@ export class SafetyObservationsService {
         tenantId: actor.tenantId,
         number,
         ...data,
-        observedOn: companyDay(actor, data.observedAt),
+        observedOn: companyDay(await siteActor(tx, actor, data.projectId), data.observedAt),
         reportedBy: actor.userId,
         // Good practice has nothing to fix: it is recorded and done.
         ...(positive ? { status: 'closed', closedBy: actor.userId, closedAt: new Date() } : {}),

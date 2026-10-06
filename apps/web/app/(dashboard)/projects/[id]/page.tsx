@@ -38,6 +38,7 @@ import { WhatsappButton } from '@/components/whatsapp-button';
 import { MaterialEstimates } from './material-estimates';
 import { ForecastCard } from './forecast-card';
 import { EditSiteDialog } from './edit-site-dialog';
+import { SiteZoneHint } from '@/components/site-zone-hint';
 import { AddMemberDialog } from './add-member-dialog';
 import { FileReportDialog } from './file-report-dialog';
 import { ReportPhotos } from './report-photos';
@@ -441,6 +442,8 @@ export default async function ProjectPage({
             {timeline && timeline.tone !== 'done' && (
               <Badge tone={timeline.tone}>{t(timeline.label)}</Badge>
             )}
+            {/* A site on its own clock says so: its "today" is not the company's. */}
+            <SiteZoneHint zone={project.time_zone} />
           </div>
           <span className="text-[13px] text-ink-muted">
             {[project.address, project.client_name].filter(Boolean).join(' · ') ||
@@ -709,7 +712,11 @@ export default async function ProjectPage({
         <div className="flex flex-col gap-3">
           {me.permissions.includes('dpr.file') && (
             <div className="flex justify-end">
-              <FileReportDialog projectId={id} projectName={project.name} />
+              <FileReportDialog
+                projectId={id}
+                projectName={project.name}
+                timeZone={project.time_zone}
+              />
             </div>
           )}
           {reports.items.length === 0 ? (

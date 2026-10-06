@@ -7,6 +7,7 @@ import {
   equipmentServiceDue,
   equipmentSuggestCode,
   isoDateToUtcDate,
+  siteTimeToday,
   todayIn,
   type AllocateEquipmentInput,
   type CreateEquipmentDocumentInput,
@@ -320,7 +321,12 @@ export class EquipmentService {
   async board(actor: RequestUser) {
     return this.tenantDb.transaction(actor.tenantId, async (tx) => {
       const today = todayIn(actor.timezone);
-      const day = isoDateToUtcDate(today);
+      /*
+       * "Logged today" is today at each machine's site (a separate time zone per site), which can be
+       * a day either side of the company's; the logs either side are fetched and each machine is
+       * held to its own site's date below.
+       */
+      const days = [-1, 0, 1].map((offset) => isoDateToUtcDate(addDays(today, offset)));
       const allocations = await tx.equipmentAllocation.findMany({
         where: {
           toDate: null,
@@ -329,7 +335,7 @@ export class EquipmentService {
           ...this.access.scopeFilterByProjectId(actor),
         },
         include: {
-          project: { select: { id: true, name: true } },
+          project: { select: { id: true, name: true, timeZone: true } },
           equipment: {
             select: {
               id: true,
@@ -340,7 +346,10 @@ export class EquipmentService {
               status: true,
               meterType: true,
               meterReading: true,
-              logs: { where: { logDate: day }, select: { id: true, hoursWorked: true } },
+              logs: {
+                where: { logDate: { in: days } },
+                select: { id: true, hoursWorked: true, logDate: true },
+              },
             },
           },
         },
@@ -353,7 +362,8 @@ export class EquipmentService {
           project_name: allocation.project.name,
           machines: [],
         };
-        const log = allocation.equipment.logs[0];
+        const siteDay = siteTimeToday(allocation.project, actor);
+        const log = allocation.equipment.logs.find((entry) => isoDay(entry.logDate) === siteDay);
         site.machines.push({
           id: allocation.equipment.id,
           code: allocation.equipment.code,

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Pencil, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import type { PayBasis } from '@sitebook/shared';
+import { mudadBankForIban, mudadIbanValid, type PayBasis } from '@sitebook/shared';
 import type { Worker } from '@/lib/api-types';
 import { updateWorkerPay } from '@/lib/actions';
 import { amountToMinorString, minorToAmountInput } from '@/lib/money-input';
@@ -43,7 +43,11 @@ export function WorkerPay({ worker, canManage }: { worker: Worker; canManage: bo
   const { money, settings } = useFormat();
   const monthly = worker.pay_basis === 'monthly';
   const uae = settings.country === 'AE';
+  const saudi = settings.country === 'SA';
   const wpsComplete = Boolean(worker.wps_person_id && worker.wps_agent_code && worker.wps_account);
+  // Saudi WPS (Mudad) needs the IBAN here; the Iqama or national ID comes from the worker's papers.
+  const ibanValid = Boolean(worker.wps_account && mudadIbanValid(worker.wps_account));
+  const saudiBank = worker.wps_account ? mudadBankForIban(worker.wps_account) : undefined;
 
   const monthlyTotal =
     BigInt(worker.basic_salary ?? '0') +
@@ -100,6 +104,32 @@ export function WorkerPay({ worker, canManage }: { worker: Worker; canManage: bo
               value={worker.wps_account ? `•••• ${worker.wps_account.slice(-4)}` : null}
             />
           </dl>
+        </div>
+      )}
+
+      {saudi && (
+        <div className="flex flex-col gap-2 border-t border-line-soft pt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+              {t('Mudad payroll')}
+            </span>
+            <Badge tone={ibanValid ? 'done' : 'pending'}>
+              {ibanValid ? t('IBAN checked') : t('Missing — left out of payroll files')}
+            </Badge>
+          </div>
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-[13.5px] sm:grid-cols-2">
+            <Amount
+              label={t('IBAN')}
+              value={worker.wps_account ? `•••• ${worker.wps_account.slice(-4)}` : null}
+            />
+            <Amount
+              label={t('Bank')}
+              value={saudiBank ? `${saudiBank.name} · ${saudiBank.bic}` : null}
+            />
+          </dl>
+          <p className="text-[12.5px] text-ink-muted">
+            {t('The Iqama or Saudi national ID on the payroll file comes from this worker’s papers.')}
+          </p>
         </div>
       )}
     </Card>
@@ -267,6 +297,24 @@ function EditPayDialog({ worker }: { worker: Worker }) {
               </legend>
               <WpsFields defaults={worker} />
             </fieldset>
+          )}
+
+          {settings.country === 'SA' && (
+            <Field
+              label={t('Saudi IBAN')}
+              htmlFor="wps_account"
+              optional
+              hint={t('SA and 22 digits — the bank is read from it')}
+            >
+              <Input
+                id="wps_account"
+                name="wps_account"
+                dir="ltr"
+                autoComplete="off"
+                maxLength={34}
+                defaultValue={worker.wps_account ?? ''}
+              />
+            </Field>
           )}
 
           {error && (

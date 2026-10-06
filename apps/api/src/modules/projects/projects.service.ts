@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   isoDateToUtcDate,
+  siteTimeToday,
   utcDateToIsoDate,
   type AddProjectMemberInput,
   type AddProjectMediaInput,
@@ -33,6 +34,10 @@ export interface ProjectView {
   /** Paise, serialised as a string so JSON never carries a lossy number. */
   budget_amount: string | null;
   status: string;
+  /** The site's own IANA zone, or null when it keeps the company's. */
+  time_zone: string | null;
+  /** The calendar date it is now at the site — its own zone, else the company's. */
+  today: string;
 }
 
 export interface ProjectListItem extends ProjectView {
@@ -76,7 +81,10 @@ export class ProjectsService {
     );
 
     return {
-      items: items.map((row) => ({ ...toView(row), ...(covers.get(row.id) ?? EMPTY_COVER) })),
+      items: items.map((row) => ({
+        ...toView(row, actor),
+        ...(covers.get(row.id) ?? EMPTY_COVER),
+      })),
       next_cursor: hasMore ? (items.at(-1)?.id ?? null) : null,
     };
   }
@@ -87,7 +95,7 @@ export class ProjectsService {
       .clientFor(actor.tenantId)
       .project.findFirst({ where: { id: projectId, deletedAt: null }, select: selectProject });
     if (!project) throw ApiError.notFound('Project');
-    return toView(project);
+    return toView(project, actor);
   }
 
   async create(actor: RequestUser, input: CreateProjectInput): Promise<ProjectView> {
@@ -104,6 +112,7 @@ export class ProjectsService {
           targetEndDate: input.target_end_date ? isoDateToUtcDate(input.target_end_date) : null,
           budgetAmount: input.budget_amount,
           status: input.status,
+          timeZone: input.time_zone ?? null,
         },
         select: selectProject,
       });
@@ -119,7 +128,7 @@ export class ProjectsService {
         },
       });
 
-      return toView(project);
+      return toView(project, actor);
     });
   }
 
@@ -146,10 +155,12 @@ export class ProjectsService {
           : { targetEndDate: isoDateToUtcDate(input.target_end_date) }),
         ...(input.budget_amount === undefined ? {} : { budgetAmount: input.budget_amount }),
         ...(input.status === undefined ? {} : { status: input.status }),
+        // Null clears it back to the company's zone.
+        ...(input.time_zone === undefined ? {} : { timeZone: input.time_zone }),
       },
       select: selectProject,
     });
-    return toView(project);
+    return toView(project, actor);
   }
 
   async addMember(actor: RequestUser, projectId: string, input: AddProjectMemberInput) {
@@ -604,6 +615,7 @@ const selectProject = {
   targetEndDate: true,
   budgetAmount: true,
   status: true,
+  timeZone: true,
 } as const;
 
 interface ProjectRow {
@@ -617,6 +629,7 @@ interface ProjectRow {
   targetEndDate: Date | null;
   budgetAmount: bigint | null;
   status: string;
+  timeZone: string | null;
 }
 
 interface MilestoneRow {
@@ -637,7 +650,7 @@ function milestoneView(milestone: MilestoneRow) {
   };
 }
 
-function toView(project: ProjectRow): ProjectView {
+function toView(project: ProjectRow, actor: { timezone: string }): ProjectView {
   return {
     id: project.id,
     name: project.name,
@@ -649,6 +662,8 @@ function toView(project: ProjectRow): ProjectView {
     target_end_date: project.targetEndDate ? utcDateToIsoDate(project.targetEndDate) : null,
     budget_amount: project.budgetAmount === null ? null : project.budgetAmount.toString(),
     status: project.status,
+    time_zone: project.timeZone,
+    today: siteTimeToday(project, actor),
   };
 }
 

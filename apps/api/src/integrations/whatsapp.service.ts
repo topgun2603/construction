@@ -21,6 +21,11 @@ export const TEMPLATES = {
   wageSheetSummary: 'wage_sheet_summary',
   /** {builder} {incident type} {site} {number and title} {when} — a lost-time injury or a death. */
   safetyIncidentAlert: 'safety_incident_alert',
+  /**
+   * To the platform's root operators: {company} {plan} {amount with currency} {invoice number} —
+   * a company has asked for a plan to be invoiced for bank transfer.
+   */
+  bankTransferRequest: 'bank_transfer_request',
 } as const;
 
 export type TemplateName = (typeof TEMPLATES)[keyof typeof TEMPLATES];

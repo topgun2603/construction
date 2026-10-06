@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { getFormat } from '@/lib/format-server';
+import { createFormat } from '@/lib/format';
+import { SiteZoneHint } from '@/components/site-zone-hint';
 import type { DashboardSite } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
 import { MeterRow } from '@/components/ui/meter';
@@ -16,8 +18,13 @@ import { getT } from '@/lib/i18n-server';
  */
 export async function SiteCard({ site }: { site: DashboardSite }) {
   const t = await getT();
-  const { moneyShort, timeOfDay, todayIso } = await getFormat();
-  const timeline = schedule(site, todayIso());
+  const format = await getFormat();
+  const { moneyShort, todayIso, settings } = format;
+  // The site's own day and clock (a separate time zone per site); the company's for most sites.
+  const timeline = schedule(site, site.today ?? todayIso());
+  const { timeOfDay } = site.time_zone
+    ? createFormat({ ...settings, timezone: site.time_zone })
+    : format;
   const budget = site.budget_amount ? BigInt(site.budget_amount) : null;
   const spend = BigInt(site.spend_month || '0');
   const budgetUsed = budget && budget > 0n ? Number((spend * 100n) / budget) : 0;
@@ -34,6 +41,7 @@ export async function SiteCard({ site }: { site: DashboardSite }) {
           <span className="truncate text-[13.5px] leading-tight text-ink-muted">
             {[site.address, site.client_name].filter(Boolean).join(' · ') || 'No site details'}
           </span>
+          <SiteZoneHint zone={site.time_zone} className="mt-1 self-start" />
         </div>
         {site.status === 'on_hold' ? (
           <Badge tone="blocked">{t('Work stopped')}</Badge>

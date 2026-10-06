@@ -102,9 +102,13 @@ export default async function WagePeriodPage({ params }: { params: Promise<{ id:
         </Card>
       )}
 
-      {/* WPS is the UAE's salary channel, so the file is offered to companies paying in dirhams. */}
+      {/* WPS is the Gulf's salary channel: the UAE's SIF for companies paying in dirhams, Saudi
+          Arabia's Mudad payroll file for Saudi companies. */}
       {settings.currency === 'AED' && me.permissions.includes('wages.pay') && (
         <WpsPanel periodId={period.id} />
+      )}
+      {settings.country === 'SA' && me.permissions.includes('wages.pay') && (
+        <WpsPanel periodId={period.id} format="mudad" />
       )}
 
       <LinesTable lines={period.lines} />

@@ -5,6 +5,7 @@ import {
   decimalToTenths,
   isoDateToUtcDate,
   tenthsToDecimal,
+  todayIn,
   utcDateToIsoDate,
   type AttendanceSummaryQuery,
   type BulkAttendanceInput,
@@ -15,6 +16,7 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { oneDecimal } from '../../common/decimal';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { siteZone } from '../../common/site-clock';
 
 export interface AttendanceRowView {
   id: string;
@@ -38,11 +40,20 @@ export class AttendanceService {
     private readonly access: ProjectAccess,
   ) {}
 
-  /** The roll call as recorded for one site on one day. */
-  async forDate(actor: RequestUser, projectId: string, date: string) {
+  /**
+   * The roll call as recorded for one site on one day — today at the site when no date is given.
+   *
+   * "Today" is the site's (`siteToday`): a Dubai site of a Mumbai company is still on yesterday
+   * for the ninety minutes after Mumbai's midnight, and its supervisor is still marking that day.
+   */
+  async forDate(actor: RequestUser, projectId: string, requested?: string) {
     await this.access.assertAccess(actor, projectId);
+    const db = this.tenantDb.clientFor(actor.tenantId);
+    const zone = await siteZone(db, actor, projectId);
+    const today = todayIn(zone);
+    const date = requested ?? today;
 
-    const rows = await this.tenantDb.clientFor(actor.tenantId).attendance.findMany({
+    const rows = await db.attendance.findMany({
       where: { projectId, attendanceDate: isoDateToUtcDate(date) },
       select: ROW_SELECT,
       orderBy: [{ worker: { contractorId: 'asc' } }, { worker: { name: 'asc' } }],
@@ -52,6 +63,9 @@ export class AttendanceService {
     return {
       project_id: projectId,
       attendance_date: date,
+      /** Today at the site, and the zone that decides it, for the date picker. */
+      site_today: today,
+      time_zone: zone,
       locked: await this.isLocked(actor, projectId, date),
       total_earned: items.reduce((sum, row) => sum + row.earned, 0n),
       present_count: items.filter((row) => row.status === 'present').length,

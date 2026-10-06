@@ -16,6 +16,8 @@ export const WORKER_DOCUMENT_KINDS = [
   'emirates_id',
   'labour_card',
   'iqama',
+  /** A Saudi citizen's national ID — what a Saudi payroll file carries for them instead of an Iqama. */
+  'national_id',
   'work_permit',
   'other',
 ] as const;
@@ -27,6 +29,7 @@ export const WORKER_DOCUMENT_LABELS: Readonly<Record<WorkerDocumentKind, string>
   emirates_id: 'Emirates ID',
   labour_card: 'Labour card',
   iqama: 'Iqama',
+  national_id: 'Saudi national ID',
   work_permit: 'Work permit',
   other: 'Other document',
 });
@@ -42,7 +45,7 @@ export function documentKindsFor(country: string | undefined): WorkerDocumentKin
     case 'AE':
       return ['emirates_id', 'residence_visa', 'labour_card', 'passport', 'other'];
     case 'SA':
-      return ['iqama', 'work_permit', 'passport', 'other'];
+      return ['iqama', 'national_id', 'work_permit', 'passport', 'other'];
     case 'QA':
     case 'KW':
     case 'OM':

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition, type ReactNode } from 'react';
+import { useMemo, useState, useTransition, type ReactNode } from 'react';
 import { Loader2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { PROJECT_STATUSES } from '@sitebook/shared';
@@ -32,6 +32,9 @@ import { statusLabel } from '@/lib/projects';
 import { useLanguage } from '@/components/language-provider';
 import { useFormat } from '@/components/format-provider';
 
+/** The select's stand-in for "no zone of its own" — sent to the API as null. */
+const COMPANY_ZONE = 'company';
+
 /**
  * Editing a site.
  *
@@ -53,7 +56,7 @@ export function EditSiteDialog({
   trigger?: ReactNode;
 }) {
   const { t } = useLanguage();
-  const { currencyDigits, currencySymbol } = useFormat();
+  const { currencyDigits, currencySymbol, settings } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +70,17 @@ export function EditSiteDialog({
     target_end_date: project.target_end_date ?? '',
     budget: project.budget_amount ? minorToAmountInput(project.budget_amount, currencyDigits) : '',
     status: project.status,
+    // `COMPANY_ZONE` rather than '' — a select item cannot carry an empty value.
+    time_zone: project.time_zone ?? COMPANY_ZONE,
   });
+  /*
+   * Every zone the browser knows, the same list as the company settings page, with the site's
+   * current one kept even if this browser's list lacks it.
+   */
+  const zones = useMemo(() => {
+    const all = Intl.supportedValuesOf('timeZone');
+    return project.time_zone && !all.includes(project.time_zone) ? [project.time_zone, ...all] : all;
+  }, [project.time_zone]);
   const [coords, setCoords] = useState({
     lat: project.lat === null ? '' : String(project.lat),
     lng: project.lng === null ? '' : String(project.lng),
@@ -114,6 +127,8 @@ export function EditSiteDialog({
       patch['target_end_date'] = form.target_end_date || null;
     }
     if (form.status !== project.status) patch['status'] = form.status;
+    const zone = form.time_zone === COMPANY_ZONE ? null : form.time_zone;
+    if (zone !== (project.time_zone ?? null)) patch['time_zone'] = zone;
 
     const budgetPaise = form.budget.trim()
       ? amountToMinorString(form.budget.trim(), currencyDigits, currencySymbol)
@@ -224,6 +239,28 @@ export function EditSiteDialog({
                 {PROJECT_STATUSES.map((status) => (
                   <SelectItem key={status} value={status}>
                     {t(statusLabel(status))}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field
+            label={t('Time zone')}
+            hint={t('What “today” means for this site’s attendance and reports. Most sites keep the company’s.')}
+            className="max-w-[360px]"
+          >
+            <Select value={form.time_zone} onValueChange={(value) => set('time_zone', value)}>
+              <SelectTrigger aria-label={t('Time zone')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={COMPANY_ZONE}>
+                  {t('Same as the company')} ({settings.timezone.replace(/_/g, ' ')})
+                </SelectItem>
+                {zones.map((zone) => (
+                  <SelectItem key={zone} value={zone}>
+                    {zone.replace(/_/g, ' ')}
                   </SelectItem>
                 ))}
               </SelectContent>

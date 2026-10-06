@@ -3,10 +3,13 @@ import { Logger } from '@nestjs/common';
 import type { Job, Queue } from 'bullmq';
 import {
   SAFETY_INCIDENT_TYPE_LABELS,
+  addDays,
   formatMoneyCompact,
   isoDateToUtcDate,
   safetyInstantToLocal,
   safetyNumber,
+  siteTimeToday,
+  todayIn,
   utcDateToIsoDate,
   type SafetyIncidentType,
 } from '@sitebook/shared';
@@ -170,13 +173,17 @@ export class WhatsappProcessor extends WorkerHost {
   /** 5:30pm nudge to supervisors whose site has no report yet. */
   private async dprReminder(data: DprReminderJob) {
     const db = this.tenantDb.clientFor(data.tenantId);
-    const on = isoDateToUtcDate(data.date);
+    const tenant = await db.tenant.findUnique({
+      where: { id: data.tenantId },
+      select: { timezone: true },
+    });
 
     const projects = await db.project.findMany({
       where: { deletedAt: null, status: 'active' },
       select: {
         id: true,
         name: true,
+        timeZone: true,
         members: {
           where: { roleOnProject: 'site_supervisor' },
           select: { user: { select: { phone: true, status: true } } },
@@ -184,13 +191,36 @@ export class WhatsappProcessor extends WorkerHost {
       },
     });
 
+    /*
+     * The reminder fires on the company's clock, but the report it chases is for each site's own
+     * today (a separate time zone per site) — a site already past midnight is on the next day's
+     * report. The job's date is the company's; each site's is that date moved by however many
+     * days the site's clock is ahead or behind right now, so a retried job still chases the day it
+     * was queued for. Without a company zone to hand, the job's own date stands for every site.
+     */
+    const companyNow = tenant ? isoDateToUtcDate(todayIn(tenant.timezone)).getTime() : 0;
+    const siteDay = new Map(
+      projects.map((project) => {
+        if (!tenant) return [project.id, data.date] as const;
+        const ahead = Math.round(
+          (isoDateToUtcDate(siteTimeToday(project, tenant)).getTime() - companyNow) / 86_400_000,
+        );
+        return [project.id, addDays(data.date, ahead)] as const;
+      }),
+    );
     const reported = new Set(
       (
         await db.dailyReport.findMany({
-          where: { reportDate: on, deletedAt: null, status: 'submitted' },
-          select: { projectId: true },
+          where: {
+            reportDate: { in: [...new Set(siteDay.values())].map((day) => isoDateToUtcDate(day)) },
+            deletedAt: null,
+            status: 'submitted',
+          },
+          select: { projectId: true, reportDate: true },
         })
-      ).map((row) => row.projectId),
+      )
+        .filter((row) => utcDateToIsoDate(row.reportDate) === siteDay.get(row.projectId))
+        .map((row) => row.projectId),
     );
 
     const messages: TemplateMessage[] = [];
