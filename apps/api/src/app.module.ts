@@ -30,6 +30,7 @@ import { ChangeOrdersModule } from './modules/change-orders/change-orders.module
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { BoqModule } from './modules/boq/boq.module';
 import { CompanyGroupsModule } from './modules/company-groups/company-groups.module';
+import { RfisModule } from './modules/rfis/rfis.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { DprModule } from './modules/dpr/dpr.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
@@ -129,6 +130,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     SafetyModule,
     BoqModule,
     CompanyGroupsModule,
+    RfisModule,
     AuditModule,
     ReportsModule,
     StockModule,

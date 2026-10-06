@@ -242,6 +242,9 @@ const envSchema = z
     // Permits to work whose time ran out while still open. Every quarter-hour, so the alert lands
     // within fifteen minutes of the permit lapsing on any company's clock.
     SAFETY_PERMIT_EXPIRY_CRON: z.string().default('*/15 * * * *'),
+    // RFIs and submittals due soon or overdue, on each company's clock: first thing, before the
+    // morning's calls to the consultants.
+    RFI_REMINDER_CRON: z.string().default('0 8 * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

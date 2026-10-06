@@ -79,6 +79,9 @@ import type {
 import { SiteSafety } from './site-safety';
 import type { BoqView } from '@/lib/boq-types';
 import { BoqTab } from './boq-tab';
+import type { RfiSettings, RfiStats, RfiSummary, SubmittalStats, SubmittalSummary } from '@/lib/rfi-types';
+import { submittalFormData } from '@/lib/rfi-form-data';
+import { SiteDesign } from './site-design';
 
 const TABS = [
   'timeline',
@@ -86,6 +89,7 @@ const TABS = [
   'reports',
   'conversation',
   'documents',
+  'design',
   'approvals',
   'payments',
   'people',
@@ -379,6 +383,25 @@ export default async function ProjectPage({
         ])
       : [null, [] as CostCode[]];
 
+  // RFIs and submittals (roadmap Phase 2, module 9), fetched only for their own tab.
+  const canSeeRfis = me.permissions.includes('rfis.view');
+  const canSeeSubmittals = me.permissions.includes('submittals.view');
+  const canRaiseRfi = me.permissions.includes('rfis.manage');
+  const canSubmit = me.permissions.includes('submittals.manage');
+  const design =
+    active === 'design' && (canSeeRfis || canSeeSubmittals)
+      ? await Promise.all([
+          canSeeRfis
+            ? serverFetch<{ items: RfiSummary[]; stats: RfiStats }>(`/rfis?project_id=${id}`)
+            : null,
+          canSeeSubmittals
+            ? serverFetch<{ items: SubmittalSummary[]; stats: SubmittalStats }>(`/submittals?project_id=${id}`)
+            : null,
+          canRaiseRfi || canSubmit ? submittalFormData(me.permissions) : null,
+          canRaiseRfi ? serverFetch<RfiSettings>('/rfis/settings').catch(() => null) : null,
+        ])
+      : null;
+
   // Same gate as the overview: what the site costs the builder, never shown to a client.
   const forecast =
     me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
@@ -443,6 +466,7 @@ export default async function ProjectPage({
         showSchedule={canSeeSchedule}
         showSafety={canSeeSafety}
         showBoq={canSeeBoq}
+        showDesign={canSeeRfis || canSeeSubmittals}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -604,6 +628,18 @@ export default async function ProjectPage({
       )}
       {active === 'purchases' && canSeePurchases && (
         <SitePurchases projectId={id} orders={purchases} />
+      )}
+      {active === 'design' && design && (
+        <SiteDesign
+          site={{ id, name: project.name }}
+          rfis={design[0]}
+          submittals={design[1]}
+          documents={design[2]?.documents ?? []}
+          parties={design[2]?.parties ?? { contractors: [], vendors: [] }}
+          aiEnabled={design[3]?.ai_enabled ?? false}
+          canRaiseRfi={canRaiseRfi}
+          canSubmit={canSubmit}
+        />
       )}
       {active === 'safety' && safety && (
         <SiteSafety

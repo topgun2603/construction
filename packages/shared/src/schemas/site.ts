@@ -142,6 +142,8 @@ const UPLOAD_KINDS = [
   'quality_report',
   /** Safety evidence: an incident scene, a witness statement, an observation and its close-out. */
   'safety_photo',
+  /** RFIs and submittals: a photo or file on an RFI, a response, or a submittal revision. */
+  'rfi_attachment',
 ] as const;
 
 /**

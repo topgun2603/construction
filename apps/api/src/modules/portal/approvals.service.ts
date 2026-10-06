@@ -10,6 +10,7 @@ import type { RequestUser } from '../../common/auth/request-user';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { ChangeOrderApprovalsService } from '../change-orders/change-order-approvals.service';
+import { SubmittalApprovalsService } from '../rfis/submittal-approvals.service';
 
 const APPROVAL_SELECT = {
   id: true,
@@ -47,6 +48,8 @@ export class ApprovalsService {
     private readonly uploads: UploadsService,
     /** Applies a change order when its approval is answered; see `ChangeOrderApprovalsService`. */
     private readonly changeOrders: ChangeOrderApprovalsService,
+    /** Records a submittal's review when its approval is answered; see `SubmittalApprovalsService`. */
+    private readonly submittals: SubmittalApprovalsService,
   ) {}
 
   async list(actor: RequestUser, query: ListApprovalsQuery) {
@@ -154,7 +157,7 @@ export class ApprovalsService {
      * it — budgets, handover date, contract value — and the client's yes must never be recorded
      * without that, or the other way round.
      */
-    const { approval, notice } = await this.tenantDb.transaction(actor.tenantId, async (tx) => {
+    const { approval, notice, submittalNotice } = await this.tenantDb.transaction(actor.tenantId, async (tx) => {
       const decided = await tx.approval.update({
         where: { id: approvalId },
         data: {
@@ -165,9 +168,14 @@ export class ApprovalsService {
         },
         select: APPROVAL_SELECT,
       });
-      return { approval: decided, notice: await this.changeOrders.recordDecision(tx, actor, approvalId, input) };
+      return {
+        approval: decided,
+        notice: await this.changeOrders.recordDecision(tx, actor, approvalId, input),
+        submittalNotice: await this.submittals.recordDecision(tx, actor, approvalId, input),
+      };
     });
     await this.changeOrders.notifyDecision(actor, notice);
+    await this.submittals.notifyDecision(actor, submittalNotice);
 
     return this.view(actor, approval);
   }
@@ -190,7 +198,10 @@ export class ApprovalsService {
     if (approval.status !== 'pending') {
       throw ApiError.conflict('A decided approval is a record and stays on the job');
     }
-    await this.tenantDb.transaction(actor.tenantId, (tx) => this.changeOrders.assertWithdrawable(tx, approvalId));
+    await this.tenantDb.transaction(actor.tenantId, async (tx) => {
+      await this.changeOrders.assertWithdrawable(tx, approvalId);
+      await this.submittals.assertWithdrawable(tx, approvalId);
+    });
 
     await db.approval.update({ where: { id: approvalId }, data: { deletedAt: new Date() } });
   }
