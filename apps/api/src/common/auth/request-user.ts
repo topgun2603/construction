@@ -39,6 +39,8 @@ export interface RequestUser {
    * that predate it.
    */
   identity?: string | null;
+  /** `sso` when the session began at the company's identity provider — see `AccessTokenClaims.via`. */
+  via?: 'sso' | null;
 }
 
 /**

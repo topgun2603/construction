@@ -102,6 +102,18 @@ export class ApiError extends HttpException {
     );
   }
 
+  /**
+   * The company enforces single sign-on for this person. 403 at sign-in; 401 when a refresh is
+   * refused, so the client treats it as a session that has ended rather than as a broken page.
+   */
+  static ssoRequired(status: HttpStatus.FORBIDDEN | HttpStatus.UNAUTHORIZED = HttpStatus.FORBIDDEN): ApiError {
+    return new ApiError(
+      status,
+      ERROR_CODES.SSO_REQUIRED,
+      'Your company requires single sign-on. Choose "Sign in with SSO" and use your work email.',
+    );
+  }
+
   static phoneAlreadyRegistered(): ApiError {
     return new ApiError(
       HttpStatus.CONFLICT,

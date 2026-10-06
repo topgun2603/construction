@@ -1,4 +1,4 @@
-import { json, type Express, type Request } from 'express';
+import { json, urlencoded, type Express, type Request } from 'express';
 import type { INestApplication, NestApplicationOptions } from '@nestjs/common';
 
 /**
@@ -33,11 +33,20 @@ export function configureApp(app: INestApplication): void {
   app.use(
     json({
       limit: '2mb',
+      // SCIM clients (Entra ID, Okta) send `application/scim+json`, which is JSON by another name.
+      type: ['application/json', 'application/scim+json'],
       verify: (req, _res, buffer) => {
         if (buffer.length > 0) (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
       },
     }),
   );
+
+  /*
+   * A SAML identity provider answers with an auto-submitted HTML form (HTTP-POST binding), so the
+   * ACS endpoint alone reads form bodies. Scoped to that path: nothing else in the API takes forms,
+   * and accepting them everywhere would widen what a cross-site form post could reach.
+   */
+  app.use('/v1/auth/sso/saml', urlencoded({ extended: false, limit: '2mb' }));
 
   configureJsonSerialisation(app.getHttpAdapter().getInstance() as Express);
 }

@@ -110,6 +110,7 @@ export class JwtAuthGuard implements CanActivate {
       taxRegime: tenant.taxRegime,
       country: tenant.country,
       identity: claims.idn ?? null,
+      via: claims.via === 'sso' ? 'sso' : null,
     };
 
     return true;

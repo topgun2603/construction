@@ -379,6 +379,18 @@ model Tenant {
   equipmentDocuments    EquipmentDocument[]
   equipmentHireBookings EquipmentHireBooking[]
 
+  // Single sign-on and provisioning
+  ssoConnection       SsoConnection?
+  ssoDomains          SsoDomain[]
+  ssoDomainDirectory  SsoDomainDirectory[]
+  ssoLoginRequests    SsoLoginRequest[]
+  scimTokens          ScimToken[]
+  scimTokenDirectory  ScimTokenDirectory[]
+  scimUsers           ScimUser[]
+  scimGroups          ScimGroup[]
+  scimGroupMembers    ScimGroupMember[]
+  scimRoleMappings    ScimRoleMapping[]
+
   @@map("tenants")
 }
 
@@ -406,6 +418,9 @@ model Role {
   users  User[]
 
   purchaseApprovalLimits PurchaseApprovalLimit[]
+
+  ssoJitConnections SsoConnection[]
+  scimRoleMappings  ScimRoleMapping[]
 
   @@unique([tenantId, name], map: "roles_tenant_id_name_key")
   @@index([tenantId])
@@ -477,6 +492,10 @@ model User {
   scheduleBaselinesTaken   ScheduleBaseline[]         @relation("schedule_baseline_creator")
   // Company groups
   companyGroupAdmin        CompanyGroupAdmin[]
+
+  // Single sign-on and provisioning
+  scimUser         ScimUser?
+  scimGroupMembers ScimGroupMember[]
 
   /// Phone is unique within a tenant, not globally â€” the same person can be a
   /// supervisor at one builder and an owner at another.
@@ -4796,4 +4815,198 @@ model EquipmentHireBooking {
   @@unique([equipmentId, projectId, month])
   @@index([tenantId, vendorId, month])
   @@map("equipment_hire_bookings")
+}
+
+// ---------------------------------------------------------------------------
+// Single sign-on and SCIM provisioning (roadmap Phase 3, item 1)
+// ---------------------------------------------------------------------------
+
+/// A company's single sign-on connection: OpenID Connect or SAML 2.0 to its own identity provider.
+/// At most one per company. Owner-only to change — whoever controls this can sign in as anybody on
+/// the company's verified domains.
+model SsoConnection {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String    @unique @map("tenant_id") @db.Uuid
+  /// oidc | saml
+  protocol               String
+  /// entra | google | okta | other — which help text and claim defaults apply.
+  preset                 String    @default("other")
+  enabled                Boolean   @default(false)
+  oidcIssuer             String?   @map("oidc_issuer")
+  oidcClientId           String?   @map("oidc_client_id")
+  /// AES-256-GCM (FieldCipher) under SSO_ENCRYPTION_KEY. Named `_cipher` so the audit log redacts it.
+  oidcClientSecretCipher String?   @map("oidc_client_secret_cipher")
+  oidcScopes             String    @default("openid email profile") @map("oidc_scopes")
+  samlIdpEntityId        String?   @map("saml_idp_entity_id")
+  samlIdpSsoUrl          String?   @map("saml_idp_sso_url")
+  /// The IdP's public signing certificate (PEM or bare base64). Public by nature, so not encrypted.
+  samlIdpCertificate     String?   @map("saml_idp_certificate")
+  samlIdpMetadataUrl     String?   @map("saml_idp_metadata_url")
+  /// Create a person at first sign-in when nobody in the company has their address.
+  jitEnabled             Boolean   @default(false) @map("jit_enabled")
+  /// The role they get. Never an owner role; the service refuses one.
+  jitRoleId              String?   @map("jit_role_id") @db.Uuid
+  /// People on a verified domain must use SSO; owners keep phone sign-in as the break-glass path.
+  enforceSso             Boolean   @default(false) @map("enforce_sso")
+  updatedByUserId        String?   @map("updated_by_user_id") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  jitRole       Role?             @relation(fields: [jitRoleId], references: [id], onDelete: SetNull)
+  loginRequests SsoLoginRequest[]
+
+  @@map("sso_connections")
+}
+
+/// An email domain a company has claimed, and — once its DNS carries the TXT record — proved.
+/// A domain can be *verified* by one company only; that is a partial unique index in the migration
+/// (`WHERE verified_at IS NOT NULL`), which Prisma cannot express.
+model SsoDomain {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  domain            String
+  /// What the TXT record must say. Named `_token` so the audit log redacts it.
+  verificationToken String    @map("verification_token")
+  verifiedAt        DateTime? @map("verified_at") @db.Timestamptz(6)
+  lastCheckedAt     DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, domain])
+  @@map("sso_domains")
+}
+
+/// Verified domain → company, for "Sign in with SSO" before any company is known. No RLS, like
+/// `auth_identities`, and like it written only by a trigger (on `sso_domains`) — never by the app.
+model SsoDomainDirectory {
+  domain   String @id
+  tenantId String @map("tenant_id") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("sso_domain_directory")
+}
+
+/// One sign-in in flight: what the callback must match (OIDC nonce and PKCE verifier, SAML request
+/// id) and, once the provider has answered, who it was. Single use; a few minutes long.
+model SsoLoginRequest {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  connectionId       String    @map("connection_id") @db.Uuid
+  protocol           String
+  /// started → callback (provider answered, being checked) → authenticated → completed.
+  status             String    @default("started")
+  nonce              String?
+  /// The PKCE code verifier. Named `_secret` so nothing ever logs it.
+  pkceVerifierSecret String?   @map("pkce_verifier_secret")
+  samlRequestId      String?   @map("saml_request_id")
+  /// SHA-256 of the browser binding sent at the start; the finish must present the same value.
+  bindingHash        String    @map("binding_hash")
+  email              String?
+  userId             String?   @map("user_id") @db.Uuid
+  expiresAt          DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection SsoConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("sso_login_requests")
+}
+
+/// A SCIM bearer token. Only its SHA-256 is kept; the token itself is shown once, when made.
+model ScimToken {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  /// The last four characters, to tell tokens apart in settings.
+  tokenHint       String    @map("token_hint")
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("scim_tokens")
+}
+
+/// Live SCIM token hash → company, for authenticating a SCIM request before any company is known.
+/// No RLS; written only by the trigger on `scim_tokens`.
+model ScimTokenDirectory {
+  tokenHash String @id @map("token_hash")
+  tenantId  String @map("tenant_id") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("scim_token_directory")
+}
+
+/// A team member the identity provider manages, with the provider's own id for them.
+model ScimUser {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  userId     String   @unique @map("user_id") @db.Uuid
+  externalId String?  @map("external_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, externalId])
+  @@map("scim_users")
+}
+
+/// A group the identity provider pushed. Only used to map people to roles.
+model ScimGroup {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  displayName String   @map("display_name")
+  externalId  String?  @map("external_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members ScimGroupMember[]
+
+  @@unique([tenantId, displayName])
+  @@map("scim_groups")
+}
+
+model ScimGroupMember {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group  ScimGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([tenantId, userId])
+  @@map("scim_group_members")
+}
+
+/// People in the provider group called `groupName` get `roleId`. Never an owner role.
+model ScimRoleMapping {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  groupName String   @map("group_name")
+  roleId    String   @map("role_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, groupName])
+  @@map("scim_role_mappings")
 }

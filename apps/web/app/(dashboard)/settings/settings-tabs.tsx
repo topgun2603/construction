@@ -5,8 +5,11 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
 
-/** A tab with a `permission` is shown only to people who hold it. */
-const TABS: Array<{ href: string; label: string; permission?: string }> = [
+/**
+ * A tab with a `permission` is shown only to people who hold it; one marked `ownerOnly` only to
+ * owners, for settings no permission can hand to somebody else.
+ */
+const TABS: Array<{ href: string; label: string; permission?: string; ownerOnly?: boolean }> = [
   { href: '/settings/company', label: 'Company' },
   { href: '/settings/team', label: 'Team' },
   { href: '/settings/roles', label: 'Roles' },
@@ -19,14 +22,20 @@ const TABS: Array<{ href: string; label: string; permission?: string }> = [
   // only what being the owner or a group admin allows.
   { href: '/settings/group', label: 'Company group' },
   { href: '/settings/audit', label: 'Audit log', permission: 'audit.view' },
+  // Single sign-on today; two-factor, sessions and IP rules join it as sections of the same page.
+  { href: '/settings/security', label: 'Security', ownerOnly: true },
 ];
 
-export function SettingsTabs({ permissions = [] }: { permissions?: string[] }) {
+export function SettingsTabs({ permissions = [], role }: { permissions?: string[]; role?: string }) {
   const { t } = useLanguage();
   const pathname = usePathname();
+  const visible = TABS.filter(
+    (tab) =>
+      (!tab.permission || permissions.includes(tab.permission)) && (!tab.ownerOnly || role === 'owner'),
+  );
   return (
     <nav className="flex gap-1 overflow-x-auto border-b border-line">
-      {TABS.filter((tab) => !tab.permission || permissions.includes(tab.permission)).map((tab) => {
+      {visible.map((tab) => {
         const active = pathname.startsWith(tab.href);
         return (
           <Link

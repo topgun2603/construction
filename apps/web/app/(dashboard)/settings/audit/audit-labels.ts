@@ -42,6 +42,14 @@ export const ENTITY_LABELS: Record<string, string> = {
   subscriptions: 'Subscription',
   invoices: 'Invoice',
   audit_logs: 'Audit log',
+  // Single sign-on and provisioning
+  sso_connections: 'Single sign-on',
+  sso_domains: 'Verified domain',
+  scim_tokens: 'Provisioning token',
+  scim_users: 'Provisioned person',
+  scim_groups: 'Provider group',
+  scim_group_members: 'Provider group member',
+  scim_role_mappings: 'Group role mapping',
   // QA/QC
   quality_checklist_templates: 'Checklist',
   quality_checklist_items: 'Checklist line',

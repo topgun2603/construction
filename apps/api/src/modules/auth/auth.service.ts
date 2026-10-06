@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import type { UserRole } from '@sitebook/shared';
 import type {
   AuthExchangeInput,
@@ -13,9 +13,11 @@ import {
   TokenService,
   identityClaim,
   parseIdentityClaim,
+  type SessionVia,
 } from '../../common/auth/token.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { PhoneAuthService, type VerifiedIdentity } from './phone-auth.service';
+import { SsoPolicyService, type SignInMethod } from './sso-policy.service';
 
 export interface TenantChoice {
   tenant_id: string;
@@ -56,6 +58,7 @@ export class AuthService {
     private readonly tenantDb: TenantDb,
     private readonly tokens: TokenService,
     private readonly phoneAuth: PhoneAuthService,
+    private readonly ssoPolicy: SsoPolicyService,
   ) {}
 
   /**
@@ -97,12 +100,15 @@ export class AuthService {
       };
     }
 
-    const live = await this.liveIdentities(identities);
+    const active = await this.liveIdentities(identities);
+    const live = await this.permittedIdentities(active, proof.kind);
 
     let identity: IdentityRow | null;
     if (input.tenant_id) {
       identity = live.find((row) => row.tenantId === input.tenant_id) ?? null;
       if (!identity) {
+        // Theirs and active, but that company makes them use its identity provider.
+        if (active.some((row) => row.tenantId === input.tenant_id)) throw ApiError.ssoRequired();
         // A company they do belong to but which is suspended says so; one they do not belong to
         // gets the same refusal whether or not it exists, so the endpoint cannot be used to probe.
         if (identities.some((row) => row.tenantId === input.tenant_id)) {
@@ -212,6 +218,15 @@ export class AuthService {
     const [live] = await this.liveIdentities([target]);
     if (!live) throw ApiError.tenantSuspended();
 
+    // A company that enforces single sign-on applies it here too: a session proved by phone or
+    // Google elsewhere must not become a way into it. One proved by an identity provider may —
+    // that provider owns the verified domain the email is on (see SsoLoginService).
+    const method: SignInMethod = actor.via === 'sso' ? 'sso' : proof.kind;
+    const permitted = await this.tenantDb.transaction(live.tenantId, (tx) =>
+      this.ssoPolicy.permits(tx, live.userId, method),
+    );
+    if (!permitted) throw ApiError.ssoRequired();
+
     const tokens = await this.issueSession({
       tenantId: live.tenantId,
       userId: live.userId,
@@ -221,6 +236,7 @@ export class AuthService {
       // that membership's first sign-in, exactly as if they had picked it on the login screen.
       activatePending: true,
       identity: actor.identity ?? null,
+      via: actor.via ?? null,
     });
 
     if (input.refresh_token) await this.revokeLeftSession(actor, input.refresh_token);
@@ -260,6 +276,7 @@ export class AuthService {
       input.device_id,
       userAgent,
       claims.idn ?? null,
+      claims.via === 'sso' ? 'sso' : null,
     );
 
     if (outcome.kind === 'replayed') {
@@ -283,6 +300,7 @@ export class AuthService {
     deviceId: string | undefined,
     userAgent: string | undefined,
     identity: string | null,
+    via: SessionVia | null,
   ): Promise<{ kind: 'rotated'; tokens: TokenPair } | { kind: 'replayed'; userId: string }> {
     return this.tenantDb.transaction(tenantId, async (tx) => {
       const stored = await tx.refreshToken.findUnique({
@@ -301,10 +319,22 @@ export class AuthService {
       if (!user) throw ApiError.invalidToken('User no longer exists');
       if (user.status !== 'active') throw ApiError.userPending();
 
+      /*
+       * Enforcement switched on after this session began ends it here, at the next refresh. The
+       * session is left unrevoked — refusing is enough, and it is still the person's to sign out
+       * of — and a session without an identity claim predates switching and is read as a phone
+       * sign-in, the most it could have been.
+       */
+      const method: SignInMethod =
+        via === 'sso' ? 'sso' : (parseIdentityClaim(identity)?.kind ?? 'phone');
+      if (!(await this.ssoPolicy.permits(tx, user.id, method))) {
+        throw ApiError.ssoRequired(HttpStatus.UNAUTHORIZED);
+      }
+
       const projectIds = await this.loadProjectIds(tx, user.id);
       // The verified identity rides along unchanged: rotation proves possession of the session,
       // not of the phone, so it can carry the claim forward but never mint a new one.
-      const issued = this.tokens.signRefreshToken({ userId: user.id, tenantId, identity });
+      const issued = this.tokens.signRefreshToken({ userId: user.id, tenantId, identity, via });
 
       const created = await tx.refreshToken.create({
         data: {
@@ -332,6 +362,7 @@ export class AuthService {
             roleId: user.roleId,
             projectIds,
             identity,
+            via,
           }),
           refresh_token: issued.token,
           expires_in: this.tokens.accessTokenTtlSeconds,
@@ -361,6 +392,8 @@ export class AuthService {
     activatePending?: boolean;
     /** The verified identity behind this session (`identityClaim`), for company switching. */
     identity?: string | null;
+    /** `sso` for a session that began at the company's identity provider. */
+    via?: SessionVia | null;
   }): Promise<TokenPair> {
     return this.tenantDb.transaction(input.tenantId, async (tx) => {
       const user = await tx.user.findFirst({
@@ -382,6 +415,7 @@ export class AuthService {
         userId: user.id,
         tenantId: input.tenantId,
         identity: input.identity ?? null,
+        via: input.via ?? null,
       });
       await tx.refreshToken.create({
         data: {
@@ -402,6 +436,7 @@ export class AuthService {
           roleId: user.roleId,
           projectIds,
           identity: input.identity ?? null,
+          via: input.via ?? null,
         }),
         refresh_token: issued.token,
         expires_in: this.tokens.accessTokenTtlSeconds,
@@ -434,6 +469,25 @@ export class AuthService {
 
     if (live.length === 0) throw ApiError.tenantSuspended();
     return live;
+  }
+
+  /**
+   * Drops the companies that make this person use single sign-on (`SsoPolicyService`). With
+   * nothing left, the refusal says so — they belong somewhere, just not by this way in.
+   */
+  private async permittedIdentities(
+    identities: IdentityRow[],
+    method: SignInMethod,
+  ): Promise<IdentityRow[]> {
+    const permitted: IdentityRow[] = [];
+    for (const identity of identities) {
+      const allowed = await this.tenantDb.transaction(identity.tenantId, (tx) =>
+        this.ssoPolicy.permits(tx, identity.userId, method),
+      );
+      if (allowed) permitted.push(identity);
+    }
+    if (permitted.length === 0) throw ApiError.ssoRequired();
+    return permitted;
   }
 
   private async describeTenants(identities: IdentityRow[]): Promise<TenantChoice[]> {

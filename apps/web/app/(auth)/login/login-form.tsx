@@ -10,7 +10,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Building2, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, KeyRound, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
 import {
   GoogleAuthProvider,
   RecaptchaVerifier,
@@ -36,6 +36,7 @@ import {
 } from '@sitebook/shared';
 import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { authErrorCode, authErrorMessage } from '@/lib/auth-errors';
+import { newSsoBinding } from '@/lib/sso-browser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
@@ -77,7 +78,7 @@ const OTP_LENGTH = 6;
 const EASE = [0.22, 0.61, 0.36, 1] as const;
 
 /** `email` and `mfa` are the email-and-password way in and its authenticator-app step. */
-type Step = 'phone' | 'code' | 'email' | 'mfa' | 'onboard' | 'company';
+type Step = 'phone' | 'code' | 'email' | 'mfa' | 'onboard' | 'company' | 'sso';
 
 interface TokenPair {
   access_token: string;
@@ -340,6 +341,31 @@ export function LoginForm() {
       return;
     }
     await exchange(await user.getIdToken());
+  }
+
+  /**
+   * "Sign in with SSO": the work email finds the company by its verified domain and the API answers
+   * with the identity provider's URL. The browser binding goes into session storage first, so the
+   * callback page can prove it is the same tab that started.
+   */
+  async function handleSsoSubmit(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const response = await fetch(`${API_URL}/auth/sso/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), binding: newSsoBinding() }),
+      });
+      const payload = (await response.json()) as { redirect_url?: string; message?: string };
+      if (!response.ok || !payload.redirect_url) throw new Error(payload.message ?? 'Could not start single sign-on');
+      window.location.assign(payload.redirect_url);
+      // Busy stays on: the page is leaving.
+    } catch (cause) {
+      setError(messageOf(cause));
+      setBusy(false);
+    }
   }
 
   async function handleForgotPassword(): Promise<void> {
@@ -617,6 +643,22 @@ export function LoginForm() {
                   {t('Sign in with email')}
                 </button>
 
+                {/* Fourth: a company that signs its people in through Entra ID, Google Workspace
+                    or Okta. Required for them when the company enforces it. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setNotice(null);
+                    setStep('sso');
+                  }}
+                  disabled={busy}
+                  className="-mt-3 flex h-12 w-full items-center justify-center gap-3 rounded-btn border border-line-strong bg-surface text-[14.5px] font-semibold text-ink transition hover:bg-raised disabled:opacity-60"
+                >
+                  <KeyRound className="size-4 text-ink-soft" />
+                  {t('Sign in with SSO')}
+                </button>
+
                 {/*
                   No numbers printed here any more.
 
@@ -674,6 +716,45 @@ export function LoginForm() {
                   <ArrowLeft className="size-3.5" /> {t('Use a different number')}
                 </button>
               </div>
+            )}
+
+            {step === 'sso' && (
+              <form onSubmit={handleSsoSubmit} className="flex flex-col gap-6">
+                <header className="flex flex-col gap-2">
+                  <span className="flex size-11 items-center justify-center rounded-card bg-accent-soft text-accent">
+                    <KeyRound className="size-5" />
+                  </span>
+                  <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-[-0.02em]">
+                    {t('Sign in with SSO')}
+                  </h1>
+                  <p className="text-[14.5px] leading-relaxed text-ink-muted">
+                    {t('Enter your work email. We’ll send you to your company’s sign-in page.')}
+                  </p>
+                </header>
+
+                <Field label={t('Work email')} htmlFor="sso-email">
+                  <Input
+                    id="sso-email"
+                    type="email"
+                    autoFocus
+                    autoComplete="username"
+                    required
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="h-12 text-[16px]"
+                  />
+                </Field>
+
+                <Submit busy={busy}>{t('Continue')}</Submit>
+
+                <button
+                  type="button"
+                  onClick={backToPhone}
+                  className="flex min-h-0 items-center gap-1.5 self-start text-[13.5px] font-medium text-ink-muted transition hover:text-ink"
+                >
+                  <ArrowLeft className="size-3.5" /> {t('Use your mobile number instead')}
+                </button>
+              </form>
             )}
 
             {step === 'email' && (

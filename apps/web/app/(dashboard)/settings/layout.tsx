@@ -7,7 +7,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   const me = await requireSelf();
   return (
     <div className="flex flex-col gap-5">
-      <SettingsTabs permissions={me.permissions} />
+      <SettingsTabs permissions={me.permissions} role={me.user.role} />
       {children}
     </div>
   );

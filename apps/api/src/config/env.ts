@@ -235,6 +235,24 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    /**
+     * Where this API is reachable from the internet, without `/v1` — e.g. https://api.buildr.app.
+     * Single sign-on needs it: the OIDC redirect URI, the SAML ACS URL and entity id are all built
+     * from it, and an identity provider will only send people back to the exact URL it was given.
+     * Unset, SSO answers "not configured"; nothing else uses it.
+     */
+    API_PUBLIC_URL: z.string().url().optional(),
+    /**
+     * Key for SSO client secrets at rest: 32 random bytes, base64, generated like
+     * DOCUMENT_ENCRYPTION_KEY and deliberately a different key — losing one must not expose the
+     * other's data. Unset, an OIDC connection cannot store a client secret (SAML needs none).
+     */
+    SSO_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'SSO_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
     // Workers' documents nearing expiry, on each company's clock: first thing in the morning.
     DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
     // Cube and lab tests due today, on each company's clock: early enough to get them to the lab.

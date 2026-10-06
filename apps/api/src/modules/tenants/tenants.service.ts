@@ -343,13 +343,15 @@ export class TenantsService {
   async listTeam(tenantId: string) {
     const users = await this.tenantDb.clientFor(tenantId).user.findMany({
       where: { deletedAt: null },
-      select: { id: true, name: true, phone: true, role: true, status: true, lastLogin: true },
+      select: { id: true, name: true, phone: true, email: true, role: true, status: true, lastLogin: true },
       orderBy: [{ role: 'asc' }, { name: 'asc' }],
     });
     return users.map((user) => ({
       id: user.id,
       name: user.name,
       phone: user.phone,
+      // Shown in place of the phone for somebody created by single sign-on, who has none.
+      email: user.email,
       role: user.role,
       status: user.status,
       last_login: user.lastLogin?.toISOString() ?? null,

@@ -51,6 +51,11 @@ export class WhatsappService {
   }
 
   async send(message: TemplateMessage): Promise<SendResult> {
+    // A person created by single sign-on or SCIM has a stand-in instead of a phone
+    // (`ssoIsPlaceholderPhone`); there is nobody to message, and Meta would only refuse it.
+    if (!/^\d{8,15}$/.test(message.to)) {
+      return { ok: false, delivered: 0, dryRun: false, error: 'No WhatsApp number for this person' };
+    }
     if (!this.configured) {
       this.logger.log(
         { to: message.to, template: message.template, params: message.params },

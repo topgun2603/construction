@@ -469,6 +469,8 @@ export interface TeamMember {
   id: string;
   name: string;
   phone: string;
+  /** Their work address; shown instead of the phone for an SSO-provisioned person. */
+  email?: string | null;
   role: string;
   status: string;
   last_login: string | null;

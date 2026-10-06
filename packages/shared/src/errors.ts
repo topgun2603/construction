@@ -20,6 +20,8 @@ export const ERROR_CODES = {
   USER_PENDING: 'USER_PENDING',
   PHONE_ALREADY_REGISTERED: 'PHONE_ALREADY_REGISTERED',
   RATE_LIMITED: 'RATE_LIMITED',
+  /** The company makes this person sign in through its identity provider ("Sign in with SSO"). */
+  SSO_REQUIRED: 'SSO_REQUIRED',
   INTERNAL: 'INTERNAL',
 } as const;
 

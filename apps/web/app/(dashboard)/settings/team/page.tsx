@@ -1,4 +1,4 @@
-import { inviteMessageText } from '@sitebook/shared';
+import { inviteMessageText, ssoIsPlaceholderPhone } from '@sitebook/shared';
 import { serverFetch } from '@/lib/server-api';
 import type { Page, ProjectSummary, Role, TeamMember } from '@/lib/api-types';
 import { Avatar } from '@/components/ui/avatar';
@@ -52,7 +52,9 @@ export default async function TeamPage() {
               <Avatar name={member.name} />
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-[15px] font-medium">{member.name}</span>
-                <span className="font-mono text-[12.5px] text-ink-muted">+{member.phone}</span>
+                <span className="font-mono text-[12.5px] text-ink-muted">
+                  {ssoIsPlaceholderPhone(member.phone) ? (member.email ?? '') : `+${member.phone}`}
+                </span>
               </div>
             </div>
             <div className="flex flex-none items-center gap-3">
@@ -64,7 +66,7 @@ export default async function TeamPage() {
                 usual reason a person is still pending a week later. It opens the sender's own
                 WhatsApp; BUILDR never messages as them.
               */}
-              {member.id !== me.user.id && member.status !== 'active' && (
+              {member.id !== me.user.id && member.status !== 'active' && !ssoIsPlaceholderPhone(member.phone) && (
                 <WhatsappButton
                   phone={member.phone}
                   path="/login"
