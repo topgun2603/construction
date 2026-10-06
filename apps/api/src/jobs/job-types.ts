@@ -116,7 +116,9 @@ export type ReportJobName =
   | 'wage-period-draft'
   | 'drop-lapsed-subscriptions'
   | 'fan-out-safety-permit-expiry'
-  | 'safety-permit-expiry';
+  | 'safety-permit-expiry'
+  | 'fan-out-rfi-reminders'
+  | 'rfi-reminders';
 
 export interface ReportJobs {
   'fan-out-labour-rollup': FanOutJob;

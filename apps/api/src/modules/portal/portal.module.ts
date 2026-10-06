@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module';
 import { ChangeOrdersModule } from '../change-orders/change-orders.module';
+import { RfisModule } from '../rfis/rfis.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { ApprovalsService } from './approvals.service';
 import { ClientBillingService } from './client-billing.service';
@@ -30,7 +31,8 @@ import {
   // `AiModule` for answering a question from a document's own pages.
   // `ChangeOrdersModule`: a client's answer to a change order's approval applies it, and a message
   // that reads like extra work is a scope-creep suggestion.
-  imports: [AiModule, UploadsModule, ChangeOrdersModule],
+  // `RfisModule`: a client's answer to a submittal's approval is that submittal's review.
+  imports: [AiModule, UploadsModule, ChangeOrdersModule, RfisModule],
   controllers: [
     SiteMessagesController,
     MessagesController,

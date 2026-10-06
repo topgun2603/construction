@@ -21,6 +21,7 @@ export function ProjectTabs({
   showSchedule = false,
   showSafety = false,
   showBoq = false,
+  showDesign = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -55,6 +56,8 @@ export function ProjectTabs({
   showSafety?: boolean;
   /** The bill of quantities needs `boq.view`, `boq.measure` or `boq.bill`. */
   showBoq?: boolean;
+  /** RFIs and submittals together: `rfis.view` or `submittals.view`. */
+  showDesign?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -67,6 +70,7 @@ export function ProjectTabs({
       ? [{ key: 'conversation', label: t('Conversation'), count: unreadCount }]
       : []),
     ...(showDocuments ? [{ key: 'documents', label: t('Documents') }] : []),
+    ...(showDesign ? [{ key: 'design', label: t('RFIs & submittals') }] : []),
     ...(showApprovals
       ? [{ key: 'approvals', label: t('Approvals'), count: pendingApprovals }]
       : []),

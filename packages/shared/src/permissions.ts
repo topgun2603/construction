@@ -136,6 +136,18 @@ export const PERMISSIONS = [
   'boq.measure',
   'boq.bill',
 
+  /*
+   * RFIs and submittals (roadmap Phase 2, module 9). Raising a question to the designer is a site
+   * job, so a supervisor manages RFIs. Submittals are split three ways: who reads the log, who
+   * prepares and sends them, and who may stamp a review on the record — usually the consultant
+   * through their own link, but sometimes a manager recording what came back by hand.
+   */
+  'rfis.view',
+  'rfis.manage',
+  'submittals.view',
+  'submittals.manage',
+  'submittals.review',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -449,6 +461,27 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'RFIs and submittals',
+    items: [
+      { permission: 'rfis.view', label: 'See RFIs and their answers' },
+      {
+        permission: 'rfis.manage',
+        label: 'Raise, send, answer and close RFIs',
+        note: 'Includes sending the designer a link to answer without an account',
+      },
+      { permission: 'submittals.view', label: 'See submittals and their reviews' },
+      {
+        permission: 'submittals.manage',
+        label: 'Prepare, send and resubmit submittals',
+      },
+      {
+        permission: 'submittals.review',
+        label: 'Record a review outcome on a submittal',
+        note: 'For a review that came back by email or by hand; consultants review through their link',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -603,6 +636,12 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'boq.manage',
     'boq.measure',
     'boq.bill',
+    // Questions to the designers and the approvals of what is built are the manager's to run.
+    'rfis.view',
+    'rfis.manage',
+    'submittals.view',
+    'submittals.manage',
+    'submittals.review',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -650,6 +689,11 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'safety.report',
     // Measures the work against the BOQ on their own site; what it is billed at is not theirs to see.
     'boq.measure',
+    // The person who finds the clash on site raises the RFI about it. Submittals they read, to
+    // build to what was approved; preparing and stamping them is not theirs.
+    'rfis.view',
+    'rfis.manage',
+    'submittals.view',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.

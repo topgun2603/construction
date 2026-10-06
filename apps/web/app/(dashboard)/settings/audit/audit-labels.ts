@@ -61,6 +61,14 @@ export const ENTITY_LABELS: Record<string, string> = {
   safety_toolbox_attendees: 'Toolbox talk attendee',
   safety_observations: 'Safety observation',
   safety_photos: 'Safety photo',
+  rfi_settings: 'RFI and submittal defaults',
+  rfis: 'RFI',
+  rfi_documents: 'RFI drawing reference',
+  rfi_responses: 'RFI answer',
+  rfi_attachments: 'RFI attachment',
+  submittals: 'Submittal',
+  submittal_revisions: 'Submittal revision',
+  submittal_files: 'Submittal file',
 };
 
 /** The entity filter: the tables people most often go looking through, in the order they think. */

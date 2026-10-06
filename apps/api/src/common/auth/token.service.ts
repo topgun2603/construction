@@ -49,6 +49,23 @@ export interface WorkerLinkClaims extends JwtPayload {
   purpose: 'worker_link';
 }
 
+/**
+ * A link an outside designer or consultant was sent to answer one RFI, or to review one submittal
+ * revision (roadmap Phase 2, module 9).
+ *
+ * Names the tenant, which kind of record and its id, and the record's link version when it was
+ * signed. Nothing else: the reader can see that one record and write that one answer. Bumping the
+ * version on the record withdraws every link sent so far without a table of issued tokens.
+ */
+export interface RfiLinkClaims extends JwtPayload {
+  tenantId: string;
+  kind: 'rfi' | 'submittal';
+  /** The RFI id, or the submittal *revision* id — a new revision needs a new link. */
+  recordId: string;
+  version: number;
+  purpose: 'rfi_link';
+}
+
 /** Short-lived ticket proving a phone passed OTP but has no tenant yet. */
 export interface OnboardingTokenClaims extends JwtPayload {
   phone: string;
@@ -195,6 +212,38 @@ export class TokenService {
     return claims;
   }
 
+  /**
+   * Signs an RFI or submittal responder's link. Thirty days, like the worker link and for the same
+   * reason: it travels by email and WhatsApp and must stop working on its own. The endpoint also
+   * refuses it once the record is closed, voided or decided, or the link was withdrawn.
+   */
+  signRfiLink(input: { tenantId: string; kind: 'rfi' | 'submittal'; recordId: string; version: number }): string {
+    return jwt.sign(
+      {
+        tenantId: input.tenantId,
+        kind: input.kind,
+        recordId: input.recordId,
+        version: input.version,
+        purpose: 'rfi_link',
+      },
+      this.config.JWT_SECRET,
+      // Its own audience, so a responder link can never be presented as a session or a worker link.
+      { issuer: ISSUER, audience: 'rfi_link', expiresIn: RFI_LINK_TTL_SECONDS },
+    );
+  }
+
+  verifyRfiLink(token: string): RfiLinkClaims {
+    const claims = this.verify<RfiLinkClaims>(token, this.config.JWT_SECRET, 'rfi_link');
+    if (claims.purpose !== 'rfi_link' || (claims.kind !== 'rfi' && claims.kind !== 'submittal')) {
+      throw ApiError.invalidToken('Not an RFI link');
+    }
+    return claims;
+  }
+
+  get rfiLinkTtlSeconds(): number {
+    return RFI_LINK_TTL_SECONDS;
+  }
+
   get workerLinkTtlSeconds(): number {
     return WORKER_LINK_TTL_SECONDS;
   }
@@ -215,6 +264,9 @@ export class TokenService {
 
 /** Thirty days. See `signWorkerLink` for why it is not indefinite. */
 const WORKER_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+/** Thirty days. See `signRfiLink`. */
+const RFI_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /** Stored so a database dump cannot be replayed as a session. */
 export function hashToken(token: string): string {

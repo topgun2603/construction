@@ -355,6 +355,16 @@ model Tenant {
   boqBills        BoqBill[]
   boqBillLines    BoqBillLine[]
 
+  // RFIs and submittals
+  rfiSettings        RfiSettings?
+  rfis               Rfi[]
+  rfiDocuments       RfiDocument[]
+  rfiResponses       RfiResponse[]
+  rfiAttachments     RfiAttachment[]
+  submittals         Submittal[]
+  submittalRevisions SubmittalRevision[]
+  submittalFiles     SubmittalFile[]
+
   @@map("tenants")
 }
 
@@ -555,6 +565,9 @@ model Project {
 
   boq Boq?
 
+  rfis       Rfi[]
+  submittals Submittal[]
+
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
   @@map("projects")
@@ -627,6 +640,7 @@ model Contractor {
   subcontracts   Subcontract[]
   snagsAssigned  Snag[]
   scheduleTasks  ScheduleTask[]
+  submittals     Submittal[]
 
   @@index([tenantId, updatedAt])
   @@map("contractors")
@@ -1594,6 +1608,9 @@ model Document {
 
   subcontractLinks SubcontractDocument[]
   changeOrderLinks ChangeOrderAttachment[]
+  rfiLinks         RfiDocument[]
+  rfiAttachments   RfiAttachment[]
+  submittalFiles   SubmittalFile[]
 
   @@unique([tenantId, clientId], map: "documents_tenant_id_client_id_key")
   @@unique([familyId, version], map: "documents_family_id_version_key")
@@ -1735,7 +1752,9 @@ model Approval {
   decider   User?     @relation("approval_decider", fields: [decidedBy], references: [id], onDelete: Restrict)
 
   /// Set when the question is a change order: the client's answer here is what applies it.
-  changeOrder ChangeOrder?
+  changeOrder       ChangeOrder?
+  /// Set when the question is a submittal the client reviews.
+  submittalRevision SubmittalRevision?
 
   @@unique([tenantId, clientId], map: "approvals_tenant_id_client_id_key")
   @@index([projectId, status, createdAt(sort: Desc)])
@@ -1915,6 +1934,8 @@ model CostCode {
   scheduleTasks              ScheduleTask[]
 
   boqItems BoqItem[]
+
+  submittals Submittal[]
 
   @@unique([projectId, code])
   @@index([tenantId])
@@ -2338,6 +2359,7 @@ model Vendor {
   quotes         PurchaseQuote[]
   purchaseOrders PurchaseOrder[]
   invoices       PurchaseInvoice[]
+  submittals     Submittal[]
 
   @@unique([tenantId, name])
   @@index([tenantId, active])
@@ -2757,6 +2779,8 @@ model ChangeOrder {
   budgetRevisions ChangeOrderBudgetRevision[]
   siteRevision    ChangeOrderSiteRevision?
   suggestions     ChangeOrderSuggestion[]
+  /// RFIs whose answer this change order was raised from.
+  rfis            Rfi[]
 
   @@unique([projectId, number])
   @@unique([tenantId, clientId], map: "change_orders_tenant_id_client_id_key")
@@ -3369,6 +3393,7 @@ model ScheduleTask {
   successors    ScheduleDependency[]   @relation("schedule_predecessor")
   predecessors  ScheduleDependency[]   @relation("schedule_successor")
   baselineTasks ScheduleBaselineTask[]
+  rfis          Rfi[]
 
   @@index([projectId, sortOrder])
   @@index([parentId])
@@ -4007,4 +4032,326 @@ model BoqBillLine {
   @@index([tenantId])
   @@index([itemId])
   @@map("boq_bill_lines")
+}
+
+// ---------------------------------------------------------------------------
+// RFIs and submittals (roadmap Phase 2, module 9)
+// ---------------------------------------------------------------------------
+//
+// Questions to the designers with due dates, and the contractor's documents sent for approval with
+// their status. Builds on Documents: a question points at the drawing revision it is about, and a
+// submittal carries the files that are being approved. The designer or consultant on the other end
+// is usually not a user — they answer through a signed link (see `TokenService.signRfiLink`).
+
+enum RfiStatus {
+  draft
+  open
+  answered
+  closed
+  void
+
+  @@map("rfi_status")
+}
+
+enum RfiDiscipline {
+  architectural
+  structural
+  mep
+  civil
+  other
+
+  @@map("rfi_discipline")
+}
+
+enum RfiPriority {
+  low
+  normal
+  high
+  urgent
+
+  @@map("rfi_priority")
+}
+
+enum SubmittalStatus {
+  draft
+  submitted
+  under_review
+  approved
+  approved_as_noted
+  revise_resubmit
+  rejected
+
+  @@map("submittal_status")
+}
+
+enum SubmittalType {
+  shop_drawing
+  material_sample
+  method_statement
+  data_sheet
+  other
+
+  @@map("submittal_type")
+}
+
+enum SubmittalReviewerKind {
+  external
+  client
+
+  @@map("submittal_reviewer_kind")
+}
+
+/// The company's defaults: how long a designer gets to answer, a reviewer to review, and when the
+/// "due soon" reminder goes. One row per company, written the first time somebody changes them.
+model RfiSettings {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String   @unique @map("tenant_id") @db.Uuid
+  rfiDueDays          Int      @default(7) @map("rfi_due_days")
+  submittalReviewDays Int      @default(14) @map("submittal_review_days")
+  reminderDaysBefore  Int      @default(2) @map("reminder_days_before")
+  updatedBy           String?  @map("updated_by") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("rfi_settings")
+}
+
+/// A request for information: one question to a designer, with a due date and a thread of answers.
+model Rfi {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String        @map("tenant_id") @db.Uuid
+  projectId          String        @map("project_id") @db.Uuid
+  /// RFI-001 is 1. Numbered per site, like change orders: it is the consultant's log for the job.
+  number             Int
+  subject            String
+  question           String
+  discipline         RfiDiscipline @default(other)
+  priority           RfiPriority   @default(normal)
+  location           String?
+  status             RfiStatus     @default(draft)
+  raisedBy           String        @map("raised_by") @db.Uuid
+  raisedOn           DateTime      @map("raised_on") @db.Date
+  /// The outside party it is addressed to. Usually not a user of this product.
+  addressedToName    String?       @map("addressed_to_name")
+  addressedToEmail   String?       @map("addressed_to_email")
+  addressedToCompany String?       @map("addressed_to_company")
+  addressedToPhone   String?       @map("addressed_to_phone")
+  /// Somebody on the team who owns chasing it.
+  assigneeId         String?       @map("assignee_id") @db.Uuid
+  /// When it was opened (sent). Response time runs from here.
+  sentAt             DateTime?     @map("sent_at") @db.Timestamptz(6)
+  dueOn              DateTime?     @map("due_on") @db.Date
+  costImpact         Boolean       @default(false) @map("cost_impact")
+  scheduleImpact     Boolean       @default(false) @map("schedule_impact")
+  changeOrderId      String?       @map("change_order_id") @db.Uuid
+  scheduleTaskId     String?       @map("schedule_task_id") @db.Uuid
+  answeredAt         DateTime?     @map("answered_at") @db.Timestamptz(6)
+  closedBy           String?       @map("closed_by") @db.Uuid
+  closedAt           DateTime?     @map("closed_at") @db.Timestamptz(6)
+  closeNote          String?       @map("close_note")
+  voidReason         String?       @map("void_reason")
+  /// Counted up to withdraw every link sent so far; a link carries the version it was signed with.
+  linkVersion        Int           @default(0) @map("link_version")
+  linkSentAt         DateTime?     @map("link_sent_at") @db.Timestamptz(6)
+  dueSoonRemindedAt  DateTime?     @map("due_soon_reminded_at") @db.Timestamptz(6)
+  overdueRemindedAt  DateTime?     @map("overdue_reminded_at") @db.Timestamptz(6)
+  clientId           String?       @map("client_id") @db.Uuid
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project      Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changeOrder  ChangeOrder?    @relation(fields: [changeOrderId], references: [id], onDelete: SetNull)
+  scheduleTask ScheduleTask?   @relation(fields: [scheduleTaskId], references: [id], onDelete: SetNull)
+  documents    RfiDocument[]
+  responses    RfiResponse[]
+  attachments  RfiAttachment[]
+
+  @@unique([projectId, number])
+  @@unique([tenantId, clientId], map: "rfis_tenant_id_client_id_key")
+  @@index([tenantId, status, dueOn])
+  @@index([changeOrderId])
+  @@index([scheduleTaskId])
+  @@map("rfis")
+}
+
+/// A drawing or document (one revision of it) that an RFI is about.
+model RfiDocument {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  rfiId      String   @map("rfi_id") @db.Uuid
+  documentId String   @map("document_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rfi      Rfi      @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([rfiId, documentId])
+  @@index([tenantId])
+  @@index([documentId])
+  @@map("rfi_documents")
+}
+
+/// One message in an RFI's thread. Written by a team member, or by the outside party through their
+/// link — then `authorUserId` is null and the name and email are what they typed.
+model RfiResponse {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  rfiId        String   @map("rfi_id") @db.Uuid
+  body         String
+  authorUserId String?  @map("author_user_id") @db.Uuid
+  authorName   String   @map("author_name")
+  authorEmail  String?  @map("author_email")
+  external     Boolean  @default(false)
+  /// The answer the RFI is closed on. At most one per RFI (a partial unique index in the migration).
+  isOfficial   Boolean  @default(false) @map("is_official")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rfi         Rfi             @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+  attachments RfiAttachment[]
+
+  @@index([tenantId])
+  @@index([rfiId, createdAt])
+  @@map("rfi_responses")
+}
+
+/// A photo or file on an RFI or on one of its responses: a library document or an upload.
+model RfiAttachment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  rfiId       String   @map("rfi_id") @db.Uuid
+  responseId  String?  @map("response_id") @db.Uuid
+  documentId  String?  @map("document_id") @db.Uuid
+  s3Key       String?  @map("s3_key")
+  contentType String?  @map("content_type")
+  filename    String?
+  /// Null when the outside party uploaded it through their link.
+  uploadedBy  String?  @map("uploaded_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rfi      Rfi          @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+  response RfiResponse? @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  document Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([rfiId])
+  @@index([responseId])
+  @@index([documentId])
+  @@map("rfi_attachments")
+}
+
+/// One item on the submittal log: a shop drawing, a sample, a method statement. Its revisions are
+/// the history; `status` and `dueOn` mirror the current revision so the log can filter on them.
+model Submittal {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  projectId         String                @map("project_id") @db.Uuid
+  /// SUB-001 is 1. Numbered per site; a resubmission keeps the number and counts the revision up.
+  number            Int
+  title             String
+  type              SubmittalType         @default(shop_drawing)
+  specSection       String?               @map("spec_section")
+  description       String?
+  costCodeId        String?               @map("cost_code_id") @db.Uuid
+  submittedByUserId String?               @map("submitted_by_user_id") @db.Uuid
+  contractorId      String?               @map("contractor_id") @db.Uuid
+  vendorId          String?               @map("vendor_id") @db.Uuid
+  reviewerKind      SubmittalReviewerKind @default(external) @map("reviewer_kind")
+  reviewerName      String?               @map("reviewer_name")
+  reviewerEmail     String?               @map("reviewer_email")
+  reviewerCompany   String?               @map("reviewer_company")
+  reviewerPhone     String?               @map("reviewer_phone")
+  currentRevision   Int                   @default(0) @map("current_revision")
+  status            SubmittalStatus       @default(draft)
+  dueOn             DateTime?             @map("due_on") @db.Date
+  createdBy         String                @map("created_by") @db.Uuid
+  clientId          String?               @map("client_id") @db.Uuid
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  costCode   CostCode?           @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  contractor Contractor?         @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  vendor     Vendor?             @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  revisions  SubmittalRevision[]
+
+  @@unique([projectId, number])
+  @@unique([tenantId, clientId], map: "submittals_tenant_id_client_id_key")
+  @@index([tenantId, status, dueOn])
+  @@index([costCodeId])
+  @@index([contractorId])
+  @@index([vendorId])
+  @@map("submittals")
+}
+
+/// One revision of a submittal: what was sent, to whom, when it was due and what came back.
+model SubmittalRevision {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String          @map("tenant_id") @db.Uuid
+  submittalId        String          @map("submittal_id") @db.Uuid
+  /// Rev 0, 1, 2…
+  revision           Int
+  /// The revision this one answers. Null on Rev 0.
+  previousRevisionId String?         @unique @map("previous_revision_id") @db.Uuid
+  status             SubmittalStatus @default(draft)
+  note               String?
+  submittedBy        String?         @map("submitted_by") @db.Uuid
+  submittedAt        DateTime?       @map("submitted_at") @db.Timestamptz(6)
+  dueOn              DateTime?       @map("due_on") @db.Date
+  reviewStartedAt    DateTime?       @map("review_started_at") @db.Timestamptz(6)
+  reviewedAt         DateTime?       @map("reviewed_at") @db.Timestamptz(6)
+  /// A team member who recorded the review; null when the reviewer used their link.
+  reviewedBy         String?         @map("reviewed_by") @db.Uuid
+  reviewerName       String?         @map("reviewer_name")
+  reviewerEmail      String?         @map("reviewer_email")
+  reviewComments     String?         @map("review_comments")
+  /// The client portal approval, when the client is the reviewer.
+  approvalId         String?         @unique @map("approval_id") @db.Uuid
+  linkVersion        Int             @default(0) @map("link_version")
+  linkSentAt         DateTime?       @map("link_sent_at") @db.Timestamptz(6)
+  dueSoonRemindedAt  DateTime?       @map("due_soon_reminded_at") @db.Timestamptz(6)
+  overdueRemindedAt  DateTime?       @map("overdue_reminded_at") @db.Timestamptz(6)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  submittal Submittal          @relation(fields: [submittalId], references: [id], onDelete: Cascade)
+  previous  SubmittalRevision? @relation("submittal_revision_chain", fields: [previousRevisionId], references: [id], onDelete: SetNull)
+  next      SubmittalRevision? @relation("submittal_revision_chain")
+  approval  Approval?          @relation(fields: [approvalId], references: [id], onDelete: SetNull)
+  files     SubmittalFile[]
+
+  @@unique([submittalId, revision])
+  @@index([tenantId, status, dueOn])
+  @@map("submittal_revisions")
+}
+
+/// A file on a submittal revision: what was submitted, or the reviewer's marked-up copy.
+model SubmittalFile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  revisionId  String   @map("revision_id") @db.Uuid
+  /// `submission` or `markup`.
+  role        String   @default("submission")
+  documentId  String?  @map("document_id") @db.Uuid
+  s3Key       String?  @map("s3_key")
+  contentType String?  @map("content_type")
+  filename    String?
+  uploadedBy  String?  @map("uploaded_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  revision SubmittalRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  document Document?         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([revisionId])
+  @@index([documentId])
+  @@map("submittal_files")
 }
