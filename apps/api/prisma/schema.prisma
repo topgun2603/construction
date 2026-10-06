@@ -380,16 +380,22 @@ model Tenant {
   equipmentHireBookings EquipmentHireBooking[]
 
   // Single sign-on and provisioning
-  ssoConnection       SsoConnection?
-  ssoDomains          SsoDomain[]
-  ssoDomainDirectory  SsoDomainDirectory[]
-  ssoLoginRequests    SsoLoginRequest[]
-  scimTokens          ScimToken[]
-  scimTokenDirectory  ScimTokenDirectory[]
-  scimUsers           ScimUser[]
-  scimGroups          ScimGroup[]
-  scimGroupMembers    ScimGroupMember[]
-  scimRoleMappings    ScimRoleMapping[]
+  ssoConnection      SsoConnection?
+  ssoDomains         SsoDomain[]
+  ssoDomainDirectory SsoDomainDirectory[]
+  ssoLoginRequests   SsoLoginRequest[]
+  scimTokens         ScimToken[]
+  scimTokenDirectory ScimTokenDirectory[]
+  scimUsers          ScimUser[]
+  scimGroups         ScimGroup[]
+  scimGroupMembers   ScimGroupMember[]
+  scimRoleMappings   ScimRoleMapping[]
+
+  // Two-factor, session timeouts and IP allow-lists
+  securitySettings TenantSecuritySettings?
+  userSessions     UserSession[]
+  mfaFactors       MfaFactor[]
+  mfaRecoveryCodes MfaRecoveryCode[]
 
   @@map("tenants")
 }
@@ -497,6 +503,11 @@ model User {
   scimUser         ScimUser?
   scimGroupMembers ScimGroupMember[]
 
+  // Two-factor and sessions
+  sessions         UserSession[]
+  mfaFactor        MfaFactor?
+  mfaRecoveryCodes MfaRecoveryCode[]
+
   /// Phone is unique within a tenant, not globally â€” the same person can be a
   /// supervisor at one builder and an owner at another.
   @@unique([tenantId, phone], map: "users_tenant_id_phone_key")
@@ -518,12 +529,17 @@ model RefreshToken {
   revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
   /// Set when this token was rotated, so a replayed token reveals the whole chain.
   replacedById String?   @map("replaced_by_id") @db.Uuid
+  /// The sign-in this token belongs to. Every rotation stays in the same session; null only on
+  /// tokens issued before sessions existed, which are given one at their next refresh.
+  sessionId    String?   @map("session_id") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session UserSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
+  @@index([sessionId])
   @@map("refresh_tokens")
 }
 
@@ -4825,32 +4841,32 @@ model EquipmentHireBooking {
 /// At most one per company. Owner-only to change — whoever controls this can sign in as anybody on
 /// the company's verified domains.
 model SsoConnection {
-  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId               String    @unique @map("tenant_id") @db.Uuid
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String   @unique @map("tenant_id") @db.Uuid
   /// oidc | saml
   protocol               String
   /// entra | google | okta | other — which help text and claim defaults apply.
-  preset                 String    @default("other")
-  enabled                Boolean   @default(false)
-  oidcIssuer             String?   @map("oidc_issuer")
-  oidcClientId           String?   @map("oidc_client_id")
+  preset                 String   @default("other")
+  enabled                Boolean  @default(false)
+  oidcIssuer             String?  @map("oidc_issuer")
+  oidcClientId           String?  @map("oidc_client_id")
   /// AES-256-GCM (FieldCipher) under SSO_ENCRYPTION_KEY. Named `_cipher` so the audit log redacts it.
-  oidcClientSecretCipher String?   @map("oidc_client_secret_cipher")
-  oidcScopes             String    @default("openid email profile") @map("oidc_scopes")
-  samlIdpEntityId        String?   @map("saml_idp_entity_id")
-  samlIdpSsoUrl          String?   @map("saml_idp_sso_url")
+  oidcClientSecretCipher String?  @map("oidc_client_secret_cipher")
+  oidcScopes             String   @default("openid email profile") @map("oidc_scopes")
+  samlIdpEntityId        String?  @map("saml_idp_entity_id")
+  samlIdpSsoUrl          String?  @map("saml_idp_sso_url")
   /// The IdP's public signing certificate (PEM or bare base64). Public by nature, so not encrypted.
-  samlIdpCertificate     String?   @map("saml_idp_certificate")
-  samlIdpMetadataUrl     String?   @map("saml_idp_metadata_url")
+  samlIdpCertificate     String?  @map("saml_idp_certificate")
+  samlIdpMetadataUrl     String?  @map("saml_idp_metadata_url")
   /// Create a person at first sign-in when nobody in the company has their address.
-  jitEnabled             Boolean   @default(false) @map("jit_enabled")
+  jitEnabled             Boolean  @default(false) @map("jit_enabled")
   /// The role they get. Never an owner role; the service refuses one.
-  jitRoleId              String?   @map("jit_role_id") @db.Uuid
+  jitRoleId              String?  @map("jit_role_id") @db.Uuid
   /// People on a verified domain must use SSO; owners keep phone sign-in as the break-glass path.
-  enforceSso             Boolean   @default(false) @map("enforce_sso")
-  updatedByUserId        String?   @map("updated_by_user_id") @db.Uuid
-  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  enforceSso             Boolean  @default(false) @map("enforce_sso")
+  updatedByUserId        String?  @map("updated_by_user_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   jitRole       Role?             @relation(fields: [jitRoleId], references: [id], onDelete: SetNull)
@@ -5009,4 +5025,115 @@ model ScimRoleMapping {
 
   @@unique([tenantId, groupName])
   @@map("scim_role_mappings")
+}
+
+// ---------------------------------------------------------------------------
+// Two-factor, session timeouts and IP allow-lists (roadmap Phase 3, item 2)
+// ---------------------------------------------------------------------------
+
+/// A company's sign-in rules. One row per company, created the first time an owner saves any of
+/// them; no row means every rule is off, which is how every company starts.
+model TenantSecuritySettings {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String   @unique @map("tenant_id") @db.Uuid
+  /// off | admins | everyone — see SECURITY_MFA_POLICIES.
+  mfaPolicy             String   @default("off") @map("mfa_policy")
+  /// A sign-in through the company's own identity provider counts as two-factor.
+  trustIdpMfa           Boolean  @default(true) @map("trust_idp_mfa")
+  /// Minutes without activity before a session ends; null for never.
+  idleTimeoutMinutes    Int?     @map("idle_timeout_minutes")
+  /// Hours from sign-in before a session ends whatever happens; null for the refresh token's own.
+  absoluteLifetimeHours Int?     @map("absolute_lifetime_hours")
+  /// off | web | everyone — see SECURITY_IP_MODES.
+  ipMode                String   @default("off") @map("ip_mode")
+  /// `[{ cidr, label }]`, canonical CIDR text.
+  ipRules               Json     @default("[]") @map("ip_rules")
+  ipExemptOwners        Boolean  @default(true) @map("ip_exempt_owners")
+  /// Base roles the allow-list never checks.
+  ipExemptRoles         String[] @default([]) @map("ip_exempt_roles")
+  updatedByUserId       String?  @map("updated_by_user_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_security_settings")
+}
+
+/// One sign-in. Every refresh-token rotation after it belongs to it. What the account page lists
+/// as "where you are signed in", what idle and absolute timeouts are measured on, and where a
+/// verified second factor is recorded for the rest of the session.
+model UserSession {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  /// phone | email | sso — how the first factor was proved.
+  method        String
+  /// web | app — `app` when the sign-in sent a device id, as the mobile app does.
+  client        String    @default("web")
+  deviceId      String?   @map("device_id")
+  userAgent     String?   @map("user_agent")
+  /// Where the sign-in came from, and the latest address seen.
+  ip            String?
+  lastIp        String?   @map("last_ip")
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  lastActiveAt  DateTime  @default(now()) @map("last_active_at") @db.Timestamptz(6)
+  /// When a second factor was shown for this session; null until then.
+  mfaAt         DateTime? @map("mfa_at") @db.Timestamptz(6)
+  /// totp | recovery_code | firebase | identity_provider
+  mfaMethod     String?   @map("mfa_method")
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+  /// sign_out | sign_out_everywhere | revoked | revoked_by_admin | idle_timeout | absolute_timeout | mfa_reset | replayed
+  revokedReason String?   @map("revoked_reason")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([tenantId, userId, revokedAt])
+  @@map("user_sessions")
+}
+
+/// A person's authenticator app. One per person per company: somebody in two companies is two
+/// users and enrols in each, because a company's rule should be met by its own enrolment.
+model MfaFactor {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  userId         String    @unique @map("user_id") @db.Uuid
+  /// The base32 TOTP secret, AES-256-GCM (FieldCipher) under MFA_ENCRYPTION_KEY. Named `_cipher`
+  /// so the audit log redacts it.
+  secretCipher   String    @map("secret_cipher")
+  /// Null while the QR code has been shown but no code typed back; only a confirmed factor counts.
+  confirmedAt    DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  /// The last time step accepted, so a code cannot be used twice.
+  lastUsedStep   BigInt?   @map("last_used_step")
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("mfa_factors")
+}
+
+/// Single-use recovery codes, for a lost phone. Only a SHA-256 hash is stored; the codes are shown
+/// once, when they are made.
+model MfaRecoveryCode {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([tenantId])
+  @@map("mfa_recovery_codes")
 }

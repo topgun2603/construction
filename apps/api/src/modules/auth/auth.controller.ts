@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -9,7 +20,9 @@ import {
   type AuthRefreshInput,
   type CompanySwitchInput,
 } from '@sitebook/shared';
-import { CurrentUser, Public, SessionOnly } from '../../common/decorators';
+import { AllowAnyIp, AllowWithoutMfa, CurrentUser, Public, SessionOnly } from '../../common/decorators';
+import { TenantCache } from '../../common/auth/tenant-cache.service';
+import { SessionService } from '../security/session.service';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import type { RequestUser } from '../../common/auth/request-user';
 import { AuthService, type ExchangeResult } from './auth.service';
@@ -17,7 +30,11 @@ import { AuthService, type ExchangeResult } from './auth.service';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly sessions: SessionService,
+    private readonly tenantCache: TenantCache,
+  ) {}
 
   /**
    * Rate limited hard: this endpoint is the one place an unauthenticated caller can
@@ -48,6 +65,7 @@ export class AuthController {
   }
 
   /** The companies this person can switch to — the company switcher's list. */
+  @AllowWithoutMfa()
   @Get('memberships')
   @ApiOperation({ summary: 'Companies the signed-in person belongs to' })
   async memberships(@CurrentUser() user: RequestUser) {
@@ -61,6 +79,9 @@ export class AuthController {
    */
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @SessionOnly()
+  // Moving to a company that does not require two-factor needs none; one that does asks for it
+  // there. Waiting for the second factor here must not trap somebody who works somewhere else.
+  @AllowWithoutMfa()
   @Post('switch')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Switch the session to another company this person belongs to' })
@@ -72,11 +93,42 @@ export class AuthController {
     return this.auth.switchCompany(user, body, userAgent);
   }
 
+  /**
+   * Sign out everywhere: every session this person has in this company. Reachable whatever the
+   * company's rules — leaving gives nothing away, and a person refused by the allow-list or waiting
+   * on a second factor must still be able to sign out.
+   */
+  @AllowWithoutMfa()
+  @AllowAnyIp()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke every session for the current user' })
   async logout(@CurrentUser() user: RequestUser): Promise<void> {
-    await this.auth.revokeAllSessions(user.tenantId, user.userId);
+    await this.auth.revokeAllSessions(user.tenantId, user.userId, 'sign_out_everywhere');
+  }
+
+  /** Where I am signed in: device, address, last activity. */
+  @Get('sessions')
+  @ApiOperation({ summary: 'Your active sessions' })
+  async listSessions(@CurrentUser() user: RequestUser) {
+    const gate = (await this.tenantCache.get(user.tenantId))?.security ?? null;
+    return { items: await this.sessions.mine(user, gate) };
+  }
+
+  /** Sign out of one session — a lost phone, a shared computer. */
+  @Delete('sessions/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Sign out of one of your sessions' })
+  async endSession(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.sessions.endMine(user, id);
+  }
+
+  /** Every session but this one. */
+  @Post('sessions/sign-out-others')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Sign out of every other session' })
+  async signOutOthers(@CurrentUser() user: RequestUser) {
+    return this.auth.revokeOtherSessions(user);
   }
 }
 

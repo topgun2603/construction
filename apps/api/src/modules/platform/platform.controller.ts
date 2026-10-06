@@ -150,6 +150,23 @@ export class PlatformController {
     return this.platform.supportView(actor(request), id);
   }
 
+  /**
+   * The break-glass for a lost phone: removes a person's authenticator app and recovery codes and
+   * ends their sessions, so their next sign-in sets up a new one. Audited in the console's log and
+   * in the company's own. The operator never sees or sets a secret.
+   */
+  @UseGuards(PlatformGuard)
+  @Post('tenants/:id/users/:userId/mfa-reset')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset a person’s two-factor authentication' })
+  resetUserMfa(
+    @Req() request: PlatformRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.platform.resetUserMfa(actor(request), id, userId);
+  }
+
   @UseGuards(PlatformGuard)
   @Get('tenants/:id/export')
   @ApiOperation({ summary: 'Everything this tenant owns, as JSON' })

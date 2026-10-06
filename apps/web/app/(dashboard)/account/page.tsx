@@ -6,6 +6,9 @@ import { titleCase } from '@/lib/format';
 import { GoogleLink } from './google-link';
 import { EmailSignIn } from './email-sign-in';
 import { getT } from '@/lib/i18n-server';
+import { serverFetch } from '@/lib/server-api';
+import type { MfaStatus, SessionView } from '@/lib/security-types';
+import { SessionsCard, TwoFactorCard } from './account-security';
 
 export const metadata = { title: 'Your account · BUILDR' };
 
@@ -19,6 +22,10 @@ export const metadata = { title: 'Your account · BUILDR' };
 export default async function AccountPage() {
   const t = await getT();
   const me = await requireSelf();
+  const [mfa, sessions] = await Promise.all([
+    serverFetch<MfaStatus>('/auth/mfa'),
+    serverFetch<{ items: SessionView[] }>('/auth/sessions'),
+  ]);
 
   return (
     <FadeIn className="flex max-w-[760px] flex-col gap-4">
@@ -72,6 +79,12 @@ export default async function AccountPage() {
           </div>
         </div>
       </Card>
+
+      <h2 id="security" className="mt-4 text-[17px] font-semibold">
+        {t('Security')}
+      </h2>
+      <TwoFactorCard status={mfa} />
+      <SessionsCard sessions={sessions.items} />
 
       <EmailSignIn linkedEmail={me.user.email} />
     </FadeIn>

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { apiFetch, ApiRequestError } from '@/lib/api';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from '@/lib/session';
+import { clientIpHeadersOf } from '@/lib/client-ip';
 
 interface TokenPair {
   access_token: string;
@@ -26,6 +27,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const tokens = await apiFetch<TokenPair>('/auth/refresh', {
       method: 'POST',
       body: { refresh_token: refreshToken },
+      // A refresh is checked against the company's IP allow-list, on the browser's address.
+      headers: clientIpHeadersOf(request),
     });
 
     const secure = process.env.NODE_ENV === 'production';

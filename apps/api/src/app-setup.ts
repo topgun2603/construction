@@ -1,5 +1,6 @@
 import { json, urlencoded, type Express, type Request } from 'express';
 import type { INestApplication, NestApplicationOptions } from '@nestjs/common';
+import { env } from './config/env';
 
 /**
  * Everything the HTTP layer needs, in one place used by both entry points.
@@ -22,6 +23,15 @@ export const APP_OPTIONS: NestApplicationOptions = { bodyParser: false };
 
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('v1');
+
+  /*
+   * Which proxy to believe about the client's address (TRUST_PROXY; see env.ts). Off by default, so
+   * a local run reads the socket. Behind Caddy it is 1: Caddy replaces whatever X-Forwarded-For the
+   * client sent with the address it saw, and Express takes that one entry. Set here, in the shared
+   * setup, because the IP allow-list depends on it and the e2e suite must read addresses the way
+   * the real server does.
+   */
+  (app.getHttpAdapter().getInstance() as Express).set('trust proxy', env().TRUST_PROXY);
 
   /*
    * Keep the raw request bytes on `req.rawBody` for webhook signature verification.

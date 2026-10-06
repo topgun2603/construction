@@ -9,6 +9,8 @@ export const REQUIRES_MODULE_KEY = 'sitebook:requires-module';
 export const PERMISSIONS_KEY = 'sitebook:permissions';
 
 export const SESSION_ONLY_KEY = 'sitebook:session-only';
+export const ALLOW_WITHOUT_MFA_KEY = 'sitebook:allow-without-mfa';
+export const ALLOW_ANY_IP_KEY = 'sitebook:allow-any-ip';
 
 /** Skips JwtAuthGuard. Only for login, health and webhooks. */
 export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUBLIC_KEY, true);
@@ -18,6 +20,17 @@ export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUB
  * expired plan, which makes the company read-only, does not block it. Only for switching company.
  */
 export const SessionOnly = (): MethodDecorator => SetMetadata(SESSION_ONLY_KEY, true);
+
+/**
+ * Reachable by a session that has not yet shown the second factor its company requires — the
+ * two-factor screen's own endpoints, signing out, and moving to another company. Everything else
+ * answers `MFA_REQUIRED` until the factor is shown (SecurityPolicyGuard).
+ */
+export const AllowWithoutMfa = (): MethodDecorator & ClassDecorator =>
+  SetMetadata(ALLOW_WITHOUT_MFA_KEY, true);
+
+/** Reachable from outside the company's IP allow-list. Only signing out: it gives nothing away. */
+export const AllowAnyIp = (): MethodDecorator & ClassDecorator => SetMetadata(ALLOW_ANY_IP_KEY, true);
 
 /** Restricts a route to specific roles (spec §2). */
 export const Roles = (...roles: UserRole[]): MethodDecorator & ClassDecorator =>

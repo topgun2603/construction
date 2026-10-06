@@ -35,6 +35,18 @@ export async function platformLogin(firebaseToken: string): Promise<ActionResult
   return { ok: true };
 }
 
+/**
+ * Resets one person's two-factor: their authenticator and recovery codes go, and so do their
+ * sessions. For a customer who has lost both their phone and their codes. Audited on both sides.
+ */
+export async function resetUserMfa(tenantId: string, userId: string): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch(`/tenants/${tenantId}/users/${userId}/mfa-reset`, { method: 'POST' }),
+  );
+  if (result.ok) revalidatePath(`/admin/tenants/${tenantId}/support`);
+  return result;
+}
+
 export async function platformSignOut(): Promise<never> {
   // Nothing to revoke server-side: a console token is stateless by design, and its
   // authority is re-checked against the allowlist on every request anyway.

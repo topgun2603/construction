@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Injectable, type NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import type { AuthenticatedRequest } from '../auth/request-user';
+import { clientIpOf } from '../net/client-ip';
 
 /**
  * Who is acting, for the audit trigger (migration 20261007000200_full_audit_log).
@@ -42,9 +43,10 @@ export function currentAuditActor(): AuditActor {
   return {
     actorId: req.user?.userId ?? '',
     requestId: typeof requestId === 'string' ? requestId : '',
-    // `req.ip` honours Express's `trust proxy` setting, so it is the client's address only when
-    // the deployment says which proxy to believe — never a raw, spoofable X-Forwarded-For.
-    ip: req.ip ?? '',
+    // The same address the IP allow-list checks: `req.ip` under Express's `trust proxy` setting,
+    // or the browser's address vouched for by the web server — never a raw, spoofable
+    // X-Forwarded-For. See `clientIpOf`.
+    ip: clientIpOf(req),
     userAgent: (req.headers['user-agent'] ?? '').slice(0, 300),
   };
 }

@@ -50,6 +50,11 @@ export const ENTITY_LABELS: Record<string, string> = {
   scim_groups: 'Provider group',
   scim_group_members: 'Provider group member',
   scim_role_mappings: 'Group role mapping',
+  // Two-factor, sessions and sign-in rules
+  tenant_security_settings: 'Sign-in rules',
+  user_sessions: 'Sign-in session',
+  mfa_factors: 'Authenticator app',
+  mfa_recovery_codes: 'Recovery code',
   // QA/QC
   quality_checklist_templates: 'Checklist',
   quality_checklist_items: 'Checklist line',

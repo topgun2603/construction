@@ -27,6 +27,9 @@ primary_region = "bom"
   # Where the browser calls from. Anything not listed here is refused at the CORS layer, so this
   # has to change the day the web app gets a real domain.
   CORS_ORIGINS = "https://buildr-web.fly.dev"
+  # Fly's edge is the one proxy in front: believe the address it appends to X-Forwarded-For, which
+  # the IP allow-list and audit log read. Never "true" — that trusts what the client wrote.
+  TRUST_PROXY = "1"
   # Nominatim asks for a contact address on every caller. Ours is sent on geocode lookups.
   GEOCODER_CONTACT = "ops@example.com"
 

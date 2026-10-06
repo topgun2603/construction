@@ -185,6 +185,9 @@ Then write `/opt/sitebook/.env.prod` from `.env.prod.example`. The values that m
 | `S3_*` | the bucket and the access key from step 3; leave `S3_ENDPOINT` empty for real S3 and set `S3_FORCE_PATH_STYLE=false` |
 | `NEXT_PUBLIC_API_URL` | `https://13-234-56-78.sslip.io/v1` |
 | `CORS_ORIGINS` | `https://13-234-56-78.sslip.io` |
+| `TRUST_PROXY` | `1` — Caddy is the one proxy in front of the API; the IP allow-list and audit log read the address it appends. Never `true` |
+| `WEB_CLIENT_IP_SECRET` | 32+ random characters, read by both `api` and `web`: the web container calls the API directly and vouches for each browser's address with it |
+| `MFA_ENCRYPTION_KEY` | 32 random bytes, base64 — encrypts authenticator-app secrets; unset, two-factor cannot be required |
 | `DEV_AUTH_BYPASS` | `false` â€” the env schema refuses to start the process otherwise |
 
 > **Every compose command here passes `--env-file .env.prod`, and it is not optional.**

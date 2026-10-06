@@ -111,7 +111,11 @@ export class JwtAuthGuard implements CanActivate {
       country: tenant.country,
       identity: claims.idn ?? null,
       via: claims.via === 'sso' ? 'sso' : null,
+      sessionId: claims.sid ?? null,
+      mfa: claims.mfa === true,
+      app: claims.app === true,
     };
+    request.securityGate = tenant.security;
 
     return true;
   }

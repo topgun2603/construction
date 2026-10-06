@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { apiFetch, ApiRequestError, type ApiFetchOptions } from './api';
+import { clientIpHeaders } from './client-ip';
 import { currentAccessToken } from './session';
 
 export interface ServerFetchOptions extends ApiFetchOptions {
@@ -28,18 +29,23 @@ export interface ServerFetchOptions extends ApiFetchOptions {
  * buries the failures that actually need reading.
  */
 export async function serverFetch<T>(path: string, options: ServerFetchOptions = {}): Promise<T> {
-  const { onUnauthenticated = 'redirect', ...rest } = options;
+  const { onUnauthenticated = 'redirect', headers, ...rest } = options;
   const accessToken = await currentAccessToken();
 
   try {
-    return await apiFetch<T>(path, { ...rest, accessToken: accessToken ?? undefined });
+    return await apiFetch<T>(path, {
+      ...rest,
+      // The browser's address, so the company's IP allow-list and audit log see the person and not
+      // this server. See `clientIpHeaders`.
+      headers: { ...(await clientIpHeaders()), ...(headers as Record<string, string> | undefined) },
+      accessToken: accessToken ?? undefined,
+    });
   } catch (error) {
-    if (
-      onUnauthenticated === 'redirect' &&
-      error instanceof ApiRequestError &&
-      error.status === 401
-    ) {
-      redirect('/login');
+    if (onUnauthenticated === 'redirect' && error instanceof ApiRequestError) {
+      if (error.status === 401) redirect('/login');
+      // The session is good but the company wants a second factor first: the two-factor screen,
+      // never the login page, which would only sign them in to the same question again.
+      if (error.code === 'MFA_REQUIRED') redirect('/two-factor');
     }
     throw error;
   }

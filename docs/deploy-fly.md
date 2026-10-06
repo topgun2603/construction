@@ -183,7 +183,11 @@ fly deploy -c fly.web.toml
    Remember that signing in this way only works for somebody who has linked the address at
    `/account` first; an unlinked address is refused on purpose, because an account is built around
    a mobile number and a Google token carries none.
-5. **The mobile app** points at the local API through `adb reverse` during development. A build for
+5. **Sign-in security.** `fly secrets set MFA_ENCRYPTION_KEY=…` on the API (32 random bytes,
+   base64) or no company can require two-factor, and the same `WEB_CLIENT_IP_SECRET` (32+ random
+   characters) on both apps so dashboard requests reach the API with the browser's address rather
+   than the web machine's — without it a company's IP allow-list in web mode checks the wrong address.
+6. **The mobile app** points at the local API through `adb reverse` during development. A build for
    real users needs `--dart-define=API_URL=https://buildr-api.fly.dev/v1` and no `DEV_AUTH_BYPASS`.
 
 ---

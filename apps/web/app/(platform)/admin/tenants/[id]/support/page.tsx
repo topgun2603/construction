@@ -8,6 +8,9 @@ import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { getT } from '@/lib/i18n-server';
+import { resetUserMfa } from '@/lib/platform-actions';
+import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 const { longDate } = indiaFormat;
 
@@ -83,7 +86,7 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
           <Badge tone="neutral">{t(titleCase(tenant.plan))}</Badge>
         </div>
         <p className="text-[13px] text-ink-muted">
-          {t('Read-only. Opening this page is recorded in the audit trail.')}
+          {t('Read-only, apart from resetting a person’s two-factor. Opening this page is recorded in the audit trail.')}
         </p>
       </div>
 
@@ -152,6 +155,20 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
                   ? `Last in ${longDate(user.last_login.slice(0, 10))}`
                   : t('Never signed in')}
               </span>
+              {/* The break-glass for a lost phone and lost recovery codes. Confirm the caller is who
+                  they say first — this lets the next person to sign in as them set a new one. */}
+              <ConfirmDialog
+                trigger={
+                  <Button type="button" variant="ghost" size="sm">
+                    {t('Reset two-factor')}
+                  </Button>
+                }
+                title={t('Reset two-factor for this person?')}
+                body={`${user.name} · +${user.phone}. ${t('Their authenticator app and recovery codes are removed and they are signed out everywhere. They set up a new one at their next sign-in. Confirm who you are speaking to first.')}`}
+                confirmLabel={t('Reset')}
+                onConfirm={resetUserMfa.bind(null, tenant.id, user.id)}
+                successMessage={t('Two-factor reset')}
+              />
             </li>
           ))}
         </ul>

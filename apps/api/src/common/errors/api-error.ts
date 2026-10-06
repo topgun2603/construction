@@ -114,6 +114,45 @@ export class ApiError extends HttpException {
     );
   }
 
+  /**
+   * The company requires a second factor of this person and the session has not shown one. 403,
+   * not 401: the session is good, it just has a step left — a client that read it as "signed out"
+   * would throw away exactly the session the two-factor screen needs.
+   */
+  static mfaRequired(): ApiError {
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.MFA_REQUIRED,
+      'Your company requires two-factor authentication. Enter the code from your authenticator app to continue.',
+    );
+  }
+
+  /** The company's IP allow-list does not include this address. Says which, so IT can add it. */
+  static ipNotAllowed(ip: string): ApiError {
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.IP_NOT_ALLOWED,
+      `Your company only allows sign-in from its approved networks, and ${ip || 'this address'} is not one of them.`,
+      { ip },
+    );
+  }
+
+  /** The session ran past the company's idle timeout or absolute lifetime. 401: sign in again. */
+  static sessionExpired(reason: 'idle' | 'expired'): ApiError {
+    return new ApiError(
+      HttpStatus.UNAUTHORIZED,
+      ERROR_CODES.SESSION_EXPIRED,
+      reason === 'idle'
+        ? 'You were signed out after a period of inactivity. Sign in again.'
+        : 'Your company limits how long a session lasts. Sign in again.',
+      { reason },
+    );
+  }
+
+  static rateLimited(message: string, details?: unknown): ApiError {
+    return new ApiError(HttpStatus.TOO_MANY_REQUESTS, ERROR_CODES.RATE_LIMITED, message, details);
+  }
+
   static phoneAlreadyRegistered(): ApiError {
     return new ApiError(
       HttpStatus.CONFLICT,

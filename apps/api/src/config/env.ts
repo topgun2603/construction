@@ -253,6 +253,56 @@ const envSchema = z
       .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
         message: 'SSO_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
       }),
+    /**
+     * Key for authenticator-app (TOTP) secrets at rest: 32 random bytes, base64, generated like
+     * DOCUMENT_ENCRYPTION_KEY and deliberately its own key. Unset, nobody can enrol an authenticator
+     * and a company cannot switch on required two-factor — refused rather than stored in the clear.
+     */
+    MFA_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
+    /**
+     * Which proxies Express may believe about the client's address — the value of its `trust proxy`
+     * setting. The IP allow-list and the audit log read `req.ip`, which is the socket's address
+     * unless this says otherwise.
+     *
+     *   false (default)  nothing in front: the socket address is the client. Right for local runs.
+     *   1                one proxy in front (Caddy in infra/, or Fly's edge): believe the address it
+     *                    appends to X-Forwarded-For, nothing further left.
+     *   a list           specific proxies: `loopback, 10.0.0.0/8`.
+     *
+     * `true` is refused: it believes the leftmost X-Forwarded-For entry, which the client writes,
+     * so anybody could claim to be inside the office and walk past the allow-list.
+     */
+    TRUST_PROXY: z
+      .string()
+      .default('false')
+      .refine((value) => value.trim().toLowerCase() !== 'true', {
+        message: 'TRUST_PROXY=true would trust a client-written header; give a hop count such as 1',
+      })
+      .transform((value): boolean | number | string => {
+        const trimmed = value.trim();
+        if (trimmed === '' || trimmed.toLowerCase() === 'false') return false;
+        if (/^\d+$/.test(trimmed)) return Number(trimmed);
+        return trimmed;
+      }),
+    /**
+     * Shared with the web app's server, which calls this API on the browser's behalf: with it, the
+     * web server passes the browser's address in `X-Buildr-Client-Ip` beside this secret in
+     * `X-Buildr-Proxy-Secret`, and the API believes it. Without it every dashboard request appears
+     * to come from the web server, and an IP allow-list in web mode would be checking the server.
+     * At least 32 characters. Never sent to a browser.
+     */
+    WEB_CLIENT_IP_SECRET: z
+      .string()
+      .optional()
+      .transform((value) => value || undefined)
+      .refine((value) => !value || value.length >= 32, {
+        message: 'WEB_CLIENT_IP_SECRET must be at least 32 characters',
+      }),
     // Workers' documents nearing expiry, on each company's clock: first thing in the morning.
     DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
     // Cube and lab tests due today, on each company's clock: early enough to get them to the lab.

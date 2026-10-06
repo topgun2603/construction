@@ -33,6 +33,20 @@ export interface AccessTokenClaims extends JwtPayload {
    * that enforces single sign-on refuses to refresh or switch a session that did not come from it.
    */
   via?: SessionVia;
+  /**
+   * The `user_sessions` row this token belongs to — what "sign out this device", the idle timeout
+   * and a verified second factor hang off. Absent only on tokens from before sessions existed.
+   */
+  sid?: string;
+  /**
+   * A second factor was shown for this session (authenticator code, recovery code, a Firebase
+   * second factor, or a trusted identity provider). Read from the session row at every issue and
+   * refresh, never carried from token to token, so removing an authenticator ends it at the next
+   * refresh.
+   */
+  mfa?: true;
+  /** The session began in the mobile app (it sent a device id). What an IP list in web mode skips. */
+  app?: true;
 }
 
 /** See `AccessTokenClaims.via`. */
@@ -47,6 +61,8 @@ export interface RefreshTokenClaims extends JwtPayload {
   idn?: string;
   /** See `AccessTokenClaims.via`. */
   via?: SessionVia;
+  /** See `AccessTokenClaims.sid`. */
+  sid?: string;
 }
 
 /**
@@ -127,6 +143,11 @@ export class TokenService {
     projectIds: string[];
     identity?: string | null;
     via?: SessionVia | null;
+    sessionId?: string | null;
+    mfa?: boolean;
+    app?: boolean;
+    /** Lifetime in seconds; `accessTtlUntil` cuts it to a session's absolute deadline. */
+    ttlSeconds?: number;
   }): string {
     return jwt.sign(
       {
@@ -136,15 +157,29 @@ export class TokenService {
         project_ids: input.projectIds,
         ...(input.identity ? { idn: input.identity } : {}),
         ...(input.via ? { via: input.via } : {}),
+        ...(input.sessionId ? { sid: input.sessionId } : {}),
+        ...(input.mfa ? { mfa: true } : {}),
+        ...(input.app ? { app: true } : {}),
       },
       this.config.JWT_SECRET,
       {
         subject: input.userId,
         issuer: ISSUER,
         audience: 'api',
-        expiresIn: this.accessTokenTtlSeconds,
+        expiresIn: input.ttlSeconds ?? this.accessTokenTtlSeconds,
       },
     );
+  }
+
+  /**
+   * The access-token lifetime for a session that must end at `deadline` (a company's absolute
+   * session limit): the usual fifteen minutes, or less, so no token outlives its session. At least
+   * one second — a session past its deadline is refused before a token is ever signed.
+   */
+  accessTtlUntil(deadline: Date | null): number {
+    if (!deadline) return this.accessTokenTtlSeconds;
+    const left = Math.floor((deadline.getTime() - Date.now()) / 1000);
+    return Math.max(1, Math.min(this.accessTokenTtlSeconds, left));
   }
 
   verifyAccessToken(token: string): AccessTokenClaims {
@@ -162,6 +197,7 @@ export class TokenService {
     tenantId: string;
     identity?: string | null;
     via?: SessionVia | null;
+    sessionId?: string | null;
   }): {
     token: string;
     jti: string;
@@ -173,6 +209,7 @@ export class TokenService {
       tenant_id: input.tenantId,
       ...(input.identity ? { idn: input.identity } : {}),
       ...(input.via ? { via: input.via } : {}),
+      ...(input.sessionId ? { sid: input.sessionId } : {}),
     };
     const token = jwt.sign(payload, this.config.JWT_REFRESH_SECRET, {
       subject: input.userId,

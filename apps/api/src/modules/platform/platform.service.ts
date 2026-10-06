@@ -635,6 +635,47 @@ export class PlatformService {
   }
 
   /**
+   * Resets one person's two-factor (see the controller). Runs on the console's connection, which
+   * has no tenant context, so every row is pinned to the tenant by hand — the person must belong to
+   * the company named in the URL, or nothing happens.
+   */
+  async resetUserMfa(actorPhone: string, tenantId: string, userId: string) {
+    const prisma = this.db.client;
+    const user = await prisma.user.findFirst({
+      where: { id: userId, tenantId, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (!user) throw ApiError.notFound('User');
+
+    const result = await prisma.$transaction(async (tx) => {
+      const factors = await tx.mfaFactor.deleteMany({ where: { tenantId, userId } });
+      const codes = await tx.mfaRecoveryCode.deleteMany({ where: { tenantId, userId } });
+      const now = new Date();
+      // Their sessions end too: a reset is usually a lost or stolen phone, and whatever was signed
+      // in on it should not outlive the factor it had shown.
+      const sessions = await tx.userSession.updateMany({
+        where: { tenantId, userId, revokedAt: null },
+        data: { revokedAt: now, revokedReason: 'mfa_reset', mfaAt: null, mfaMethod: null },
+      });
+      await tx.refreshToken.updateMany({
+        where: { tenantId, userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      return { factors: factors.count, codes: codes.count, sessions: sessions.count };
+    });
+
+    await prisma.platformAuditLog.create({
+      data: {
+        actorPhone,
+        action: 'user.mfa_reset',
+        tenantId,
+        after: { user_id: user.id, user_name: user.name, ...result },
+      },
+    });
+    return { reset: result.factors > 0, sessions_ended: result.sessions };
+  }
+
+  /**
    * Everything this tenant owns, as JSON, so a customer who asks to leave can be given their data.
    *
    * Deliberately a straight dump rather than a curated report: the point is that nothing of theirs

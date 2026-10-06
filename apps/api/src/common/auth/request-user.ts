@@ -1,4 +1,5 @@
 import type { Permission, Plan, UserRole } from '@sitebook/shared';
+import type { TenantSecurityGate } from './tenant-cache.service';
 
 /** The authenticated caller, assembled by JwtAuthGuard from the app JWT. */
 export interface RequestUser {
@@ -41,6 +42,12 @@ export interface RequestUser {
   identity?: string | null;
   /** `sso` when the session began at the company's identity provider — see `AccessTokenClaims.via`. */
   via?: 'sso' | null;
+  /** The `user_sessions` row behind this token — see `AccessTokenClaims.sid`. */
+  sessionId?: string | null;
+  /** A second factor was shown for this session — see `AccessTokenClaims.mfa`. */
+  mfa?: boolean;
+  /** The session began in the mobile app — see `AccessTokenClaims.app`. */
+  app?: boolean;
 }
 
 /**
@@ -55,4 +62,9 @@ export function can(user: RequestUser, permission: Permission): boolean {
 
 export interface AuthenticatedRequest {
   user?: RequestUser;
+  /**
+   * The company's sign-in rules, as JwtAuthGuard read them with the tenant, for SecurityPolicyGuard
+   * — so enforcing them costs no second read. Null when the company has never set any.
+   */
+  securityGate?: TenantSecurityGate | null;
 }

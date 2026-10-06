@@ -38,4 +38,6 @@ export default async function globalSetup(): Promise<void> {
   process.env['STRIPE_WEBHOOK_SECRET'] = 'whsec_test_secret_value';
   // A throwaway key, so the worker-documents suite encrypts with something that is not a real one.
   process.env['DOCUMENT_ENCRYPTION_KEY'] ??= Buffer.alloc(32, 7).toString('base64');
+  // And one for authenticator-app secrets, so the two-factor suites can enrol.
+  process.env['MFA_ENCRYPTION_KEY'] ??= Buffer.alloc(32, 5).toString('base64');
 }

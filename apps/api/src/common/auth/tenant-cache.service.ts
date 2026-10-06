@@ -1,7 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { effectiveModules, type Plan, type TenantStatus } from '@sitebook/shared';
+import {
+  SECURITY_IP_MODES,
+  SECURITY_MFA_POLICIES,
+  effectiveModules,
+  type Plan,
+  type SecurityIpMode,
+  type SecurityMfaPolicy,
+  type TenantStatus,
+} from '@sitebook/shared';
 import { env } from '../../config/env';
 import { TenantDb } from '../prisma/tenant-db.service';
+
+/**
+ * A company's sign-in rules (Settings → Security), read with the tenant so the global guard can
+ * enforce them without a query of its own. See `tenant_security_settings`.
+ */
+export interface TenantSecurityGate {
+  mfaPolicy: SecurityMfaPolicy;
+  trustIdpMfa: boolean;
+  idleTimeoutMinutes: number | null;
+  absoluteLifetimeHours: number | null;
+  ipMode: SecurityIpMode;
+  ipCidrs: string[];
+  ipExemptOwners: boolean;
+  ipExemptRoles: string[];
+}
 
 export interface TenantGateInfo {
   id: string;
@@ -15,6 +38,8 @@ export interface TenantGateInfo {
   locale: string;
   taxRegime: string;
   country: string;
+  /** Null when the company has never saved a rule — every rule off. */
+  security: TenantSecurityGate | null;
 }
 
 interface CacheEntry {
@@ -57,6 +82,20 @@ export class TenantCache {
         locale: true,
         taxRegime: true,
         country: true,
+        // The sign-in rules ride along on the same query: every authenticated request needs them,
+        // and a second round trip for a row most companies do not even have would be waste.
+        securitySettings: {
+          select: {
+            mfaPolicy: true,
+            trustIdpMfa: true,
+            idleTimeoutMinutes: true,
+            absoluteLifetimeHours: true,
+            ipMode: true,
+            ipRules: true,
+            ipExemptOwners: true,
+            ipExemptRoles: true,
+          },
+        },
       },
     });
     if (!tenant) {
@@ -76,6 +115,7 @@ export class TenantCache {
       locale: tenant.locale,
       taxRegime: tenant.taxRegime,
       country: tenant.country,
+      security: securityGateOf(tenant.securitySettings),
     };
     this.entries.set(tenantId, { value, expiresAt: Date.now() + this.ttlMs });
     return value;
@@ -88,4 +128,50 @@ export class TenantCache {
   clear(): void {
     this.entries.clear();
   }
+}
+
+/**
+ * The stored row as the guard reads it. A row whose every rule is off reads as no row, so a
+ * company that tried a rule and switched it back pays nothing for having looked.
+ */
+export function securityGateOf(
+  row: {
+    mfaPolicy: string;
+    trustIdpMfa: boolean;
+    idleTimeoutMinutes: number | null;
+    absoluteLifetimeHours: number | null;
+    ipMode: string;
+    ipRules: unknown;
+    ipExemptOwners: boolean;
+    ipExemptRoles: string[];
+  } | null,
+): TenantSecurityGate | null {
+  if (!row) return null;
+  const gate: TenantSecurityGate = {
+    mfaPolicy: (SECURITY_MFA_POLICIES as readonly string[]).includes(row.mfaPolicy)
+      ? (row.mfaPolicy as SecurityMfaPolicy)
+      : 'off',
+    trustIdpMfa: row.trustIdpMfa,
+    idleTimeoutMinutes: row.idleTimeoutMinutes,
+    absoluteLifetimeHours: row.absoluteLifetimeHours,
+    ipMode: (SECURITY_IP_MODES as readonly string[]).includes(row.ipMode)
+      ? (row.ipMode as SecurityIpMode)
+      : 'off',
+    ipCidrs: Array.isArray(row.ipRules)
+      ? row.ipRules
+          .map((rule: unknown) =>
+            rule && typeof rule === 'object' ? (rule as { cidr?: unknown }).cidr : null,
+          )
+          .filter((cidr): cidr is string => typeof cidr === 'string')
+      : [],
+    ipExemptOwners: row.ipExemptOwners,
+    ipExemptRoles: row.ipExemptRoles,
+  };
+  // `trust_idp_mfa` only matters once two-factor is required, so on its own it is not a rule.
+  const anything =
+    gate.mfaPolicy !== 'off' ||
+    gate.ipMode !== 'off' ||
+    gate.idleTimeoutMinutes !== null ||
+    gate.absoluteLifetimeHours !== null;
+  return anything ? gate : null;
 }

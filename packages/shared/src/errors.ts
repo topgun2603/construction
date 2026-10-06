@@ -22,6 +22,15 @@ export const ERROR_CODES = {
   RATE_LIMITED: 'RATE_LIMITED',
   /** The company makes this person sign in through its identity provider ("Sign in with SSO"). */
   SSO_REQUIRED: 'SSO_REQUIRED',
+  /**
+   * The company requires a second factor and this session has not shown one. Everything answers
+   * this except the enrol/verify endpoints; the web app routes to its two-factor screen.
+   */
+  MFA_REQUIRED: 'MFA_REQUIRED',
+  /** The company's IP allow-list does not include the address this request came from. */
+  IP_NOT_ALLOWED: 'IP_NOT_ALLOWED',
+  /** The session passed the company's idle timeout or absolute lifetime. Sign in again. */
+  SESSION_EXPIRED: 'SESSION_EXPIRED',
   INTERNAL: 'INTERNAL',
 } as const;
 
