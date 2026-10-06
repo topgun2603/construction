@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { LANGUAGE_COOKIE } from '@/lib/i18n';
 import { LanguageProvider } from '@/components/language-provider';
 import { FormatProvider } from '@/components/format-provider';
+import { AiFeaturesProvider } from '@/components/ai-features';
 import { formatLocaleOf } from '@/lib/format-server';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
@@ -70,30 +71,33 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     */
     <LanguageProvider initial={language}>
       <FormatProvider settings={formatLocaleOf(self)}>
-        <div className="flex h-dvh overflow-hidden">
-          <SideNav
-            tenantName={self.tenant.name}
-            logoUrl={self.tenant.logo_url}
-            role={self.user.role}
-            permissions={self.permissions}
-            enabledModules={self.enabled_modules}
-            activeSiteCount={activeSiteCount}
-            pendingApprovals={pendingApprovals}
-            groupReports={companyGroup.my_permissions.includes('group.view_reports')}
-          />
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <TopBar
-              userName={self.user.name}
-              userPhone={self.user.phone}
-              userRole={self.user.role}
-              notifications={notifications.items}
-              memberships={memberships.items}
+        {/* The company's AI switches, so AI buttons hide or explain themselves instead of failing. */}
+        <AiFeaturesProvider states={self.ai_features}>
+          <div className="flex h-dvh overflow-hidden">
+            <SideNav
+              tenantName={self.tenant.name}
+              logoUrl={self.tenant.logo_url}
+              role={self.user.role}
+              permissions={self.permissions}
+              enabledModules={self.enabled_modules}
+              activeSiteCount={activeSiteCount}
+              pendingApprovals={pendingApprovals}
+              groupReports={companyGroup.my_permissions.includes('group.view_reports')}
             />
-            {/* The one scrolling region. pb-12 keeps the last card off the bottom edge. */}
-            <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 pt-5">{children}</main>
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <TopBar
+                userName={self.user.name}
+                userPhone={self.user.phone}
+                userRole={self.user.role}
+                notifications={notifications.items}
+                memberships={memberships.items}
+              />
+              {/* The one scrolling region. pb-12 keeps the last card off the bottom edge. */}
+              <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 pt-5">{children}</main>
+            </div>
+            <Toaster />
           </div>
-          <Toaster />
-        </div>
+        </AiFeaturesProvider>
       </FormatProvider>
     </LanguageProvider>
   );

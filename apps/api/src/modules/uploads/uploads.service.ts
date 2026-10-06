@@ -173,6 +173,17 @@ export class UploadsService {
   }
 
   /**
+   * The tenant-prefix check on its own, with no fetch. For callers that must refuse somebody
+   * else's key before deciding anything else — an AI feature that is switched off should still say
+   * "not your file" to a guessed key, rather than revealing the company's settings to it.
+   */
+  assertOwnKey(actor: RequestUser, s3Key: string): void {
+    if (!s3Key.startsWith(`${actor.tenantId}/`) || s3Key.includes('..')) {
+      throw ApiError.forbidden('That file does not belong to this account');
+    }
+  }
+
+  /**
    * The object's bytes, for server-side callers that need to look inside it.
    *
    * Same authorisation as `viewUrl` — the tenant prefix — and a size ceiling, because this loads
@@ -185,10 +196,7 @@ export class UploadsService {
     s3Key: string,
     maxBytes: number,
   ): Promise<{ body: Buffer; contentType: string }> {
-    const prefix = `${actor.tenantId}/`;
-    if (!s3Key.startsWith(prefix) || s3Key.includes('..')) {
-      throw ApiError.forbidden('That file does not belong to this account');
-    }
+    this.assertOwnKey(actor, s3Key);
 
     const result = await this.client.send(
       new GetObjectCommand({ Bucket: this.config.S3_BUCKET, Key: s3Key }),

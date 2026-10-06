@@ -23,6 +23,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { BillReader } from '../ai/bill-reader.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 import { UploadsService } from '../uploads/uploads.service';
 
 /** A photograph of a piece of paper. Anything bigger is not one. */
@@ -54,6 +55,7 @@ export class ExpensesService {
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
     private readonly bills: BillReader,
+    private readonly gateway: AiGateway,
     private readonly uploads: UploadsService,
   ) {}
 
@@ -66,6 +68,10 @@ export class ExpensesService {
    * arithmetic is three lines of code that can be tested.
    */
   async scanBill(actor: RequestUser, input: ScanBillInput): Promise<ScanBillResult> {
+    this.uploads.assertOwnKey(actor, input.s3_key);
+    // Refused before the file is fetched. Typing the bill in by hand is a different endpoint and
+    // is never affected by the company's AI settings.
+    await this.gateway.assertEnabled(actor.tenantId, 'reading', 'Bill scanning is not configured on this deployment');
     const file = await this.uploads.readObject(actor, input.s3_key, MAX_BILL_BYTES);
     // A photograph or an emailed PDF — the two shapes a bill actually arrives in. The reader turns
     // the second into the first.
@@ -76,7 +82,7 @@ export class ExpensesService {
       );
     }
 
-    const draft = await this.bills.read(file.body, file.contentType, {
+    const draft = await this.bills.read(actor.tenantId, file.body, file.contentType, {
       country: actor.country,
       currency: actor.currency,
       taxRegime: actor.taxRegime,

@@ -171,7 +171,7 @@ export class ForecastsService {
       results.map(async (result) => {
         const template = explainForecast(result.forecast, result.format);
         const ai = EXPLAIN_WITH_AI.has(result.forecast.severity)
-          ? await this.explainer.reword(result.name, template)
+          ? await this.explainer.reword(tenantId, result.name, template)
           : null;
         return { ...result, explanation: ai ?? template, explainedBy: ai ? 'ai' : 'template' };
       }),

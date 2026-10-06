@@ -1,4 +1,5 @@
 import type {
+  AiFeatureState,
   DocumentCitation,
   RfiAiDraft,
   RfiDiscipline,
@@ -89,6 +90,8 @@ export interface RfiSettings {
   submittal_review_days: number;
   reminder_days_before: number;
   ai_enabled: boolean;
+  /** Why "Draft with AI" is unavailable when it is: turned off, or not set up on this server. */
+  ai_state?: AiFeatureState;
 }
 
 /** A responder link and the message to send it with; `{url}` marks where the link goes. */

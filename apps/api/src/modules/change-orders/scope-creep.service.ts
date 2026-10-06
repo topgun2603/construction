@@ -79,7 +79,7 @@ export class ScopeCreepService {
   ): Promise<void> {
     const hit = changeOrderScopeCreepMatch(text, { fromClient });
     if (!hit) return;
-    const verdict = await this.reader.judge(hit.excerpt, text);
+    const verdict = await this.reader.judge(actor.tenantId, hit.excerpt, text);
     if (verdict.extraWork === 'no') return;
 
     const notice = await this.tenantDb.transaction(actor.tenantId, async (tx) => {

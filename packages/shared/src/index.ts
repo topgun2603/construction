@@ -23,6 +23,7 @@ export * from './equipment';
 export * from './whatsapp';
 export * from './sso';
 export * from './security';
+export * from './ai';
 
 export * from './schemas/common';
 export * from './schemas/auth';
@@ -46,6 +47,7 @@ export * from './schemas/rfis';
 export * from './schemas/equipment';
 export * from './schemas/sso';
 export * from './schemas/security';
+export * from './schemas/ai';
 export * from './schemas/audit';
 export * from './schemas/site';
 export * from './schemas/portal';

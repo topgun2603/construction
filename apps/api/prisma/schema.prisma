@@ -397,6 +397,10 @@ model Tenant {
   mfaFactors       MfaFactor[]
   mfaRecoveryCodes MfaRecoveryCode[]
 
+  // Company AI controls
+  aiSettings   AiSettings?
+  aiUsageDaily AiUsageDaily[]
+
   @@map("tenants")
 }
 
@@ -5136,4 +5140,50 @@ model MfaRecoveryCode {
   @@unique([userId, codeHash])
   @@index([tenantId])
   @@map("mfa_recovery_codes")
+}
+
+// ---------------------------------------------------------------------------
+// Company AI controls (roadmap Phase 3, "AI data controls")
+// ---------------------------------------------------------------------------
+
+/// What a company allows its model calls to do. No row means everything on and the default region —
+/// so every company that existed before this table behaves exactly as it did.
+///
+/// A table of its own rather than more columns on `tenant_security_settings`: that row decides who
+/// can get in, this one decides what leaves the building, and they are changed for different
+/// reasons — an audit entry for one should not read as a change to the other.
+model AiSettings {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @unique @map("tenant_id") @db.Uuid
+  /// The master switch. Off refuses every feature whatever `disabledFeatures` says.
+  enabled          Boolean  @default(true)
+  /// Features switched off one by one (see AI_FEATURES). Stored as the ones that are off, so a
+  /// feature added later starts on for everybody, as a new feature should.
+  disabledFeatures String[] @default([]) @map("disabled_features")
+  /// default | eu | us — see AI_REGIONS.
+  region           String   @default("default")
+  updatedByUserId  String?  @map("updated_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("ai_settings")
+}
+
+/// How many model calls a company made, per feature per day. A counter, not a log: no prompt, no
+/// answer and no user is kept, only the number — which is what a cost question, or "did anything
+/// go out while it was switched off?", needs.
+model AiUsageDaily {
+  tenantId String   @map("tenant_id") @db.Uuid
+  /// The UTC calendar day.
+  day      DateTime @db.Date
+  /// One of AI_FEATURES.
+  feature  String
+  calls    Int      @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, day, feature])
+  @@map("ai_usage_daily")
 }

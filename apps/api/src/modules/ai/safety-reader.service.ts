@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import OpenAI from 'openai';
 import {
   SAFETY_CATEGORIES,
   SAFETY_OBSERVATION_TYPES,
@@ -10,6 +9,7 @@ import {
   type SafetySuggestion,
 } from '@sitebook/shared';
 import { env } from '../../config/env';
+import { AiGateway } from './ai-gateway.service';
 
 /**
  * A first read of a safety observation: is it an unsafe act, an unsafe condition or something done
@@ -23,18 +23,18 @@ import { env } from '../../config/env';
 export class SafetyReader {
   private readonly logger = new Logger(SafetyReader.name);
   private readonly config = env();
-  private client?: OpenAI;
+
+  constructor(private readonly gateway: AiGateway) {}
 
   /** False when no key is configured, which is not an error — the rules take over. */
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
 
   /** Null when the model is off, fails, or answers outside the vocabulary; the caller falls back. */
-  async classify(note: string): Promise<SafetySuggestion | null> {
-    if (!this.enabled) return null;
+  async classify(tenantId: string, note: string): Promise<SafetySuggestion | null> {
+    // Off, or no key: null, and the keyword rules classify it instead.
+    if (!(await this.gateway.isOn(tenantId, 'suggestions'))) return null;
     try {
-      const response = await this.openai().chat.completions.create({
+      const client = await this.gateway.client(tenantId, 'suggestions');
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_ASK_MODEL,
         temperature: 0,
         max_tokens: 120,
@@ -60,10 +60,6 @@ export class SafetyReader {
     }
   }
 
-  private openai(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-    return this.client;
-  }
 }
 
 function pick(value: unknown, allowed: readonly string[]): string | null {

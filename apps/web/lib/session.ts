@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { apiFetch, ApiRequestError } from './api';
+import type { AiFeatureStates } from '@sitebook/shared';
 import { clientIpHeaders } from './client-ip';
 
 export const ACCESS_COOKIE = 'sb_access';
@@ -43,6 +44,11 @@ export interface SelfResponse {
   project_ids: string[];
   sees_all_projects: boolean;
   unread_notifications: number;
+  /**
+   * Each AI feature's state for this company: on, turned off by the company or the server, or not
+   * set up here. Optional so an API from before these controls reads as everything on.
+   */
+  ai_features?: AiFeatureStates;
 }
 
 /**

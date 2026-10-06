@@ -11,6 +11,7 @@ import type { RequestUser } from '../../common/auth/request-user';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 
 const DOCUMENT_SELECT = {
   id: true,
@@ -50,6 +51,7 @@ export class DocumentsService {
     private readonly access: ProjectAccess,
     private readonly uploads: UploadsService,
     private readonly jobs: JobQueueService,
+    private readonly gateway: AiGateway,
   ) {}
 
   private clientOnly(actor: RequestUser): boolean {
@@ -184,13 +186,18 @@ export class DocumentsService {
      * Queued, not awaited: a 60-page structural set takes seconds to parse and the person who just
      * uploaded it is waiting on a dialog. With no Redis the enqueue is a no-op and the document is
      * simply not searchable — which is the feature being off, not an upload failing.
+     *
+     * Not queued at all while the company has Documents (AI) switched off: the page index exists
+     * only to be asked, and "re-index documents" in the AI settings picks these up when it is back.
      */
-    await this.jobs.extractDocumentText({
-      tenantId: actor.tenantId,
-      documentId: document.id,
-      s3Key: document.s3Key,
-      contentType: document.contentType,
-    });
+    if (await this.gateway.documentIndexingAllowed(actor.tenantId)) {
+      await this.jobs.extractDocumentText({
+        tenantId: actor.tenantId,
+        documentId: document.id,
+        s3Key: document.s3Key,
+        contentType: document.contentType,
+      });
+    }
 
     return this.view(actor, document);
   }

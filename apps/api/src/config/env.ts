@@ -197,6 +197,24 @@ const envSchema = z
      * producing something plausible.
      */
     OPENAI_DOCUMENT_MODEL: z.string().default('gpt-4o'),
+    /*
+     * Where model calls go, per company region (Settings → Security → AI and data).
+     *
+     * Unset means the provider's own default endpoint. A regional URL is only offered to companies
+     * when it is configured here — the product never guesses one — and a company that chose a
+     * region whose URL is later removed has its AI refused (`region_unavailable`) rather than
+     * quietly sent to the default endpoint it asked to avoid.
+     */
+    OPENAI_BASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    OPENAI_BASE_URL_EU: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    OPENAI_BASE_URL_US: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    /*
+     * The operator's kill switch: `all`, or a comma list of AI_FEATURES (`voice,translation`).
+     * Applies to every company, whatever their own settings, and the settings screen says the
+     * feature is off "on this server" rather than "for your company". Read at start-up like every
+     * other setting here, so changing it takes a restart and no code.
+     */
+    AI_DISABLED_FEATURES: z.string().default(''),
 
     /**
      * Map tiles and geocoding. Without it the geocoder falls back to Nominatim's volunteer

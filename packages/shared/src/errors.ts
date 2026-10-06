@@ -31,6 +31,12 @@ export const ERROR_CODES = {
   IP_NOT_ALLOWED: 'IP_NOT_ALLOWED',
   /** The session passed the company's idle timeout or absolute lifetime. Sign in again. */
   SESSION_EXPIRED: 'SESSION_EXPIRED',
+  /**
+   * The company (or the operator, for every company) has turned this AI feature off. 403: the
+   * request is understood and refused by policy — distinct from 409 with `details.ai =
+   * 'not_configured'`, which means the deployment has no model key at all.
+   */
+  AI_DISABLED: 'AI_DISABLED',
   INTERNAL: 'INTERNAL',
 } as const;
 

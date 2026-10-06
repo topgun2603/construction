@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import OpenAI from 'openai';
 import {
   ASK_METRICS,
   ASK_PERIODS,
@@ -20,6 +19,7 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { describePeriod, resolvePeriod } from './ask-periods';
+import { AiGateway } from './ai-gateway.service';
 
 /**
  * Answering a question about a builder's own numbers.
@@ -42,21 +42,17 @@ import { describePeriod, resolvePeriod } from './ask-periods';
 export class AskService {
   private readonly logger = new Logger(AskService.name);
   private readonly config = env();
-  private client?: OpenAI;
 
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
+    private readonly gateway: AiGateway,
   ) {}
 
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
-
   async ask(actor: RequestUser, question: string): Promise<AskResult> {
-    if (!this.enabled) {
-      throw ApiError.conflict('Asking questions is not configured on this deployment');
-    }
+    // Before anything is read: a company that switched the assistant off gets no model call, and
+    // no work done towards one.
+    await this.gateway.assertEnabled(actor.tenantId, 'assistant', 'Asking questions is not configured on this deployment');
 
     const today = todayIn(actor.timezone);
     const db = this.tenantDb.clientFor(actor.tenantId);
@@ -69,7 +65,7 @@ export class AskService {
       orderBy: { name: 'asc' },
     });
 
-    const intent = await this.readQuestion(question, projects.map((p) => p.name));
+    const intent = await this.readQuestion(actor.tenantId, question, projects.map((p) => p.name));
     const site = intent.project ? matchByName(intent.project, projects) : null;
     const range = resolvePeriod(intent.period, today);
 
@@ -82,10 +78,11 @@ export class AskService {
   }
 
   /** The one model call. Its answer is validated into `AskIntent` or the question is refused. */
-  private async readQuestion(question: string, siteNames: string[]): Promise<AskIntent> {
+  private async readQuestion(tenantId: string, question: string, siteNames: string[]): Promise<AskIntent> {
+    const client = await this.gateway.client(tenantId, 'assistant');
     let raw: string;
     try {
-      const response = await this.openai().chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_ASK_MODEL,
         temperature: 0,
         max_tokens: 200,
@@ -306,10 +303,6 @@ export class AskService {
     }
   }
 
-  private openai(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-    return this.client;
-  }
 }
 
 

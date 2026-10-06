@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { ObjectStore } from '../../common/storage/object-store.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { DocumentTextService } from '../../modules/portal/document-text.service';
+import { AiGateway } from '../../modules/ai/ai-gateway.service';
 import { QUEUE, type DocumentTextJob, type ThumbnailJob } from '../job-types';
 
 /**
@@ -28,6 +29,7 @@ export class MediaProcessor extends WorkerHost {
     private readonly tenantDb: TenantDb,
     private readonly store: ObjectStore,
     private readonly documentText: DocumentTextService,
+    private readonly gateway: AiGateway,
   ) {
     super();
   }
@@ -113,6 +115,11 @@ export class MediaProcessor extends WorkerHost {
    * re-indexed twice would crowd everything else out of the search results by sheer duplication.
    */
   private async readDocument(data: DocumentTextJob): Promise<unknown> {
+    // Checked when the job runs, not only when it was queued: a company that switched Documents off
+    // with jobs still waiting gets none of them indexed. Left unstamped, so re-indexing finds them.
+    if (!(await this.gateway.documentIndexingAllowed(data.tenantId))) {
+      return { documentId: data.documentId, skipped: 'documents AI off' };
+    }
     const db = this.tenantDb.clientFor(data.tenantId);
 
     const document = await db.document.findFirst({

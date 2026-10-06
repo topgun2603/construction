@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import OpenAI, { toFile } from 'openai';
 import { dprSpeechSchema, type DprSpeech } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
+import { AiGateway, aiToFile } from './ai-gateway.service';
 
 /**
  * Turns a spoken site note into the fields a daily report needs.
@@ -24,12 +24,10 @@ import { ApiError } from '../../common/errors/api-error';
 export class VoiceReader {
   private readonly logger = new Logger(VoiceReader.name);
   private readonly config = env();
-  private client?: OpenAI;
+
+  constructor(private readonly gateway: AiGateway) {}
 
   /** False when no key is configured, which is not an error — the feature is simply off. */
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
 
   /**
    * Audio in, the speaker's own words out.
@@ -41,16 +39,15 @@ export class VoiceReader {
    * which one it heard.
    */
   async transcribe(
+    tenantId: string,
     file: Buffer,
     contentType: string,
   ): Promise<{ text: string; language: string | null }> {
-    if (!this.enabled) {
-      throw ApiError.conflict('Voice notes are not configured on this deployment');
-    }
+    const client = await this.gateway.client(tenantId, 'voice', 'Voice notes are not configured on this deployment');
 
     try {
-      const upload = await toFile(file, `note.${extensionFor(contentType)}`, { type: contentType });
-      const response = await this.openai().audio.transcriptions.create({
+      const upload = await aiToFile(file, `note.${extensionFor(contentType)}`, { type: contentType });
+      const response = await client.audio.transcriptions.create({
         file: upload,
         model: this.config.OPENAI_TRANSCRIBE_MODEL,
         response_format: 'verbose_json',
@@ -91,14 +88,12 @@ export class VoiceReader {
    * leaving somebody with two trades that mean one thing. Anything it names outside the list still
    * comes through — the caller flags it rather than dropping it.
    */
-  async readSpeech(transcript: string, knownTrades: string[]): Promise<DprSpeech> {
-    if (!this.enabled) {
-      throw ApiError.conflict('Voice notes are not configured on this deployment');
-    }
+  async readSpeech(tenantId: string, transcript: string, knownTrades: string[]): Promise<DprSpeech> {
+    const client = await this.gateway.client(tenantId, 'voice', 'Voice notes are not configured on this deployment');
 
     let raw: string;
     try {
-      const response = await this.openai().chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_ASK_MODEL,
         temperature: 0,
         max_tokens: 700,
@@ -130,10 +125,6 @@ export class VoiceReader {
     return parsed.data;
   }
 
-  private openai(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-    return this.client;
-  }
 }
 
 /**

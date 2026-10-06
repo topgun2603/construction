@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import OpenAI from 'openai';
 import {
   billDraftSchema,
   currencyMinorDigits,
@@ -11,6 +10,7 @@ import {
 } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
+import { AiGateway } from './ai-gateway.service';
 
 /**
  * Reads a photographed bill into the fields an expense form needs.
@@ -33,21 +33,16 @@ import { ApiError } from '../../common/errors/api-error';
 export class BillReader {
   private readonly logger = new Logger(BillReader.name);
   private readonly config = env();
-  private client?: OpenAI;
 
-  /** False when no key is configured, which is not an error — the feature is simply off. */
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
+  constructor(private readonly gateway: AiGateway) {}
 
   /**
    * `company` says whose bill it is: which country's suppliers, which tax number they print, and
    * how many decimals the currency has. An Indian bill and a Dubai one differ in all three.
    */
-  async read(file: Buffer, contentType: string, company: BillCompany): Promise<BillDraft> {
-    if (!this.enabled) {
-      throw ApiError.conflict('Bill scanning is not configured on this deployment');
-    }
+  async read(tenantId: string, file: Buffer, contentType: string, company: BillCompany): Promise<BillDraft> {
+    // Checked before the PDF is rendered, so a refused scan costs nothing.
+    await this.gateway.assertEnabled(tenantId, 'reading', 'Bill scanning is not configured on this deployment');
 
     /*
      * A PDF becomes a picture of a PDF.
@@ -67,9 +62,10 @@ export class BillReader {
     // URL would put somebody's invoice behind a credential we do not control the lifetime of.
     const dataUrl = `data:${imageType};base64,${image.toString('base64')}`;
 
+    const client = await this.gateway.client(tenantId, 'reading');
     let raw: string;
     try {
-      const response = await this.openai().chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_VISION_MODEL,
         // Low: a bill is text on paper, and the answer does not improve with invention.
         temperature: 0,
@@ -142,10 +138,6 @@ export class BillReader {
     }
   }
 
-  private openai(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-    return this.client;
-  }
 }
 
 /**

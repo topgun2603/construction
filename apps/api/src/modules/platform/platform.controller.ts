@@ -150,6 +150,14 @@ export class PlatformController {
     return this.platform.supportView(actor(request), id);
   }
 
+  /** A company's AI switches, region and usage — read-only; see `PlatformService.tenantAi`. */
+  @UseGuards(PlatformGuard)
+  @Get('tenants/:id/ai')
+  @ApiOperation({ summary: 'A company’s AI settings and usage (read-only)' })
+  tenantAi(@Param('id', ParseUUIDPipe) id: string) {
+    return this.platform.tenantAi(id);
+  }
+
   /**
    * The break-glass for a lost phone: removes a person's authenticator app and recovery codes and
    * ends their sessions, so their next sign-in sets up a new one. Audited in the console's log and

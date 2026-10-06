@@ -7,6 +7,7 @@ import { MAX_UPLOAD_BYTES } from '@sitebook/shared';
 import { presignUpload, transcribeVoiceNote } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/components/language-provider';
+import { AiOffNote, useAiBlocked } from '@/components/ai-features';
 
 /**
  * Records a spoken site note and hands back the report draft it became.
@@ -33,6 +34,7 @@ export function VoiceNoteButton({
   disabled?: boolean;
 }) {
   const { t } = useLanguage();
+  const voiceOff = useAiBlocked('voice');
   const [state, setState] = useState<'idle' | 'recording' | 'working'>('idle');
   const [seconds, setSeconds] = useState(0);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -178,6 +180,9 @@ export function VoiceNoteButton({
       </Button>
     );
   }
+
+  // Voice notes switched off for the company: the button gives way to a note, and the form stays.
+  if (voiceOff) return <AiOffNote feature="voice" manual={t('Fill the report in by hand.')} />;
 
   return (
     <Button type="button" variant="secondary" size="sm" disabled={disabled} onClick={() => void start()}>

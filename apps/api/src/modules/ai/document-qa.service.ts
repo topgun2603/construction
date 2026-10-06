@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import OpenAI from 'openai';
 import type { AskDocumentsInput, AskDocumentsResult, DocumentCitation } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
@@ -8,6 +7,7 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import type { RequestUser } from '../../common/auth/request-user';
+import { AiGateway, type AiModelClient } from './ai-gateway.service';
 
 /** How many pages are retrieved and shown to the model. */
 const RETRIEVE = 8;
@@ -33,19 +33,23 @@ const SNIPPET_CHARS = 280;
 export class DocumentQaService {
   private readonly logger = new Logger(DocumentQaService.name);
   private readonly config = env();
-  private client?: OpenAI;
 
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
     private readonly jobs: JobQueueService,
+    private readonly gateway: AiGateway,
   ) {}
 
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
-
   async ask(actor: RequestUser, input: AskDocumentsInput): Promise<AskDocumentsResult> {
+    /*
+     * A company that switched Documents off is refused here, before the search — unlike the
+     * no-key case below. Turning it off is a decision about the feature, and answering "nothing
+     * matches" from the index would look like the feature still working; it also must not queue
+     * documents to be read, which is what keeps the index from growing while it is off.
+     */
+    const state = await this.gateway.state(actor.tenantId, 'documents');
+    if (state !== 'on' && state !== 'not_configured') await this.gateway.assertEnabled(actor.tenantId, 'documents');
     if (input.project_id) await this.access.assertAccess(actor, input.project_id);
 
     const matches = await this.retrieve(actor, input);
@@ -75,11 +79,12 @@ export class DocumentQaService {
      * "there are no documents here yet" — and a tenant with an empty register never reaches a
      * vendor at all, which is a bill nobody should get for a question about nothing.
      */
-    if (!this.enabled) {
-      throw ApiError.conflict('Asking the documents is not configured on this deployment');
-    }
-
-    const read = await this.readPages(input.question, matches);
+    const client = await this.gateway.client(
+      actor.tenantId,
+      'documents',
+      'Asking the documents is not configured on this deployment',
+    );
+    const read = await this.readPages(client, input.question, matches);
 
     return {
       answer: read.answer,
@@ -157,6 +162,7 @@ export class DocumentQaService {
    * retrieved, not taken from anything the model wrote.
    */
   private async readPages(
+    client: AiModelClient,
     question: string,
     matches: Match[],
   ): Promise<{ answer: string; answered: boolean; used: number[] }> {
@@ -166,7 +172,7 @@ export class DocumentQaService {
 
     let raw: string;
     try {
-      const response = await this.openai().chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_DOCUMENT_MODEL,
         temperature: 0,
         max_tokens: 500,
@@ -271,10 +277,6 @@ export class DocumentQaService {
     return [{ projectId: { in: actor.projectIds } }];
   }
 
-  private openai(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-    return this.client;
-  }
 }
 
 interface Match {

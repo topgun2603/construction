@@ -16,6 +16,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { SafetyReader } from '../ai/safety-reader.service';
 import { VoiceReader } from '../ai/voice-reader.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { dayRange } from './safety-incidents.service';
 import {
@@ -56,6 +57,7 @@ export class SafetyObservationsService {
     private readonly uploads: UploadsService,
     private readonly reader: SafetyReader,
     private readonly voice: VoiceReader,
+    private readonly gateway: AiGateway,
   ) {}
 
   async list(actor: RequestUser, query: ListSafetyObservationsQuery) {
@@ -204,21 +206,24 @@ export class SafetyObservationsService {
 
     let transcript: string | null = null;
     if (input.voice_s3_key) {
-      if (!this.voice.enabled) {
-        throw ApiError.conflict('Voice notes are not configured on this deployment. Type a few words instead.');
-      }
+      // Refused before the recording is read; typing a few words still works either way.
+      await this.gateway.assertEnabled(
+        actor.tenantId,
+        'voice',
+        'Voice notes are not configured on this deployment. Type a few words instead.',
+      );
       const audio = await this.uploads.readObject(actor, input.voice_s3_key, MAX_UPLOAD_BYTES.audio);
       if (!audio.contentType.startsWith('audio/')) {
         throw ApiError.validationFailed({ voice_s3_key: 'not a recording' }, 'That file is not a recording');
       }
-      transcript = (await this.voice.transcribe(audio.body, audio.contentType)).text;
+      transcript = (await this.voice.transcribe(actor.tenantId, audio.body, audio.contentType)).text;
       // A recording of somebody's voice has no business outliving its transcript.
       void this.uploads.deleteObject(actor, input.voice_s3_key).catch(() => undefined);
     }
 
     const description = [input.note, transcript].filter(Boolean).join('\n');
     const needsGuess = !input.type || !input.category || !input.severity;
-    const suggestion = needsGuess ? await this.suggest(description) : null;
+    const suggestion = needsGuess ? await this.suggest(actor.tenantId, description) : null;
     const type = input.type ?? suggestion!.type;
 
     const id = await withNumberRetry(() =>
@@ -245,8 +250,9 @@ export class SafetyObservationsService {
   }
 
   /** The guess on its own, to pre-fill a form before anything is saved. */
-  async suggest(note: string): Promise<SuggestionResult> {
-    const ai = await this.reader.classify(note);
+  async suggest(tenantId: string, note: string): Promise<SuggestionResult> {
+    // The rules answer whenever the model is not asked — switched off, no key, or a failed call.
+    const ai = await this.reader.classify(tenantId, note);
     if (ai) return { ...ai, source: 'ai' };
     return { ...safetySuggestFromNote(note), source: 'rules' };
   }

@@ -18,6 +18,7 @@ import { cursorArgs, toPage } from '../../common/pagination';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import { VoiceReader } from '../ai/voice-reader.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { ScopeCreepService } from '../change-orders/scope-creep.service';
 
@@ -45,6 +46,7 @@ export class DprService {
     private readonly access: ProjectAccess,
     private readonly jobs: JobQueueService,
     private readonly voice: VoiceReader,
+    private readonly gateway: AiGateway,
     private readonly uploads: UploadsService,
     private readonly scopeCreep: ScopeCreepService,
   ) {}
@@ -357,6 +359,9 @@ export class DprService {
     input: TranscribeDprInput,
   ): Promise<VoiceDprResult> {
     await this.access.assertAccess(actor, input.project_id);
+    this.uploads.assertOwnKey(actor, input.s3_key);
+    // Before the recording is fetched; filling the report form by hand is unaffected.
+    await this.gateway.assertEnabled(actor.tenantId, 'voice', 'Voice notes are not configured on this deployment');
 
     const audio = await this.uploads.readObject(actor, input.s3_key, MAX_UPLOAD_BYTES.audio);
     if (!audio.contentType.startsWith('audio/')) {
@@ -366,12 +371,12 @@ export class DprService {
       );
     }
 
-    const { text, language } = await this.voice.transcribe(audio.body, audio.contentType);
+    const { text, language } = await this.voice.transcribe(actor.tenantId, audio.body, audio.contentType);
 
     // The trades this site's own people are registered under, so "kottanar" lands on the tenant's
     // own word for mason instead of creating a second one that means the same thing.
     const knownTrades = await this.tradesOn(actor, input.project_id);
-    const speech = await this.voice.readSpeech(text, knownTrades);
+    const speech = await this.voice.readSpeech(actor.tenantId, text, knownTrades);
 
     /*
      * A trade nobody on this site has is reported, not dropped.

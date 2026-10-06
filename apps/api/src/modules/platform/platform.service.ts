@@ -22,6 +22,8 @@ import { env } from '../../config/env';
 import { PlansService } from '../plans/plans.service';
 import { SYSTEM_ROLE_NAMES } from '../tenants/tenants.service';
 import { PlatformDb } from './platform-db.service';
+import { AiGateway } from '../ai/ai-gateway.service';
+import { aiModelsByFeature, aiPresentUsage, aiUsageSince } from '../ai/ai-settings.service';
 
 export interface TenantRow {
   id: string;
@@ -61,6 +63,7 @@ export class PlatformService {
   constructor(
     private readonly db: PlatformDb,
     private readonly plans: PlansService,
+    private readonly ai: AiGateway,
   ) {}
 
   /**
@@ -631,6 +634,42 @@ export class PlatformService {
         indents_waiting: pendingIndents,
         expenses_waiting: pendingExpenses,
       },
+    };
+  }
+
+  /**
+   * A company's AI settings and the last 30 days of usage, read-only.
+   *
+   * The console never changes a company's own switches — that is the owner's decision, and the
+   * audit trail on `ai_settings` should only ever show the company's people. What the operator has
+   * instead is `AI_DISABLED_FEATURES`, the kill switch for every company, shown here beside them so
+   * a support call about "the scan button disappeared" can be answered from one screen.
+   */
+  async tenantAi(tenantId: string) {
+    const prisma = this.db.client;
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+    if (!tenant) throw ApiError.notFound('Tenant');
+
+    const [settings, usage] = await Promise.all([
+      prisma.aiSettings.findUnique({ where: { tenantId } }),
+      prisma.aiUsageDaily.findMany({ where: { tenantId, day: { gte: aiUsageSince() } } }),
+    ]);
+    return {
+      deployment: {
+        configured: this.ai.configured,
+        models: aiModelsByFeature(),
+        platform_disabled: this.ai.platformDisabled(),
+        regions: this.ai.regionAvailability(),
+      },
+      settings: {
+        enabled: settings?.enabled ?? true,
+        disabled_features: settings?.disabledFeatures ?? [],
+        region: settings?.region ?? 'default',
+        updated_at: settings?.updatedAt.toISOString() ?? null,
+      },
+      // The same states the company sees, worked out by the same rules.
+      states: await this.ai.states(tenantId),
+      usage: aiPresentUsage(usage),
     };
   }
 
