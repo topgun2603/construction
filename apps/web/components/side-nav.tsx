@@ -6,12 +6,15 @@ import { useEffect, useState } from 'react';
 import {
   Tent,
   ShieldAlert,
+  ShieldCheck,
   Banknote,
   Receipt,
   Building2,
   FolderOpen,
   CalendarCheck,
   ClipboardCheck,
+  ClipboardList,
+  FileDiff,
   FileSignature,
   HardHat,
   LayoutDashboard,
@@ -172,6 +175,30 @@ const GROUPS: NavGroup[] = [
         icon: FileSignature,
         module: 'projects',
         permission: ['subcontracts.view', 'subcontracts.measure'],
+      },
+      // Variations to the client's contract; a client sees theirs through the site's approvals.
+      {
+        href: '/change-orders',
+        label: 'Change orders',
+        icon: FileDiff,
+        module: 'projects',
+        permission: 'change_orders.view',
+      },
+      // Inspections, tests and snags. Supervisors inspect without the library or the sign-off.
+      {
+        href: '/quality',
+        label: 'Quality',
+        icon: ClipboardList,
+        module: 'projects',
+        permission: ['quality.view', 'quality.inspect'],
+      },
+      // Anyone on site may report; the dashboard and registers need safety.view.
+      {
+        href: '/safety',
+        label: 'Safety',
+        icon: ShieldCheck,
+        module: 'projects',
+        permission: ['safety.view', 'safety.report'],
       },
       // Leak and fraud findings: money people can see, so the same gate as expenses.
       {
