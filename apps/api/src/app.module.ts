@@ -50,6 +50,8 @@ import { SsoModule } from './modules/sso/sso.module';
 import { ScimModule } from './modules/scim/scim.module';
 import { SecurityModule } from './modules/security/security.module';
 import { AiControlsModule } from './modules/ai/ai-controls.module';
+import { M365Module } from './modules/m365/m365.module';
+import { MeetingsModule } from './modules/meetings/meetings.module';
 import { SecurityPolicyGuard } from './modules/security/security-policy.guard';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { QualityModule } from './modules/quality/quality.module';
@@ -142,6 +144,8 @@ import { WorkersModule } from './modules/workers/workers.module';
     ScimModule,
     SecurityModule,
     AiControlsModule,
+    M365Module,
+    MeetingsModule,
     AuditModule,
     ReportsModule,
     StockModule,

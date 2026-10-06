@@ -187,6 +187,12 @@ fly deploy -c fly.web.toml
    base64) or no company can require two-factor, and the same `WEB_CLIENT_IP_SECRET` (32+ random
    characters) on both apps so dashboard requests reach the API with the browser's address rather
    than the web machine's — without it a company's IP allow-list in web mode checks the wrong address.
+   For Microsoft 365 email and calendar (optional), register one multi-tenant app in Microsoft Entra
+   (App registrations → New registration → "Accounts in any organizational directory"), add the Web
+   redirect URI `https://buildr-web.fly.dev/settings/integrations/microsoft/callback`, grant the
+   delegated Graph permissions `offline_access`, `Mail.Send`, `Calendars.ReadWrite`, `User.Read`,
+   create a client secret, then `fly secrets set MS_GRAPH_CLIENT_ID=… MS_GRAPH_CLIENT_SECRET=…
+   MS_GRAPH_REDIRECT_URI=… M365_ENCRYPTION_KEY=…` on the API (the key: 32 random bytes, base64).
 6. **The mobile app** points at the local API through `adb reverse` during development. A build for
    real users needs `--dart-define=API_URL=https://buildr-api.fly.dev/v1` and no `DEV_AUTH_BYPASS`.
 

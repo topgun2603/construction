@@ -20,6 +20,7 @@ import { QualityTestsService } from '../../modules/quality/quality-tests.service
 import { SafetyPermitsService } from '../../modules/safety/safety-permits.service';
 import { RfiRemindersService } from '../../modules/rfis/rfi-reminders.service';
 import { EquipmentMaintenanceService } from '../../modules/equipment/equipment-maintenance.service';
+import { M365CalendarSyncService } from '../../modules/m365/m365-calendar-sync.service';
 import {
   DEFAULT_JOB_OPTIONS,
   QUEUE,
@@ -54,6 +55,7 @@ export class ReportsProcessor extends WorkerHost {
     private readonly safetyPermits: SafetyPermitsService,
     private readonly rfiReminders: RfiRemindersService,
     private readonly equipmentMaintenance: EquipmentMaintenanceService,
+    private readonly m365Calendar: M365CalendarSyncService,
   ) {
     super();
   }
@@ -86,8 +88,15 @@ export class ReportsProcessor extends WorkerHost {
         return this.safetyPermits.alertExpired((job.data as { tenantId: string }).tenantId);
       case 'fan-out-rfi-reminders':
         return this.fanOutNightly('rfi-reminders', env().RFI_REMINDER_CRON);
-      case 'rfi-reminders':
-        return this.rfiReminders.remindTenant((job.data as { tenantId: string }).tenantId);
+      case 'rfi-reminders': {
+        const { tenantId } = job.data as { tenantId: string };
+        const reminded = await this.rfiReminders.remindTenant(tenantId);
+        // The connected calendar (when the company asked for one) is brought up to date on the same
+        // morning tick, so the due dates the reminders talk about are the ones in Outlook. A no-op
+        // for every company without Microsoft 365, and it never throws.
+        await this.m365Calendar.syncTenantQuietly(tenantId);
+        return reminded;
+      }
       case 'fan-out-equipment-reminders':
         return this.fanOutNightly('equipment-reminders', env().EQUIPMENT_REMINDER_CRON);
       case 'equipment-reminders':

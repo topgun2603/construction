@@ -18,6 +18,7 @@ import { ScopeCreepService } from './scope-creep.service';
   imports: [AiModule, NotificationsModule, UploadsModule],
   controllers: [ChangeOrdersController],
   providers: [ChangeOrdersService, ChangeOrderApprovalsService, ScopeCreepService],
-  exports: [ChangeOrderApprovalsService, ScopeCreepService],
+  // ChangeOrdersService for Microsoft 365's "send by email", which reads the change order through it.
+  exports: [ChangeOrderApprovalsService, ScopeCreepService, ChangeOrdersService],
 })
 export class ChangeOrdersModule {}
