@@ -15,6 +15,10 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileDiff,
+  FileStack,
+  HelpCircle,
+  Network,
+  Truck,
   FileSignature,
   HardHat,
   LayoutDashboard,
@@ -183,6 +187,38 @@ const GROUPS: NavGroup[] = [
         icon: FileDiff,
         module: 'projects',
         permission: 'change_orders.view',
+      },
+      // Questions to the designers, answered through a link they need no account for.
+      {
+        href: '/rfis',
+        label: 'RFIs',
+        icon: HelpCircle,
+        module: 'projects',
+        permission: 'rfis.view',
+      },
+      {
+        href: '/submittals',
+        label: 'Submittals',
+        icon: FileStack,
+        module: 'projects',
+        permission: 'submittals.view',
+      },
+      // Plant and machines. Whoever logs the hours sees the machines, not what they cost.
+      {
+        href: '/equipment',
+        label: 'Equipment',
+        icon: Truck,
+        module: 'projects',
+        permission: ['equipment.view', 'equipment.log', 'equipment.manage'],
+      },
+      // The group's consolidated figures. Group admin is a grant the menu cannot see yet, so owners
+      // get the link; the page itself tells anyone who is not a group admin so.
+      {
+        href: '/group',
+        label: 'Group overview',
+        icon: Network,
+        module: 'dashboard',
+        roles: ['owner'],
       },
       // Inspections, tests and snags. Supervisors inspect without the library or the sign-off.
       {
