@@ -55,6 +55,8 @@ interface NavItem {
   icon: LucideIcon;
   module?: ModuleName;
   roles?: string[];
+  /** Shown only to group admins who may read the consolidated reports. */
+  groupReports?: boolean;
   /**
    * Any one of these is enough, matching how the API reads a `@RequiresPermission` list.
    *
@@ -211,14 +213,13 @@ const GROUPS: NavGroup[] = [
         module: 'projects',
         permission: ['equipment.view', 'equipment.log', 'equipment.manage'],
       },
-      // The group's consolidated figures. Group admin is a grant the menu cannot see yet, so owners
-      // get the link; the page itself tells anyone who is not a group admin so.
+      // The group's consolidated figures, for group admins only.
       {
         href: '/group',
         label: 'Group overview',
         icon: Network,
         module: 'dashboard',
-        roles: ['owner'],
+        groupReports: true,
       },
       // Inspections, tests and snags. Supervisors inspect without the library or the sign-off.
       {
@@ -278,6 +279,7 @@ export function SideNav({
   permissions,
   activeSiteCount,
   pendingApprovals,
+  groupReports = false,
 }: {
   tenantName: string;
   logoUrl: string | null;
@@ -286,6 +288,8 @@ export function SideNav({
   permissions: string[];
   activeSiteCount: number;
   pendingApprovals: number;
+  /** The reader holds `group.view_reports` in their company's group. */
+  groupReports?: boolean;
 }) {
   const pathname = usePathname();
   const { t } = useLanguage();
@@ -319,6 +323,7 @@ export function SideNav({
       (item) =>
         (!item.module || enabledModules.includes(item.module)) &&
         (!item.roles || item.roles.includes(role)) &&
+        (!item.groupReports || groupReports) &&
         (!item.permission ||
           [item.permission].flat().some((needed) => permissions.includes(needed))),
     ),

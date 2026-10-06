@@ -2846,4 +2846,9 @@ export const AR: Record<string, string> = {
   "with the client": "لدى العميل",
   "workers in the file": "عمال في الملف",
   "“In cost report” is what equipment adds to each site’s actual cost. Fuel or repairs recorded as an expense, diesel from stock and a booked hire invoice are already counted there, so they are shown but not added again.": "«في تقرير التكلفة» هو ما تضيفه المعدات إلى التكلفة الفعلية لكل موقع. الوقود أو الإصلاحات المسجلة كمصروف، والديزل من المخزون، وفاتورة الاستئجار المسجلة، كلها محتسبة هناك بالفعل، لذا تُعرض لكن لا تُضاف مرة أخرى.",
+  "Site work": "أعمال الموقع",
+  "Client & documents": "العميل والمستندات",
+  "Money": "المالية",
+  "Quality & safety": "الجودة والسلامة",
+  "Site sections": "أقسام الموقع",
 };

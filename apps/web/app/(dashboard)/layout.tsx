@@ -39,7 +39,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     ? (stored as LanguageCode)
     : 'en';
 
-  const [projects, pendingApprovals, notifications, memberships] = await Promise.all([
+  const [projects, pendingApprovals, notifications, memberships, companyGroup] = await Promise.all([
     serverFetch<Page<ProjectSummary>>('/projects?limit=200'),
     countPendingIndents(),
     // The bell's contents, fetched with the shell so it is populated on first paint rather than a
@@ -51,6 +51,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     // appear — the page underneath is still the right company's.
     serverFetch<{ items: CompanyMembership[] }>('/auth/memberships').catch(() => ({
       items: [] as CompanyMembership[],
+    })),
+    // Whether to offer "Group overview": group admin is a grant on the group, not a role in this
+    // company, so /me cannot say. Optional like the switcher — on failure the link just hides.
+    serverFetch<{ my_permissions: string[] }>('/company-groups/current').catch(() => ({
+      my_permissions: [] as string[],
     })),
   ]);
 
@@ -64,31 +69,32 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       down carries the navigation off the top of the window.
     */
     <LanguageProvider initial={language}>
-    <FormatProvider settings={formatLocaleOf(self)}>
-    <div className="flex h-dvh overflow-hidden">
-      <SideNav
-        tenantName={self.tenant.name}
-        logoUrl={self.tenant.logo_url}
-        role={self.user.role}
-        permissions={self.permissions}
-        enabledModules={self.enabled_modules}
-        activeSiteCount={activeSiteCount}
-        pendingApprovals={pendingApprovals}
-      />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <TopBar
-          userName={self.user.name}
-          userPhone={self.user.phone}
-          userRole={self.user.role}
-          notifications={notifications.items}
-          memberships={memberships.items}
-        />
-        {/* The one scrolling region. pb-12 keeps the last card off the bottom edge. */}
-        <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 pt-5">{children}</main>
-      </div>
-      <Toaster />
-    </div>
-    </FormatProvider>
+      <FormatProvider settings={formatLocaleOf(self)}>
+        <div className="flex h-dvh overflow-hidden">
+          <SideNav
+            tenantName={self.tenant.name}
+            logoUrl={self.tenant.logo_url}
+            role={self.user.role}
+            permissions={self.permissions}
+            enabledModules={self.enabled_modules}
+            activeSiteCount={activeSiteCount}
+            pendingApprovals={pendingApprovals}
+            groupReports={companyGroup.my_permissions.includes('group.view_reports')}
+          />
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <TopBar
+              userName={self.user.name}
+              userPhone={self.user.phone}
+              userRole={self.user.role}
+              notifications={notifications.items}
+              memberships={memberships.items}
+            />
+            {/* The one scrolling region. pb-12 keeps the last card off the bottom edge. */}
+            <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 pt-5">{children}</main>
+          </div>
+          <Toaster />
+        </div>
+      </FormatProvider>
     </LanguageProvider>
   );
 }

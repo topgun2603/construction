@@ -2847,4 +2847,9 @@ export const TA: Record<string, string> = {
   "with the client": "க்ளையன்ட்டிடம்",
   "workers in the file": "ஃபைலில் உள்ள ஆட்கள்",
   "“In cost report” is what equipment adds to each site’s actual cost. Fuel or repairs recorded as an expense, diesel from stock and a booked hire invoice are already counted there, so they are shown but not added again.": "“செலவு அறிக்கையில்” என்பது உபகரணப் பகுதி ஒவ்வொரு சைட்டின் உண்மையான செலவில் சேர்ப்பது. செலவாகப் பதிந்த எரிபொருள் அல்லது பழுதுபார்ப்பு, ஸ்டாக்கிலிருந்து எடுத்த டீசல், பதிவு செய்த வாடகை இன்வாய்ஸ் ஆகியவை ஏற்கனவே அங்கு கணக்கில் உள்ளன; எனவே அவை காட்டப்படும், ஆனால் மீண்டும் சேர்க்கப்படாது.",
+  "Site work": "தள வேலை",
+  "Client & documents": "கிளையன்ட் & ஆவணங்கள்",
+  "Money": "பணம்",
+  "Quality & safety": "தரம் & பாதுகாப்பு",
+  "Site sections": "தளப் பகுதிகள்",
 };
