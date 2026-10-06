@@ -63,6 +63,7 @@ import { UsersModule } from './modules/users/users.module';
 import { WagePeriodsModule } from './modules/wage-periods/wage-periods.module';
 import { WorkerPortalModule } from './modules/worker-portal/worker-portal.module';
 import { WorkersModule } from './modules/workers/workers.module';
+import { ExcelModule } from './modules/excel/excel.module';
 
 @Module({
   imports: [
@@ -114,6 +115,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     MaterialsModule,
     WorkerPortalModule,
     WorkersModule,
+    ExcelModule,
     AttendanceModule,
     WagePeriodsModule,
     LabourPaymentsModule,

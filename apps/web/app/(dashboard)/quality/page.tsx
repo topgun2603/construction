@@ -15,6 +15,7 @@ import { requireSelf, type SelfResponse } from '@/lib/session';
 import { getT } from '@/lib/i18n-server';
 import type { Contractor, Page, ProjectSummary, TeamMember } from '@/lib/api-types';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 import { ANY, INSPECTION_RESULT, TEST_STATE, filterQuery } from './labels';
@@ -202,6 +203,9 @@ async function SnagsTab({
         people={people}
         contractors={contractors}
       />
+      <div className="flex justify-end">
+        <ExportMenu kind="snags" filters={Object.fromEntries(new URLSearchParams(query))} />
+      </div>
       {snags.items.length === 0 ? (
         <EmptyState
           icon={<ShieldCheck />}
@@ -262,6 +266,9 @@ async function InspectionsTab({ search, sites }: { search: Search; sites: Array<
           },
         ]}
       />
+      <div className="flex justify-end">
+        <ExportMenu kind="inspections" filters={Object.fromEntries(new URLSearchParams(query))} />
+      </div>
       {list.items.length === 0 ? (
         <EmptyState
           icon={<ClipboardCheck />}
@@ -321,6 +328,9 @@ async function TestsTab({
           },
         ]}
       />
+      <div className="flex justify-end">
+        <ExportMenu kind="quality_tests" filters={Object.fromEntries(new URLSearchParams(query))} />
+      </div>
       {list.items.length === 0 ? (
         <EmptyState
           icon={<FlaskConical />}

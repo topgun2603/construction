@@ -1,6 +1,9 @@
 import { serverFetch } from '@/lib/server-api';
 import type { Contractor, Page, ProjectSummary, Worker } from '@/lib/api-types';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
+import { requireSelf } from '@/lib/session';
 import { StatTile } from '@/components/stat-tile';
 import { getFormat } from '@/lib/format-server';
 import { AddWorkerDialog } from './add-worker-dialog';
@@ -12,10 +15,11 @@ export const metadata = { title: 'Workers · BUILDR' };
 export default async function WorkersPage() {
   const t = await getT();
   const { money } = await getFormat();
-  const [workers, contractors, projects] = await Promise.all([
+  const [workers, contractors, projects, me] = await Promise.all([
     serverFetch<Page<Worker>>('/workers?limit=500'),
     serverFetch<Page<Contractor>>('/contractors?limit=200'),
     serverFetch<Page<ProjectSummary>>('/projects?limit=200'),
+    requireSelf(),
   ]);
 
   const active = workers.items.filter((worker) => worker.status === 'active');
@@ -40,7 +44,9 @@ export default async function WorkersPage() {
         />
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <ExportMenu kind="workers" />
+        {me.permissions.includes('workers.manage') && <ImportWizard kind="workers" />}
         <AddWorkerDialog contractors={contractors.items} projects={projects.items} />
       </div>
 

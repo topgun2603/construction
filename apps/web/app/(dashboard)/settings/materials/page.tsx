@@ -4,6 +4,8 @@ import type { Material, Page } from '@/lib/api-types';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
 import { DeleteRowButton } from '@/components/delete-row-button';
 import { deleteMaterial } from '@/lib/actions';
 import { AddMaterialDialog } from './add-material-dialog';
@@ -29,7 +31,11 @@ export default async function MaterialsPage() {
             'The catalogue supervisors pick from when raising an indent. Adding a name that already exists reuses it rather than creating a duplicate.',
           )}
         </p>
-        <AddMaterialDialog />
+        <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+          <ExportMenu kind="materials" />
+          <ImportWizard kind="materials" />
+          <AddMaterialDialog />
+        </div>
       </div>
 
       {materials.items.length === 0 ? (

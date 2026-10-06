@@ -40,6 +40,14 @@ export function configureApp(app: INestApplication): void {
    * work reliably: `JSON.parse` then `JSON.stringify` may reorder keys and normalise whitespace, and
    * the signature then fails for reasons indistinguishable from a forgery.
    */
+  /*
+   * A spreadsheet import carries its file as base64 in JSON: 5 MB of workbook is about 6.7 MB on the
+   * wire. Only these routes take that much — registered first, because the parser that reads a body
+   * marks it read and the general 2 MB one below then leaves it alone. The import itself refuses a
+   * decoded file over 5 MB with a message that says so.
+   */
+  app.use('/v1/imports', json({ limit: '8mb' }));
+
   app.use(
     json({
       limit: '2mb',

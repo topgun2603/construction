@@ -4,6 +4,7 @@ import type { AttendanceDay, Page, ProjectSummary, Worker } from '@/lib/api-type
 import { getFormat } from '@/lib/format-server';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { RollCall } from './roll-call';
 import { getT } from '@/lib/i18n-server';
 
@@ -45,7 +46,10 @@ export default async function AttendancePage({
   ]);
 
   return (
-    <FadeIn>
+    <FadeIn className="flex flex-col gap-3">
+      <div className="flex justify-end">
+        <ExportMenu kind="attendance" filters={{ project_id: projectId, date }} />
+      </div>
       <RollCall
         projects={projects.items}
         projectId={projectId}

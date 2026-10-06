@@ -7,6 +7,7 @@ import type { RfqSummary } from '@/lib/procurement-types';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { getT } from '@/lib/i18n-server';
 import { getFormat } from '@/lib/format-server';
 import { RFQ_STATUS } from '../status';
@@ -37,7 +38,10 @@ export default async function RfqsPage() {
 
   return (
     <FadeIn className="flex flex-col gap-5">
-      <div className="flex justify-end">{create}</div>
+      <div className="flex flex-wrap justify-end gap-2">
+        <ExportMenu kind="rfqs" />
+        {create}
+      </div>
       {rfqs.length === 0 ? (
         <EmptyState
           icon={<Scale />}

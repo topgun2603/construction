@@ -45,6 +45,7 @@ import { cn } from '@/lib/utils';
 import { GANTT_ROW_HEIGHT, ganttGeometry, ganttRange, type GanttZoom } from './gantt-geometry';
 import { GANTT_HEADER_HEIGHT, GanttTimeline } from './gantt-timeline';
 import { ImportScheduleDialog } from './import-dialog';
+import { ExportMenu } from '@/components/export-menu';
 import {
   BaselineDialog,
   CalendarDialog,
@@ -371,6 +372,11 @@ export function ScheduleTab({
             <Download className="size-4" />
             {t('Look-ahead (2 weeks) CSV')}
           </Button>
+          <ExportMenu
+            kind="schedule_tasks"
+            filters={{ project_id: projectId, ...(view.baseline ? { baseline_id: view.baseline.id } : {}) }}
+            label={t('Export tasks')}
+          />
           <Button variant="secondary" size="sm" onClick={exportXml} disabled={busy}>
             <FileDown className="size-4" />
             {t('Export to MS Project')}

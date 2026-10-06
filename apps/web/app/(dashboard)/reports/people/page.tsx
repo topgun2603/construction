@@ -6,6 +6,7 @@ import { addDaysIso } from '@/lib/format';
 import { getFormat } from '@/lib/format-server';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { StatTile } from '@/components/stat-tile';
 import { ReportsNav } from '../reports-nav';
 import { canSeeTaxReport } from '../tax/access';
@@ -44,6 +45,9 @@ export default async function PeopleReportPage({
   return (
     <FadeIn className="flex flex-col gap-5">
       <ReportsNav from={from} to={to} isOwnerOrAccounts showTax={canSeeTaxReport(me)} />
+      <div className="flex justify-end">
+        <ExportMenu kind="person_ledger" filters={{ from, to }} />
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile

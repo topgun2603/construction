@@ -21,6 +21,7 @@ import type {
   SafetyTalkSummary,
 } from '@/lib/safety-types';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { StatTile } from '@/components/stat-tile';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -108,6 +109,13 @@ export default async function SafetyPage({
     permits: 'permits',
     talks: 'toolbox_talks',
     observations: 'observations',
+  };
+  // The shared Excel export's name for each register.
+  const excelKind: Record<TabKey, string> = {
+    incidents: 'safety_incidents',
+    permits: 'safety_permits',
+    talks: 'safety_talks',
+    observations: 'safety_observations',
   };
 
   return (
@@ -294,12 +302,13 @@ export default async function SafetyPage({
             </Link>
           ))}
         </nav>
-        <a
-          href={`/safety/export?kind=${exportKind[active]}&${range.toString()}`}
-          className="inline-flex items-center gap-1 pb-2 text-[12.5px] text-accent hover:underline"
-        >
-          <Download className="size-3.5" /> {t('Export CSV')}
-        </a>
+        <div className="pb-1.5">
+          <ExportMenu
+            kind={excelKind[active]}
+            filters={Object.fromEntries(range)}
+            csvHref={`/safety/export?kind=${exportKind[active]}&${range.toString()}`}
+          />
+        </div>
       </div>
 
       {sites.length === 0 ? (

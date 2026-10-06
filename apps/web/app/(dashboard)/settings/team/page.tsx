@@ -5,6 +5,8 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
 import { DeleteRowButton } from '@/components/delete-row-button';
 import { WhatsappButton } from '@/components/whatsapp-button';
 import { RolePicker } from './role-picker';
@@ -38,11 +40,16 @@ export default async function TeamPage() {
         <p className="max-w-xl text-[13.5px] leading-relaxed text-ink-muted">
           {t('Invited people are created as pending and activate themselves the first time they sign in with their number — no password to send, nothing to reset.')}
         </p>
-        <InviteDialog
-          projects={projects.items}
-          company={me.tenant.name}
-          senderName={me.user.name}
-        />
+        <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+          <ExportMenu kind="team" />
+          {/* Invites from a sheet; owners are still invited one at a time, from here. */}
+          {canRemove && <ImportWizard kind="team" label={t('Invite from a sheet')} />}
+          <InviteDialog
+            projects={projects.items}
+            company={me.tenant.name}
+            senderName={me.user.name}
+          />
+        </div>
       </div>
 
       <Card className="divide-y divide-line-soft">

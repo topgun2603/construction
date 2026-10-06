@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ClipboardList, Download } from 'lucide-react';
+import { ArrowLeft, ClipboardList } from 'lucide-react';
 import {
   EQUIPMENT_CATEGORY_LABELS,
   EQUIPMENT_COST_KIND_LABELS,
@@ -21,6 +21,7 @@ import { StatTile } from '@/components/stat-tile';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ExportMenu } from '@/components/export-menu';
 import { EquipmentDialog } from '../equipment-dialog';
 import { HIRE_BASIS_LABEL, PAPERS, SERVICE, STATUS, utilisationTone } from '../labels';
 import {
@@ -189,11 +190,11 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
         <Card className="flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-[14px] font-semibold">{t('Daily logs')}</h3>
-            {canView && (
-              <a href={`/equipment/export?kind=logs&equipment_id=${machine.id}`} className="inline-flex items-center gap-1 text-[12.5px] text-accent hover:underline">
-                <Download className="size-3.5" /> CSV
-              </a>
-            )}
+            <ExportMenu
+              kind="equipment_logs"
+              filters={{ equipment_id: machine.id }}
+              csvHref={canView ? `/equipment/export?kind=logs&equipment_id=${machine.id}` : undefined}
+            />
           </div>
           {machine.logs.length === 0 ? (
             <p className="text-[13px] text-ink-muted">{t('Nothing logged yet.')}</p>

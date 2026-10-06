@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/meter';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn, Stagger, StaggerItem } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { StatTile } from '@/components/stat-tile';
 import { ReportFilters } from './report-filters';
 import { ReportsNav } from './reports-nav';
@@ -59,7 +60,10 @@ export default async function ReportsPage({
         showTax={canSeeTaxReport(me)}
         extraParams={{ group_by: groupBy }}
       />
-      <ReportFilters groupBy={groupBy} from={from} to={to} />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <ReportFilters groupBy={groupBy} from={from} to={to} />
+        <ExportMenu kind="labour_cost" filters={{ group_by: groupBy, from, to }} />
+      </div>
 
       <div className="grid gap-3.5 sm:grid-cols-3">
         <StatTile

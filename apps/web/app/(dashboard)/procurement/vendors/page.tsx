@@ -7,6 +7,8 @@ import type { Vendor } from '@/lib/procurement-types';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
 import { getT } from '@/lib/i18n-server';
 import { VendorFormDialog } from './vendor-form-dialog';
 
@@ -22,11 +24,11 @@ export default async function VendorsPage() {
 
   return (
     <FadeIn className="flex flex-col gap-5">
-      {canManage && (
-        <div className="flex justify-end">
-          <VendorFormDialog />
-        </div>
-      )}
+      <div className="flex flex-wrap justify-end gap-2">
+        <ExportMenu kind="vendors" />
+        {canManage && <ImportWizard kind="vendors" />}
+        {canManage && <VendorFormDialog />}
+      </div>
       {vendors.length === 0 ? (
         <EmptyState
           icon={<Truck />}

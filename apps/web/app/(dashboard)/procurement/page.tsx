@@ -1,9 +1,9 @@
-import { ClipboardCheck, Download, Hourglass, ShoppingCart } from 'lucide-react';
+import { ClipboardCheck, Hourglass, ShoppingCart } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { Material, Page, ProjectSummary } from '@/lib/api-types';
 import type { PurchaseOrderSummary, Vendor } from '@/lib/procurement-types';
-import { Button } from '@/components/ui/button';
+import { ExportMenu } from '@/components/export-menu';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
@@ -93,13 +93,12 @@ export default async function PurchaseOrdersPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <OrderFilters projects={projects.items} />
         <div className="flex gap-2">
-          {canSeeMoney && (
-            <Button asChild variant="secondary" size="sm">
-              <a href={`/procurement/export?${query.toString()}`} download>
-                <Download className="size-4" /> {t('Export CSV')}
-              </a>
-            </Button>
-          )}
+          {/* The CSV keeps its own export; the Excel one leaves the money out for a store keeper. */}
+          <ExportMenu
+            kind="purchase_orders"
+            filters={Object.fromEntries(query)}
+            csvHref={canSeeMoney ? `/procurement/export?${query.toString()}` : undefined}
+          />
           {newOrder}
         </div>
       </div>

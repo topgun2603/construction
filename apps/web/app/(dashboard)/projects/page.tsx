@@ -4,6 +4,8 @@ import { requireSelf } from '@/lib/session';
 import type { Page, ProjectListItem } from '@/lib/api-types';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
 import { NewProjectDialog } from './new-project-dialog';
 import { SitesView } from './sites-view';
 import { getT } from '@/lib/i18n-server';
@@ -26,7 +28,15 @@ export default async function ProjectsPage() {
         title={t('No projects yet')}
         illustration="illus_contractors"
         body={t('Create the first site to start filing daily reports, attendance and indents.')}
-        action={canCreate ? <NewProjectDialog /> : undefined}
+        action={
+          canCreate ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {/* A company moving in has its sites in a spreadsheet already. */}
+              {me.permissions.includes('projects.manage') && <ImportWizard kind="projects" />}
+              <NewProjectDialog />
+            </div>
+          ) : undefined
+        }
       />
     );
   }
@@ -36,7 +46,13 @@ export default async function ProjectsPage() {
       <SitesView
         projects={projects.items}
         canDelete={me.user.role === 'owner'}
-        action={canCreate ? <NewProjectDialog /> : undefined}
+        action={
+          <div className="flex items-center gap-2">
+            <ExportMenu kind="projects" />
+            {me.permissions.includes('projects.manage') && <ImportWizard kind="projects" />}
+            {canCreate && <NewProjectDialog />}
+          </div>
+        }
       />
     </FadeIn>
   );

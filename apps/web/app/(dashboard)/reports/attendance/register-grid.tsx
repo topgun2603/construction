@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { useFormat } from '@/components/format-provider';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { ExportMenu } from '@/components/export-menu';
 
 /**
  * The register grid: workers down the side, calendar days across the top.
@@ -99,6 +100,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
             <Download className="size-4" />
             CSV
           </Button>
+          <ExportMenu kind="attendance_register" filters={{ from: register.from, to: register.to }} label="Excel" />
         </div>
       </div>
 

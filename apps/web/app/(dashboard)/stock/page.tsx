@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
 import { StatTile } from '@/components/stat-tile';
 import { StockFilters } from './stock-filters';
 import { RecordMovementDialog } from './record-movement-dialog';
@@ -50,13 +52,25 @@ export default async function StockPage({
     <FadeIn className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <StockFilters projects={projects.items} projectId={projectId} />
-        {canRecord && projectId && (
-          <RecordMovementDialog
-            projectId={projectId}
-            projects={projects.items}
-            materials={materials.items}
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportMenu kind="stock" filters={{ project_id: projectId }} label={t('Export stock')} />
+          <ExportMenu kind="stock_movements" filters={{ project_id: projectId }} label={t('Export movements')} />
+          {/* Moving in: each site's count on the day, as one sheet. */}
+          {canRecord && (
+            <ImportWizard
+              kind="opening_stock"
+              projects={projects.items.map((project) => ({ id: project.id, name: project.name }))}
+              label={t('Import opening stock')}
+            />
+          )}
+          {canRecord && projectId && (
+            <RecordMovementDialog
+              projectId={projectId}
+              projects={projects.items}
+              materials={materials.items}
+            />
+          )}
+        </div>
       </div>
 
       <div className="grid gap-3.5 sm:grid-cols-3">
