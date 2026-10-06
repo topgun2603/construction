@@ -12,7 +12,7 @@ import {
   type UserRole,
 } from '@sitebook/shared';
 import { TenantCache } from '../../common/auth/tenant-cache.service';
-import { TokenService } from '../../common/auth/token.service';
+import { TokenService, identityClaim } from '../../common/auth/token.service';
 import { ApiError } from '../../common/errors/api-error';
 import { PlansService } from '../plans/plans.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -150,6 +150,9 @@ export class TenantsService {
       userId: ownerId,
       deviceId: context.deviceId,
       userAgent: context.userAgent,
+      // The onboarding token is signed proof this phone passed OTP, so the session carries it as
+      // its verified identity — company switching works from the very first session.
+      identity: identityClaim({ kind: 'phone', phone }),
     });
 
     return { tenant: toView(tenant), tokens };

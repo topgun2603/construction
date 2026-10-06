@@ -15,6 +15,9 @@ const TABS: Array<{ href: string; label: string; permission?: string }> = [
   { href: '/settings/cost-codes', label: 'Cost codes' },
   { href: '/settings/quality', label: 'Quality checklists', permission: 'quality.manage' },
   { href: '/settings/automation', label: 'Automation' },
+  // Not permission-gated: tenant roles say nothing about groups. The page itself shows each person
+  // only what being the owner or a group admin allows.
+  { href: '/settings/group', label: 'Company group' },
   { href: '/settings/audit', label: 'Audit log', permission: 'audit.view' },
 ];
 

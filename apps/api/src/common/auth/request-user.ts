@@ -33,6 +33,12 @@ export interface RequestUser {
   taxRegime: string;
   /** ISO country, for anything that reads differently by country: a bill, a phone number. */
   country: string;
+  /**
+   * The identity verified at sign-in (`phone:…` / `email:…`), from the token. What company
+   * switching and the membership list key on — see `AccessTokenClaims.idn`. Absent on sessions
+   * that predate it.
+   */
+  identity?: string | null;
 }
 
 /**

@@ -8,8 +8,16 @@ export const ROLES_KEY = 'sitebook:roles';
 export const REQUIRES_MODULE_KEY = 'sitebook:requires-module';
 export const PERMISSIONS_KEY = 'sitebook:permissions';
 
+export const SESSION_ONLY_KEY = 'sitebook:session-only';
+
 /** Skips JwtAuthGuard. Only for login, health and webhooks. */
 export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUBLIC_KEY, true);
+
+/**
+ * A write that only moves the caller's session — it changes nothing in the company — so an
+ * expired plan, which makes the company read-only, does not block it. Only for switching company.
+ */
+export const SessionOnly = (): MethodDecorator => SetMetadata(SESSION_ONLY_KEY, true);
 
 /** Restricts a route to specific roles (spec §2). */
 export const Roles = (...roles: UserRole[]): MethodDecorator & ClassDecorator =>

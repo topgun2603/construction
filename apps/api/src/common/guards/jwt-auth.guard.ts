@@ -5,7 +5,7 @@ import type { AuthenticatedRequest } from '../auth/request-user';
 import { RoleCache } from '../auth/role-cache.service';
 import { TenantCache } from '../auth/tenant-cache.service';
 import { TokenService } from '../auth/token.service';
-import { IS_PUBLIC_KEY } from '../decorators';
+import { IS_PUBLIC_KEY, SESSION_ONLY_KEY } from '../decorators';
 import { planStanding } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../errors/api-error';
@@ -70,7 +70,13 @@ export class JwtAuthGuard implements CanActivate {
      * Writes are what stop. Checked here rather than per-route because "anything that changes
      * something" is the rule, and a rule enforced route by route is one a new route forgets.
      */
-    if (!SAFE_METHODS.has(request.method)) {
+    // A route marked as only moving the session (switching company) changes nothing in this
+    // company, so a lapsed term here must not trap a person who also works somewhere else.
+    const sessionOnly = this.reflector.getAllAndOverride<boolean>(SESSION_ONLY_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!SAFE_METHODS.has(request.method) && !sessionOnly) {
       const standing = planStanding(
         tenant.planExpiresOn,
         new Date(),
@@ -103,6 +109,7 @@ export class JwtAuthGuard implements CanActivate {
       locale: tenant.locale,
       taxRegime: tenant.taxRegime,
       country: tenant.country,
+      identity: claims.idn ?? null,
     };
 
     return true;

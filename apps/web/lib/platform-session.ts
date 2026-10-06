@@ -80,6 +80,9 @@ export interface PlatformTenantRow {
   last_activity: string | null;
   plan_expires_on: string | null;
   plan_standing: 'active' | 'grace' | 'expired';
+  /** The company group it is in (Phase 2, module 11), or null. */
+  group_id?: string | null;
+  group_name?: string | null;
 }
 
 export interface PlatformTenantDetail {
@@ -97,6 +100,15 @@ export interface PlatformTenantDetail {
     razorpay_customer_id: string | null;
   };
   usage: { workers: number; attendance_rows: number; reports: number; expenses: number };
+  /** The company group it is in, with its sibling companies. Read-only in the console. */
+  group?: {
+    id: string;
+    name: string;
+    base_currency: string;
+    created_at: string;
+    joined_at: string;
+    companies: Array<{ tenant_id: string; name: string; joined_at: string }>;
+  } | null;
   team: Array<{
     id: string;
     name: string;

@@ -92,6 +92,31 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
         />
       </div>
 
+      {/* Read-only: joining or leaving a group is the company owner's decision, not the console's. */}
+      {detail.group && (
+        <Card className="flex flex-col gap-2 px-4 py-3">
+          <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+            {t('Company group')}
+          </span>
+          <span className="text-[15px] font-medium">
+            {detail.group.name}{' '}
+            <span className="font-mono text-[12.5px] text-ink-muted">{detail.group.base_currency}</span>
+          </span>
+          <ul className="flex flex-wrap gap-2">
+            {detail.group.companies.map((company) => (
+              <li key={company.tenant_id}>
+                <Link
+                  href={`/admin/tenants/${company.tenant_id}`}
+                  className="rounded-full bg-neutral-bg px-3 py-1 text-[12.5px] text-ink-soft hover:underline"
+                >
+                  {company.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <TenantControls
         tenantId={tenant.id}
         tenantName={tenant.name}

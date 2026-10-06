@@ -6,6 +6,8 @@ import { CalendarDays } from 'lucide-react';
 import { SearchCommand } from '@/components/search-command';
 import { NotificationBell, type NotificationRow } from '@/components/notification-bell';
 import { UserMenu } from '@/components/user-menu';
+import { CompanySwitcher } from '@/components/company-switcher';
+import type { CompanyMembership } from '@/lib/company-group-types';
 import { useLanguage } from '@/components/language-provider';
 import { useFormat } from '@/components/format-provider';
 
@@ -35,6 +37,7 @@ const TITLES: Array<[prefix: string, title: string]> = [
   ['/reports/wage-sheet', 'Wage sheet'],
   ['/reports', 'Reports'],
   ['/settings', 'Settings'],
+  ['/group', 'Group overview'],
 ];
 
 export function TopBar({
@@ -42,11 +45,14 @@ export function TopBar({
   userPhone,
   userRole,
   notifications,
+  memberships = [],
 }: {
   userName: string;
   userPhone: string;
   userRole: string;
   notifications: NotificationRow[];
+  /** Every company this person belongs to; the switcher shows itself only when there are two+. */
+  memberships?: CompanyMembership[];
 }) {
   const { t } = useLanguage();
   const pathname = usePathname();
@@ -69,6 +75,7 @@ export function TopBar({
         </div>
       </div>
 
+      <CompanySwitcher memberships={memberships} />
       <SearchCommand />
       <NotificationBell items={notifications} />
       <UserMenu

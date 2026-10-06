@@ -10,7 +10,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
 import {
   GoogleAuthProvider,
   RecaptchaVerifier,
@@ -77,7 +77,7 @@ const OTP_LENGTH = 6;
 const EASE = [0.22, 0.61, 0.36, 1] as const;
 
 /** `email` and `mfa` are the email-and-password way in and its authenticator-app step. */
-type Step = 'phone' | 'code' | 'email' | 'mfa' | 'onboard';
+type Step = 'phone' | 'code' | 'email' | 'mfa' | 'onboard' | 'company';
 
 interface TokenPair {
   access_token: string;
@@ -85,10 +85,18 @@ interface TokenPair {
   expires_in: number;
 }
 
+/** One company a person can sign in to, when their number or address belongs to several. */
+interface CompanyChoice {
+  tenant_id: string;
+  tenant_name: string;
+  role: string;
+}
+
 interface ExchangeResponse extends Partial<TokenPair> {
   onboarding_required?: true;
   onboarding_token?: string;
   tenant_choice_required?: true;
+  tenants?: CompanyChoice[];
 }
 
 export function LoginForm() {
@@ -119,14 +127,17 @@ export function LoginForm() {
   /** The half-finished email sign-in waiting on its authenticator code. */
   const secondFactor = useRef<{ resolver: MultiFactorResolver; hintUid: string } | null>(null);
   const onboardingToken = useRef<string | null>(null);
+  /** The verified sign-in token, kept only while the person picks which company to enter. */
+  const choiceToken = useRef<string | null>(null);
+  const [companies, setCompanies] = useState<CompanyChoice[]>([]);
   const recaptchaHost = useRef<HTMLDivElement>(null);
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
 
-  async function exchange(firebaseToken: string): Promise<void> {
+  async function exchange(firebaseToken: string, tenantId?: string): Promise<void> {
     const response = await fetch(`${API_URL}/auth/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firebase_token: firebaseToken }),
+      body: JSON.stringify({ firebase_token: firebaseToken, ...(tenantId ? { tenant_id: tenantId } : {}) }),
     });
     const payload = (await response.json()) as ExchangeResponse & { message?: string };
     if (!response.ok) throw new Error(payload.message ?? 'Could not sign in');
@@ -140,9 +151,36 @@ export function LoginForm() {
       return;
     }
     if (payload.tenant_choice_required) {
-      throw new Error('This number belongs to more than one builder — contact support.');
+      /*
+       * The same person in more than one company — a holding's accountant, a consultant working
+       * for two builders. They pick one; the same verified token is exchanged again naming it, and
+       * the API checks the choice against what that token resolves to. Held in a ref, never state
+       * or storage: it is a credential and only needs to live until the next click.
+       */
+      choiceToken.current = firebaseToken;
+      setCompanies(payload.tenants ?? []);
+      setStep('company');
+      return;
     }
     await establishSession(payload as TokenPair);
+  }
+
+  async function chooseCompany(tenantId: string): Promise<void> {
+    const token = choiceToken.current;
+    if (!token) {
+      backToPhone();
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await exchange(token, tenantId);
+      choiceToken.current = null;
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function establishSession(tokens: TokenPair): Promise<void> {
@@ -799,6 +837,62 @@ export function LoginForm() {
 
                 <Submit busy={busy}>{t('Create account')}</Submit>
               </form>
+            )}
+
+            {step === 'company' && (
+              <div className="flex flex-col gap-6">
+                <header className="flex flex-col gap-2">
+                  <span className="flex size-11 items-center justify-center rounded-card bg-accent-soft text-accent">
+                    <Building2 className="size-5" />
+                  </span>
+                  <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-[-0.02em]">
+                    {t('Choose a company')}
+                  </h1>
+                  <p className="text-[14.5px] leading-relaxed text-ink-muted">
+                    {t(
+                      'You work in more than one company. Pick one to open — you can switch later from the top bar.',
+                    )}
+                  </p>
+                </header>
+
+                <ul className="flex flex-col gap-2">
+                  {companies.map((company) => (
+                    <li key={company.tenant_id}>
+                      <button
+                        type="button"
+                        onClick={() => void chooseCompany(company.tenant_id)}
+                        disabled={busy}
+                        className="flex w-full items-center gap-3 rounded-btn border border-line-strong bg-surface px-4 py-3 text-start transition hover:bg-raised disabled:opacity-60"
+                      >
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate text-[15px] font-semibold text-ink">
+                            {company.tenant_name}
+                          </span>
+                          <span className="text-[12.5px] text-ink-muted">
+                            {t(company.role.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()))}
+                          </span>
+                        </span>
+                        {busy ? (
+                          <Loader2 className="size-4 flex-none animate-spin text-ink-faint" />
+                        ) : (
+                          <ArrowRight className="size-4 flex-none text-ink-faint rtl:rotate-180" />
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    choiceToken.current = null;
+                    backToPhone();
+                  }}
+                  className="flex items-center gap-1.5 self-start text-[13px] font-medium text-ink-muted hover:text-ink"
+                >
+                  <ArrowLeft className="size-3.5 rtl:rotate-180" /> {t('Use a different number')}
+                </button>
+              </div>
             )}
           </motion.div>
         </AnimatePresence>

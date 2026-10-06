@@ -13,6 +13,7 @@ import { TopBar } from '@/components/top-bar';
 import type { NotificationRow } from '@/components/notification-bell';
 import { Toaster } from '@/components/ui/toaster';
 import type { Indent, Page, ProjectSummary } from '@/lib/api-types';
+import type { CompanyMembership } from '@/lib/company-group-types';
 import { TRANSLATED_LANGUAGES } from '@/lib/i18n';
 import type { LanguageCode } from '@sitebook/shared';
 
@@ -38,13 +39,18 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     ? (stored as LanguageCode)
     : 'en';
 
-  const [projects, pendingApprovals, notifications] = await Promise.all([
+  const [projects, pendingApprovals, notifications, memberships] = await Promise.all([
     serverFetch<Page<ProjectSummary>>('/projects?limit=200'),
     countPendingIndents(),
     // The bell's contents, fetched with the shell so it is populated on first paint rather than a
     // beat later. Twelve is what the dropdown can show without becoming a page of its own.
     serverFetch<{ items: NotificationRow[] }>('/notifications?limit=12').catch(() => ({
       items: [] as NotificationRow[],
+    })),
+    // The company switcher's list. Optional to the shell: if it fails, the switcher just does not
+    // appear — the page underneath is still the right company's.
+    serverFetch<{ items: CompanyMembership[] }>('/auth/memberships').catch(() => ({
+      items: [] as CompanyMembership[],
     })),
   ]);
 
@@ -75,6 +81,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           userPhone={self.user.phone}
           userRole={self.user.role}
           notifications={notifications.items}
+          memberships={memberships.items}
         />
         {/* The one scrolling region. pb-12 keeps the last card off the bottom edge. */}
         <main className="min-h-0 flex-1 overflow-y-auto px-6 pb-12 pt-5">{children}</main>

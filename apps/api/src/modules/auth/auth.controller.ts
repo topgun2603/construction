@@ -1,13 +1,15 @@
-import { Body, Controller, Headers, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   authExchangeSchema,
   authRefreshSchema,
+  companySwitchSchema,
   type AuthExchangeInput,
   type AuthRefreshInput,
+  type CompanySwitchInput,
 } from '@sitebook/shared';
-import { CurrentUser, Public } from '../../common/decorators';
+import { CurrentUser, Public, SessionOnly } from '../../common/decorators';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import type { RequestUser } from '../../common/auth/request-user';
 import { AuthService, type ExchangeResult } from './auth.service';
@@ -43,6 +45,31 @@ export class AuthController {
     @Headers('user-agent') userAgent?: string,
   ) {
     return this.auth.refresh(body, userAgent);
+  }
+
+  /** The companies this person can switch to — the company switcher's list. */
+  @Get('memberships')
+  @ApiOperation({ summary: 'Companies the signed-in person belongs to' })
+  async memberships(@CurrentUser() user: RequestUser) {
+    return { items: await this.auth.memberships(user) };
+  }
+
+  /**
+   * A new session in another company. Authenticated, and throttled like refresh: it mints tokens.
+   * No permission gates it — belonging to the target company is the whole check, and the service
+   * makes it against the verified identity.
+   */
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @SessionOnly()
+  @Post('switch')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Switch the session to another company this person belongs to' })
+  async switchCompany(
+    @CurrentUser() user: RequestUser,
+    @Body(zodBody(companySwitchSchema)) body: CompanySwitchInput,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.auth.switchCompany(user, body, userAgent);
   }
 
   @Post('logout')

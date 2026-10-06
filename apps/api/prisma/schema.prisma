@@ -355,6 +355,10 @@ model Tenant {
   boqBills        BoqBill[]
   boqBillLines    BoqBillLine[]
 
+  // Company groups — not tenant data; see CompanyGroup
+  companyGroupMember      CompanyGroupMember?
+  companyGroupInvitations CompanyGroupInvitation[]
+
   @@map("tenants")
 }
 
@@ -451,6 +455,8 @@ model User {
   // Scheduling
   scheduleTasksResponsible ScheduleTask[]             @relation("schedule_task_responsible")
   scheduleBaselinesTaken   ScheduleBaseline[]         @relation("schedule_baseline_creator")
+  // Company groups
+  companyGroupAdmin        CompanyGroupAdmin[]
 
   /// Phone is unique within a tenant, not globally â€” the same person can be a
   /// supervisor at one builder and an owner at another.
@@ -4007,4 +4013,112 @@ model BoqBillLine {
   @@index([tenantId])
   @@index([itemId])
   @@map("boq_bill_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Company groups (Phase 2, module 11)
+// ---------------------------------------------------------------------------
+//
+// A group is *above* tenancy, so none of these tables is tenant data and none carries the usual
+// `tenant_isolation` policy. Each has its own row-level security keyed by `app.group_id`, which
+// the API sets only to the group its own company belongs to — see migration
+// 20261009000300_company_groups for the policies and why.
+
+/// A holding that owns several companies (tenants), each keeping its own data, currency and team.
+model CompanyGroup {
+  /// Chosen by the API rather than the default, so `app.group_id` can be set before the insert
+  /// that the row-level policy checks — the same reason a tenant's id is.
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  /// What the consolidated total is converted into.
+  baseCurrency      String   @map("base_currency") @db.Char(3)
+  /// History, not a foreign key: the founding company may leave, and the group carries on.
+  createdByTenantId String?  @map("created_by_tenant_id") @db.Uuid
+  createdByUserId   String?  @map("created_by_user_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  members     CompanyGroupMember[]
+  invitations CompanyGroupInvitation[]
+  rates       CompanyGroupExchangeRate[]
+
+  @@map("company_groups")
+}
+
+/// A company in a group. `tenant_id` is unique: a company belongs to at most one group.
+model CompanyGroupMember {
+  groupId  String   @map("group_id") @db.Uuid
+  tenantId String   @unique @map("tenant_id") @db.Uuid
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  group  CompanyGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tenant Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  admins CompanyGroupAdmin[]
+
+  @@id([groupId, tenantId])
+  @@map("company_group_members")
+}
+
+/// An invitation for a company to join a group. Only that company's owner can accept it.
+model CompanyGroupInvitation {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId           String    @map("group_id") @db.Uuid
+  /// The company invited.
+  tenantId          String    @map("tenant_id") @db.Uuid
+  /// Who asked, kept as history rather than foreign keys — they may leave or be removed.
+  invitedByTenantId String?   @map("invited_by_tenant_id") @db.Uuid
+  invitedByUserId   String?   @map("invited_by_user_id") @db.Uuid
+  /// pending | accepted | declined | cancelled (COMPANY_GROUP_INVITATION_STATUSES).
+  status            String    @default("pending")
+  respondedAt       DateTime? @map("responded_at") @db.Timestamptz(6)
+  respondedByUserId String?   @map("responded_by_user_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  // One live invitation per company per group is a partial unique index (WHERE status =
+  // 'pending'), which Prisma cannot express; it lives in the migration SQL only.
+
+  group  CompanyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([groupId, status])
+  @@map("company_group_invitations")
+}
+
+/// A person the group trusts with its reports or its membership. A user row in one of the group's
+/// companies — the grant goes when that company leaves (the composite key cascades).
+model CompanyGroupAdmin {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId         String   @map("group_id") @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  /// COMPANY_GROUP_PERMISSIONS — group grants, never tenant permissions.
+  permissions     String[] @default([])
+  grantedByUserId String?  @map("granted_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  member CompanyGroupMember @relation(fields: [groupId, tenantId], references: [groupId, tenantId], onDelete: Cascade)
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("company_group_admins")
+}
+
+/// A manual exchange rate: one unit of `currency` = `rate` of the group's base currency, from
+/// `effective_from` until a later row replaces it. No live FX — see `companyGroupRateOn`.
+model CompanyGroupExchangeRate {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId         String   @map("group_id") @db.Uuid
+  currency        String   @db.Char(3)
+  rate            Decimal  @db.Decimal(20, 10)
+  effectiveFrom   DateTime @map("effective_from") @db.Date
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  group CompanyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, currency, effectiveFrom])
+  @@map("company_group_exchange_rates")
 }

@@ -60,6 +60,11 @@ const columnsFor = (planNames: Record<string, string>, t: Translator): ColumnDef
             <span className="font-mono"> · +{row.original.owner_phone}</span>
           )}
         </span>
+        {row.original.group_name && (
+          <span className="text-[12px] text-accent">
+            {t('Group')}: {row.original.group_name}
+          </span>
+        )}
       </div>
     ),
   },

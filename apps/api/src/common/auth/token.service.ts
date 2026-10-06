@@ -16,6 +16,17 @@ export interface AccessTokenClaims extends JwtPayload {
    */
   role_id?: string | null;
   project_ids: string[];
+  /**
+   * The identity that was *verified* when this session began — `phone:<e164>` or
+   * `email:<address>` — carried forward on every refresh and company switch.
+   *
+   * Switching company looks this up in `auth_identities`, never the phone on the caller's `users`
+   * row: that row belongs to the company and is editable there, so trusting it would let whoever
+   * administers one company point a user at somebody else's number and switch into *their*
+   * companies. Absent on sessions issued before switching existed; those can still do everything
+   * except switch, and get it on their next sign-in.
+   */
+  idn?: string;
 }
 
 export interface RefreshTokenClaims extends JwtPayload {
@@ -23,6 +34,8 @@ export interface RefreshTokenClaims extends JwtPayload {
   tenant_id: string;
   /** Identifies the stored `refresh_tokens` row. */
   jti: string;
+  /** See `AccessTokenClaims.idn`. Signed into the refresh token so rotation can carry it forward. */
+  idn?: string;
 }
 
 /**
@@ -76,6 +89,7 @@ export class TokenService {
     role: UserRole;
     roleId?: string | null;
     projectIds: string[];
+    identity?: string | null;
   }): string {
     return jwt.sign(
       {
@@ -83,6 +97,7 @@ export class TokenService {
         role: input.role,
         role_id: input.roleId ?? null,
         project_ids: input.projectIds,
+        ...(input.identity ? { idn: input.identity } : {}),
       },
       this.config.JWT_SECRET,
       {
@@ -104,14 +119,18 @@ export class TokenService {
    * the row can be read. The signature carries it. Only the hash is stored, so a
    * leaked database still cannot mint a session.
    */
-  signRefreshToken(input: { userId: string; tenantId: string }): {
+  signRefreshToken(input: { userId: string; tenantId: string; identity?: string | null }): {
     token: string;
     jti: string;
     tokenHash: string;
     expiresAt: Date;
   } {
     const jti = randomUUID();
-    const token = jwt.sign({ tenant_id: input.tenantId }, this.config.JWT_REFRESH_SECRET, {
+    const payload = {
+      tenant_id: input.tenantId,
+      ...(input.identity ? { idn: input.identity } : {}),
+    };
+    const token = jwt.sign(payload, this.config.JWT_REFRESH_SECRET, {
       subject: input.userId,
       jwtid: jti,
       issuer: ISSUER,
@@ -211,6 +230,33 @@ export class TokenService {
       throw ApiError.invalidToken();
     }
   }
+}
+
+/**
+ * The identity claim for a verified sign-in: `phone:919876543210` or `email:a@b.com`.
+ *
+ * One string rather than two claims so a token can never assert both, and so the switch path has a
+ * single thing to look up.
+ */
+export function identityClaim(
+  proof: { kind: 'phone'; phone: string } | { kind: 'email'; email: string },
+): string {
+  return proof.kind === 'phone' ? `phone:${proof.phone}` : `email:${proof.email}`;
+}
+
+/** The inverse of `identityClaim`; null for a missing or malformed claim. */
+export function parseIdentityClaim(
+  claim: string | null | undefined,
+): { kind: 'phone'; phone: string } | { kind: 'email'; email: string } | null {
+  if (!claim) return null;
+  const colon = claim.indexOf(':');
+  if (colon <= 0) return null;
+  const kind = claim.slice(0, colon);
+  const value = claim.slice(colon + 1);
+  if (!value) return null;
+  if (kind === 'phone') return { kind, phone: value };
+  if (kind === 'email') return { kind, email: value };
+  return null;
 }
 
 /** Thirty days. See `signWorkerLink` for why it is not indefinite. */
