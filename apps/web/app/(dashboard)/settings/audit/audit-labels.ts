@@ -61,6 +61,14 @@ export const ENTITY_LABELS: Record<string, string> = {
   safety_toolbox_attendees: 'Toolbox talk attendee',
   safety_observations: 'Safety observation',
   safety_photos: 'Safety photo',
+  equipment: 'Machine',
+  equipment_allocations: 'Machine on a site',
+  equipment_logs: 'Machine daily log',
+  equipment_fuel: 'Fuel issued to a machine',
+  equipment_service_plans: 'Service plan',
+  equipment_maintenance: 'Machine service or repair',
+  equipment_documents: 'Machine document',
+  equipment_hire_bookings: 'Booked hire invoice',
 };
 
 /** The entity filter: the tables people most often go looking through, in the order they think. */

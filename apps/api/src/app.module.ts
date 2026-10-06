@@ -43,6 +43,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { PortalModule } from './modules/portal/portal.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { SafetyModule } from './modules/safety/safety.module';
+import { EquipmentModule } from './modules/equipment/equipment.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -127,6 +128,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     QualityModule,
     SafetyModule,
     BoqModule,
+    EquipmentModule,
     AuditModule,
     ReportsModule,
     StockModule,

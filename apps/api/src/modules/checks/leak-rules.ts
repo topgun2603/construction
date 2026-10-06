@@ -1,4 +1,10 @@
-import { addDays, type IsoDate } from '@sitebook/shared';
+import {
+  addDays,
+  equipmentFuelOutliers,
+  equipmentLitresFromHundredths,
+  type EquipmentFuelDay,
+  type IsoDate,
+} from '@sitebook/shared';
 
 /**
  * Leakage and fraud checks (roadmap: AI agent 3).
@@ -17,7 +23,8 @@ export type CheckKind =
   | 'headcount_gap'
   | 'duplicate_expense'
   | 'unusual_expense'
-  | 'unidentified_paid';
+  | 'unidentified_paid'
+  | 'fuel_outlier';
 
 export interface Finding {
   kind: CheckKind;
@@ -271,4 +278,38 @@ export function unidentifiedPaid(workers: PaidWorker[]): Finding[] {
       title: `${worker.workerName} has been paid but has no phone number, ID proof or photo on file.`,
       details: { worker_id: worker.workerId },
     }));
+}
+
+// --- equipment ---------------------------------------------------------------------------
+
+export interface FuelDayRow extends EquipmentFuelDay {
+  machineLabel: string;
+  projectName: string;
+}
+
+/**
+ * A machine that drew far more diesel per hour on a day than it does on its other days (equipment,
+ * roadmap Phase 2, module 10). The arithmetic is `equipmentFuelOutliers` in @sitebook/shared — the
+ * same figures the equipment fuel report shows — so a flag here can always be found on that screen.
+ */
+export function fuelOutliers(days: FuelDayRow[]): Finding[] {
+  const labels = new Map(days.map((day) => [`${day.equipmentId}:${day.date}`, day]));
+  return equipmentFuelOutliers(days).map((day) => {
+    const row = labels.get(`${day.equipmentId}:${day.date}`)!;
+    return {
+      kind: 'fuel_outlier' as const,
+      subjectKey: `${day.equipmentId}:${day.date}`,
+      projectId: day.projectId,
+      severity: 'medium' as const,
+      title: `${row.machineLabel} drew ${day.rate} L/h at ${row.projectName} on ${day.date}, ${day.abovePercent}% above its usual ${day.average} L/h.`,
+      details: {
+        equipment_id: day.equipmentId,
+        date: day.date,
+        litres: equipmentLitresFromHundredths(day.litresHundredths),
+        hours: day.workedTenths / 10,
+        rate: day.rate,
+        usual: day.average,
+      },
+    };
+  });
 }

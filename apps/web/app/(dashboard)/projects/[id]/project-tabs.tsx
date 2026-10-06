@@ -21,6 +21,7 @@ export function ProjectTabs({
   showSchedule = false,
   showSafety = false,
   showBoq = false,
+  showEquipment = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -55,6 +56,8 @@ export function ProjectTabs({
   showSafety?: boolean;
   /** The bill of quantities needs `boq.view`, `boq.measure` or `boq.bill`. */
   showBoq?: boolean;
+  /** Equipment needs `equipment.view`, `.log` or `.manage`; the cost on it needs `.view`. */
+  showEquipment?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -80,6 +83,7 @@ export function ProjectTabs({
     ...(showChangeOrders ? [{ key: 'change-orders', label: t('Change orders') }] : []),
     ...(showQuality ? [{ key: 'quality', label: t('Quality') }] : []),
     ...(showSafety ? [{ key: 'safety', label: t('Safety') }] : []),
+    ...(showEquipment ? [{ key: 'equipment', label: t('Equipment') }] : []),
   ];
 
   return (

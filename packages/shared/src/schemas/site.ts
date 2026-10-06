@@ -142,6 +142,8 @@ const UPLOAD_KINDS = [
   'quality_report',
   /** Safety evidence: an incident scene, a witness statement, an observation and its close-out. */
   'safety_photo',
+  /** Equipment: a photo of a meter or a fuel bill, a machine's insurance or fitness papers. */
+  'equipment_photo',
 ] as const;
 
 /**

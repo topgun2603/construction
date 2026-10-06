@@ -242,6 +242,9 @@ const envSchema = z
     // Permits to work whose time ran out while still open. Every quarter-hour, so the alert lands
     // within fifteen minutes of the permit lapsing on any company's clock.
     SAFETY_PERMIT_EXPIRY_CRON: z.string().default('*/15 * * * *'),
+    // Machines due for a service and machine papers about to lapse, on each company's clock: early,
+    // so the fitter is booked before the machine starts work.
+    EQUIPMENT_REMINDER_CRON: z.string().default('30 7 * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

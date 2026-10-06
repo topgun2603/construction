@@ -19,6 +19,7 @@ const KIND_LABEL: Record<SiteCheck['kind'], string> = {
   duplicate_expense: 'Same bill twice',
   unusual_expense: 'Unusually large bill',
   unidentified_paid: 'Paid, no ID on file',
+  fuel_outlier: 'Unusual fuel for a machine',
 };
 
 /**

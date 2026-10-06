@@ -77,6 +77,8 @@ import type {
   SafetyTalkSummary,
 } from '@/lib/safety-types';
 import { SiteSafety } from './site-safety';
+import type { EquipmentCostReport, EquipmentLog, EquipmentSummary } from '@/lib/equipment-types';
+import { SiteEquipment } from './site-equipment';
 import type { BoqView } from '@/lib/boq-types';
 import { BoqTab } from './boq-tab';
 
@@ -97,6 +99,7 @@ const TABS = [
   'change-orders',
   'quality',
   'safety',
+  'equipment',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -366,6 +369,20 @@ export default async function ProjectPage({
         ])
       : null;
 
+  // Equipment (roadmap Phase 2, module 10), fetched only for its own tab. Whoever only logs sees the
+  // machines and their logs; the cost needs `equipment.view`.
+  const canSeeEquipment = ['equipment.view', 'equipment.log', 'equipment.manage'].some((p) => me.permissions.includes(p));
+  const equipment =
+    active === 'equipment' && canSeeEquipment
+      ? await Promise.all([
+          serverFetch<{ items: EquipmentSummary[] }>(`/equipment?project_id=${id}`),
+          serverFetch<{ items: EquipmentLog[] }>(`/equipment/logs?project_id=${id}&limit=30`),
+          me.permissions.includes('equipment.view')
+            ? serverFetch<EquipmentCostReport>(`/equipment/reports/costs?project_id=${id}`)
+            : Promise.resolve(null),
+        ])
+      : null;
+
   // The bill of quantities (roadmap Phase 2, module 5), fetched only for its own tab. A supervisor
   // measures against it without the money; the API leaves the rates out for them.
   const canSeeBoq = ['boq.view', 'boq.measure', 'boq.bill'].some((p) => me.permissions.includes(p));
@@ -443,6 +460,7 @@ export default async function ProjectPage({
         showSchedule={canSeeSchedule}
         showSafety={canSeeSafety}
         showBoq={canSeeBoq}
+        showEquipment={canSeeEquipment}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -614,6 +632,15 @@ export default async function ProjectPage({
           talks={safety[3].items}
           observations={safety[4].items}
           canReport={me.permissions.includes('safety.report')}
+        />
+      )}
+      {active === 'equipment' && equipment && (
+        <SiteEquipment
+          siteId={id}
+          machines={equipment[0].items}
+          logs={equipment[1].items}
+          costs={equipment[2]}
+          canLog={['equipment.log', 'equipment.manage'].some((p) => me.permissions.includes(p))}
         />
       )}
 
