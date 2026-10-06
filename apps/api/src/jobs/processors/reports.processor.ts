@@ -19,6 +19,7 @@ import { WorkerDocumentsService } from '../../modules/worker-documents/worker-do
 import { QualityTestsService } from '../../modules/quality/quality-tests.service';
 import { SafetyPermitsService } from '../../modules/safety/safety-permits.service';
 import { RfiRemindersService } from '../../modules/rfis/rfi-reminders.service';
+import { EquipmentMaintenanceService } from '../../modules/equipment/equipment-maintenance.service';
 import {
   DEFAULT_JOB_OPTIONS,
   QUEUE,
@@ -52,6 +53,7 @@ export class ReportsProcessor extends WorkerHost {
     private readonly qualityTests: QualityTestsService,
     private readonly safetyPermits: SafetyPermitsService,
     private readonly rfiReminders: RfiRemindersService,
+    private readonly equipmentMaintenance: EquipmentMaintenanceService,
   ) {
     super();
   }
@@ -86,6 +88,10 @@ export class ReportsProcessor extends WorkerHost {
         return this.fanOutNightly('rfi-reminders', env().RFI_REMINDER_CRON);
       case 'rfi-reminders':
         return this.rfiReminders.remindTenant((job.data as { tenantId: string }).tenantId);
+      case 'fan-out-equipment-reminders':
+        return this.fanOutNightly('equipment-reminders', env().EQUIPMENT_REMINDER_CRON);
+      case 'equipment-reminders':
+        return this.equipmentMaintenance.remindTenant((job.data as { tenantId: string }).tenantId);
       case 'leak-checks':
         return this.checks.runTenant((job.data as { tenantId: string }).tenantId);
       case 'site-forecast':
@@ -146,7 +152,7 @@ export class ReportsProcessor extends WorkerHost {
    * reached `cron` — one job per company and local day, so a retried tick cannot run it twice.
    */
   private async fanOutNightly(
-    name: 'site-forecast' | 'leak-checks' | 'document-expiry' | 'quality-tests-due' | 'rfi-reminders',
+    name: 'site-forecast' | 'leak-checks' | 'document-expiry' | 'quality-tests-due' | 'rfi-reminders' | 'equipment-reminders',
     cron: string,
   ) {
     const due = await this.roster.dueTenants(cron);

@@ -9,6 +9,7 @@ import { WorkerDocumentsModule } from '../modules/worker-documents/worker-docume
 import { QualityModule } from '../modules/quality/quality.module';
 import { SafetyModule } from '../modules/safety/safety.module';
 import { RfisModule } from '../modules/rfis/rfis.module';
+import { EquipmentModule } from '../modules/equipment/equipment.module';
 import { DocumentTextService } from '../modules/portal/document-text.service';
 import { WagePeriodsModule } from '../modules/wage-periods/wage-periods.module';
 import { DEFAULT_JOB_OPTIONS, QUEUE } from './job-types';
@@ -87,6 +88,8 @@ export class JobsModule {
               SafetyModule,
               // RFIs and submittals due soon or overdue.
               RfisModule,
+              // Machines due for a service, and machine papers about to lapse.
+              EquipmentModule,
             ]
           : []),
       ],

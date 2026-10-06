@@ -369,6 +369,16 @@ model Tenant {
   submittalRevisions SubmittalRevision[]
   submittalFiles     SubmittalFile[]
 
+  // Equipment and plant
+  equipment             Equipment[]
+  equipmentAllocations  EquipmentAllocation[]
+  equipmentLogs         EquipmentLog[]
+  equipmentFuel         EquipmentFuel[]
+  equipmentServicePlans EquipmentServicePlan[]
+  equipmentMaintenance  EquipmentMaintenance[]
+  equipmentDocuments    EquipmentDocument[]
+  equipmentHireBookings EquipmentHireBooking[]
+
   @@map("tenants")
 }
 
@@ -574,6 +584,13 @@ model Project {
   rfis       Rfi[]
   submittals Submittal[]
 
+  // Equipment and plant
+  equipmentAllocations  EquipmentAllocation[]
+  equipmentLogs         EquipmentLog[]
+  equipmentFuel         EquipmentFuel[]
+  equipmentMaintenance  EquipmentMaintenance[]
+  equipmentHireBookings EquipmentHireBooking[]
+
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
   @@map("projects")
@@ -705,6 +722,9 @@ model Worker {
   safetyIncidentPeople SafetyIncidentPerson[]
   safetyPermitCrew     SafetyPermitCrew[]
   safetyToolboxTalks   SafetyToolboxAttendee[]
+
+  // Equipment: the machines they operated
+  equipmentLogs EquipmentLog[]
 
   @@unique([tenantId, clientId], map: "workers_tenant_id_client_id_key")
   @@index([campId])
@@ -1024,6 +1044,8 @@ model Material {
   rfqItems       PurchaseRfqItem[]
   orderLines     PurchaseOrderLine[]
 
+  equipmentFuel EquipmentFuel[]
+
   @@unique([tenantId, name], map: "materials_tenant_id_name_key")
   @@index([tenantId, updatedAt])
   @@map("materials")
@@ -1142,6 +1164,8 @@ model StockMovement {
   subcontractDeductions SubcontractDeduction[]
   goodsReceiptLine      GoodsReceiptLine?
 
+  equipmentFuel EquipmentFuel?
+
   @@unique([tenantId, clientId], map: "stock_movements_tenant_id_client_id_key")
   @@index([tenantId, projectId, materialId])
   @@index([projectId, movedOn])
@@ -1189,6 +1213,10 @@ model Expense {
 
   subcontractDeductions SubcontractDeduction[]
   purchaseInvoiceLines  PurchaseInvoiceLine[]
+
+  equipmentFuel         EquipmentFuel[]
+  equipmentMaintenance  EquipmentMaintenance[]
+  equipmentHireBookings EquipmentHireBooking[]
 
   @@unique([tenantId, clientId], map: "expenses_tenant_id_client_id_key")
   @@index([tenantId, status])
@@ -1946,6 +1974,11 @@ model CostCode {
 
   submittals Submittal[]
 
+  equipmentAllocations EquipmentAllocation[]
+  equipmentLogs        EquipmentLog[]
+  equipmentFuel        EquipmentFuel[]
+  equipmentMaintenance EquipmentMaintenance[]
+
   @@unique([projectId, code])
   @@index([tenantId])
   @@index([parentId])
@@ -2370,6 +2403,9 @@ model Vendor {
   invoices       PurchaseInvoice[]
 
   submittals Submittal[]
+
+  equipment             Equipment[]
+  equipmentHireBookings EquipmentHireBooking[]
 
   @@unique([tenantId, name])
   @@index([tenantId, active])
@@ -4474,4 +4510,290 @@ model SubmittalFile {
   @@index([revisionId])
   @@index([documentId])
   @@map("submittal_files")
+}
+
+// ---------------------------------------------------------------------------
+// Equipment and plant (roadmap Phase 2, module 10)
+// ---------------------------------------------------------------------------
+//
+// Kinds and statuses are text with CHECK constraints in the migration rather than Postgres enums:
+// the vocabulary (EQUIPMENT_* in @sitebook/shared) will grow — a new category of machine should be
+// a code change, not an ALTER TYPE.
+
+/// One machine, or one lot of bulk kit (scaffolding sets, small tools), owned or hired.
+model Equipment {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  /// Asset code, unique in the company: `BH-004`.
+  code               String
+  name               String
+  /// One of EQUIPMENT_CATEGORIES.
+  category           String
+  make               String?
+  model              String?
+  registrationNo     String?   @map("registration_no")
+  serialNo           String?   @map("serial_no")
+  year               Int?
+  quantity           Int       @default(1)
+  /// owned | hired
+  ownership          String
+  /// Hired kit: the supplier it is hired from.
+  vendorId           String?   @map("vendor_id") @db.Uuid
+  /// hour | day | month — how the vendor charges.
+  hireBasis          String?   @map("hire_basis")
+  /// Minor units per hour, day or month.
+  hireRate           BigInt    @default(0) @map("hire_rate")
+  /// Per day for hourly hire; the hours a monthly rate covers for monthly hire.
+  minHours           Decimal?  @map("min_hours") @db.Decimal(7, 1)
+  operatorIncluded   Boolean   @default(true) @map("operator_included")
+  /// Per working day, when the vendor charges for the operator separately.
+  operatorRate       BigInt    @default(0) @map("operator_rate")
+  fuelIncluded       Boolean   @default(false) @map("fuel_included")
+  /// Charged once each time the machine is brought to a site.
+  mobilisationCharge BigInt    @default(0) @map("mobilisation_charge")
+  /// Owned kit: hour | day, and the internal rate charged to the site it works on.
+  chargeOutBasis     String?   @map("charge_out_basis")
+  chargeOutRate      BigInt    @default(0) @map("charge_out_rate")
+  /// hours | km | none
+  meterType          String    @default("hours") @map("meter_type")
+  /// The latest reading anybody recorded, from a log, a fuel entry or a service.
+  meterReading       Decimal?  @map("meter_reading") @db.Decimal(10, 1)
+  /// available | on_site | under_maintenance | off_hire
+  status             String    @default("available")
+  notes              String?
+  archivedAt         DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdBy          String    @map("created_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vendor       Vendor?                @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  allocations  EquipmentAllocation[]
+  logs         EquipmentLog[]
+  fuel         EquipmentFuel[]
+  servicePlans EquipmentServicePlan[]
+  maintenance  EquipmentMaintenance[]
+  documents    EquipmentDocument[]
+  hireBookings EquipmentHireBooking[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+  @@index([vendorId])
+  @@map("equipment")
+}
+
+/// Which site a machine was on, from when to when — the history that puts its cost on the right site.
+model EquipmentAllocation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  equipmentId String    @map("equipment_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  costCodeId  String?   @map("cost_code_id") @db.Uuid
+  fromDate    DateTime  @map("from_date") @db.Date
+  /// Null while it is still there.
+  toDate      DateTime? @map("to_date") @db.Date
+  note        String?
+  createdBy   String    @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  costCode  CostCode? @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+
+  @@index([equipmentId, fromDate])
+  @@index([tenantId, projectId])
+  @@map("equipment_allocations")
+}
+
+/// One machine's day on one site: the meter, the hours, who drove it, what it did.
+model EquipmentLog {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  equipmentId      String   @map("equipment_id") @db.Uuid
+  projectId        String   @map("project_id") @db.Uuid
+  costCodeId       String?  @map("cost_code_id") @db.Uuid
+  logDate          DateTime @map("log_date") @db.Date
+  openingMeter     Decimal? @map("opening_meter") @db.Decimal(10, 1)
+  closingMeter     Decimal? @map("closing_meter") @db.Decimal(10, 1)
+  hoursWorked      Decimal  @default(0) @map("hours_worked") @db.Decimal(4, 1)
+  idleHours        Decimal  @default(0) @map("idle_hours") @db.Decimal(4, 1)
+  breakdownHours   Decimal  @default(0) @map("breakdown_hours") @db.Decimal(4, 1)
+  /// A worker on the roster — paid through the roll call, never priced here.
+  operatorWorkerId String?  @map("operator_worker_id") @db.Uuid
+  operatorName     String?  @map("operator_name")
+  workDone         String?  @map("work_done")
+  meterPhotoKey    String?  @map("meter_photo_key")
+  recordedBy       String   @map("recorded_by") @db.Uuid
+  clientId         String?  @map("client_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  equipment Equipment       @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  costCode  CostCode?       @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  operator  Worker?         @relation(fields: [operatorWorkerId], references: [id], onDelete: SetNull)
+  fuel      EquipmentFuel[]
+
+  @@unique([equipmentId, logDate])
+  @@unique([tenantId, clientId])
+  @@index([tenantId, projectId, logDate])
+  @@map("equipment_logs")
+}
+
+/// Diesel issued to a machine. Where it came from decides who counts its cost (EQUIPMENT_FUEL_SOURCES).
+model EquipmentFuel {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  equipmentId     String   @map("equipment_id") @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  logId           String?  @map("log_id") @db.Uuid
+  costCodeId      String?  @map("cost_code_id") @db.Uuid
+  issuedOn        DateTime @map("issued_on") @db.Date
+  litres          Decimal  @db.Decimal(9, 2)
+  /// What it cost, minor units. Zero for fuel the vendor supplies.
+  amount          BigInt   @default(0)
+  /// direct | expense | stock | vendor
+  source          String   @default("direct")
+  materialId      String?  @map("material_id") @db.Uuid
+  stockMovementId String?  @unique @map("stock_movement_id") @db.Uuid
+  expenseId       String?  @map("expense_id") @db.Uuid
+  billS3Key       String?  @map("bill_s3_key")
+  meterReading    Decimal? @map("meter_reading") @db.Decimal(10, 1)
+  note            String?
+  recordedBy      String   @map("recorded_by") @db.Uuid
+  clientId        String?  @map("client_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  equipment     Equipment      @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  log           EquipmentLog?  @relation(fields: [logId], references: [id], onDelete: SetNull)
+  costCode      CostCode?      @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  material      Material?      @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  stockMovement StockMovement? @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+  expense       Expense?       @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, clientId])
+  @@index([equipmentId, issuedOn])
+  @@index([tenantId, projectId, issuedOn])
+  @@map("equipment_fuel")
+}
+
+/// A service schedule: every so many hours, km or days.
+model EquipmentServicePlan {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  equipmentId   String    @map("equipment_id") @db.Uuid
+  name          String
+  intervalMeter Decimal?  @map("interval_meter") @db.Decimal(10, 1)
+  intervalDays  Int?      @map("interval_days")
+  lastDoneMeter Decimal?  @map("last_done_meter") @db.Decimal(10, 1)
+  lastDoneOn    DateTime? @map("last_done_on") @db.Date
+  /// Set when the "service due" reminder went out; cleared when the service is done.
+  remindedAt    DateTime? @map("reminded_at") @db.Timestamptz(6)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  equipment   Equipment              @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  maintenance EquipmentMaintenance[]
+
+  @@index([tenantId, active])
+  @@index([equipmentId])
+  @@map("equipment_service_plans")
+}
+
+/// A service or a repair: what was done, what it cost, how long the machine was out.
+model EquipmentMaintenance {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  equipmentId   String   @map("equipment_id") @db.Uuid
+  /// The site that bears the cost; null for work in the yard.
+  projectId     String?  @map("project_id") @db.Uuid
+  planId        String?  @map("plan_id") @db.Uuid
+  costCodeId    String?  @map("cost_code_id") @db.Uuid
+  doneOn        DateTime @map("done_on") @db.Date
+  /// preventive | breakdown
+  kind          String
+  description   String
+  parts         String?
+  cost          BigInt   @default(0)
+  meterReading  Decimal? @map("meter_reading") @db.Decimal(10, 1)
+  downtimeHours Decimal? @map("downtime_hours") @db.Decimal(7, 1)
+  vendorName    String?  @map("vendor_name")
+  /// Set when the cost is an expense, which the cost report counts instead of this row.
+  expenseId     String?  @map("expense_id") @db.Uuid
+  billS3Key     String?  @map("bill_s3_key")
+  recordedBy    String   @map("recorded_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  equipment Equipment             @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  project   Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  plan      EquipmentServicePlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  costCode  CostCode?             @relation(fields: [costCodeId], references: [id], onDelete: SetNull)
+  expense   Expense?              @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+
+  @@index([equipmentId, doneOn])
+  @@index([tenantId, projectId])
+  @@map("equipment_maintenance")
+}
+
+/// Insurance, fitness, registration, an operator's licence — anything with an expiry date.
+model EquipmentDocument {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  equipmentId String    @map("equipment_id") @db.Uuid
+  kind        String
+  number      String?
+  issuedOn    DateTime? @map("issued_on") @db.Date
+  expiresOn   DateTime? @map("expires_on") @db.Date
+  s3Key       String?   @map("s3_key")
+  note        String?
+  /// Set when the expiry reminder went out; cleared when the expiry date changes.
+  remindedAt  DateTime? @map("reminded_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdBy   String    @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, expiresOn])
+  @@index([equipmentId])
+  @@map("equipment_documents")
+}
+
+/// A vendor's hire invoice for one machine, site and month, checked and booked as an expense. From
+/// then on that month's hire on that site is the expense's: the cost report never counts it twice.
+model EquipmentHireBooking {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  vendorId    String   @map("vendor_id") @db.Uuid
+  equipmentId String   @map("equipment_id") @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  /// `YYYY-MM`.
+  month       String
+  amount      BigInt
+  expenseId   String   @map("expense_id") @db.Uuid
+  invoiceRef  String?  @map("invoice_ref")
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vendor    Vendor    @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  expense   Expense   @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@unique([equipmentId, projectId, month])
+  @@index([tenantId, vendorId, month])
+  @@map("equipment_hire_bookings")
 }

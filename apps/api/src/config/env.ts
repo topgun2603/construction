@@ -245,6 +245,9 @@ const envSchema = z
     // RFIs and submittals due soon or overdue, on each company's clock: first thing, before the
     // morning's calls to the consultants.
     RFI_REMINDER_CRON: z.string().default('0 8 * * *'),
+    // Machines due for a service and machine papers about to lapse, on each company's clock: early,
+    // so the fitter is booked before the machine starts work.
+    EQUIPMENT_REMINDER_CRON: z.string().default('30 7 * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

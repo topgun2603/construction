@@ -10,6 +10,7 @@ import { ScopeCreepReader } from './scope-creep-reader.service';
 import { SnagReader } from './snag-reader.service';
 import { SafetyReader } from './safety-reader.service';
 import { RfiReader } from './rfi-reader.service';
+import { EquipmentReader } from './equipment-reader.service';
 
 /**
  * Everything that asks a model a question.
@@ -20,7 +21,7 @@ import { RfiReader } from './rfi-reader.service';
  */
 @Module({
   controllers: [AskController, TranslateController],
-  providers: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, ScopeCreepReader, SnagReader, SafetyReader, RfiReader],
-  exports: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, ScopeCreepReader, SnagReader, SafetyReader, RfiReader],
+  providers: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, ScopeCreepReader, SnagReader, SafetyReader, RfiReader, EquipmentReader],
+  exports: [AskService, BillReader, VoiceReader, DocumentQaService, TranslateService, ScopeCreepReader, SnagReader, SafetyReader, RfiReader, EquipmentReader],
 })
 export class AiModule {}

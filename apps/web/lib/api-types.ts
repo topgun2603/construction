@@ -850,7 +850,8 @@ export interface SiteCheck {
     | 'headcount_gap'
     | 'duplicate_expense'
     | 'unusual_expense'
-    | 'unidentified_paid';
+    | 'unidentified_paid'
+    | 'fuel_outlier';
   severity: 'high' | 'medium';
   title: string;
   details: Record<string, unknown>;

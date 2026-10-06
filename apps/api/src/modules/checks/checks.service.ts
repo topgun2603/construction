@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
   addDays,
+  equipmentLitresToHundredths,
+  equipmentToTenths,
   INDIA_LOCALE,
   isoDateToUtcDate,
   todayIn,
@@ -15,11 +17,13 @@ import {
   CHECK_RULES,
   doubleBooked,
   duplicateExpenses,
+  fuelOutliers,
   headcountGap,
   neverOff,
   unidentifiedPaid,
   unusualExpenses,
   type Finding,
+  type FuelDayRow,
 } from './leak-rules';
 
 export interface CheckView {
@@ -64,7 +68,7 @@ export class ChecksService {
       const window = { gte: isoDateToUtcDate(from), lte: isoDateToUtcDate(today) };
       const live = { deletedAt: null };
 
-      const [attendance, reports, expenses, history, payments] = await Promise.all([
+      const [attendance, reports, expenses, history, payments, fuel, machineLogs] = await Promise.all([
         tx.attendance.findMany({
           where: { attendanceDate: window, project: live },
           select: {
@@ -117,6 +121,22 @@ export class ChecksService {
             },
           },
         }),
+        // Equipment: diesel issued and hours worked per machine per day, for the fuel check.
+        tx.equipmentFuel.findMany({
+          where: { issuedOn: window, project: live },
+          select: {
+            equipmentId: true,
+            projectId: true,
+            issuedOn: true,
+            litres: true,
+            equipment: { select: { code: true, name: true } },
+            project: { select: { name: true } },
+          },
+        }),
+        tx.equipmentLog.findMany({
+          where: { logDate: window, project: live },
+          select: { equipmentId: true, logDate: true, hoursWorked: true },
+        }),
       ]);
 
       const rows = attendance.map((row) => ({
@@ -137,8 +157,30 @@ export class ChecksService {
           spentOn: utcDateToIsoDate(row.spentOn),
         }));
 
+      const fuelDays = new Map<string, FuelDayRow>();
+      for (const entry of fuel) {
+        const date = utcDateToIsoDate(entry.issuedOn);
+        const key = `${entry.equipmentId}:${date}`;
+        const day = fuelDays.get(key) ?? {
+          equipmentId: entry.equipmentId,
+          projectId: entry.projectId,
+          date,
+          litresHundredths: 0,
+          workedTenths: 0,
+          machineLabel: `${entry.equipment.code} ${entry.equipment.name}`,
+          projectName: entry.project.name,
+        };
+        day.litresHundredths += equipmentLitresToHundredths(Number(entry.litres.toString()).toFixed(2));
+        fuelDays.set(key, day);
+      }
+      for (const log of machineLogs) {
+        const day = fuelDays.get(`${log.equipmentId}:${utcDateToIsoDate(log.logDate)}`);
+        if (day) day.workedTenths += equipmentToTenths(Number(log.hoursWorked.toString()).toFixed(1));
+      }
+
       return [
         ...doubleBooked(rows),
+        ...fuelOutliers([...fuelDays.values()]),
         ...neverOff(rows, today),
         ...headcountGap(
           rows,

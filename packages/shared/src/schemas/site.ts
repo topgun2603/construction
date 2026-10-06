@@ -144,6 +144,8 @@ const UPLOAD_KINDS = [
   'safety_photo',
   /** RFIs and submittals: a photo or file on an RFI, a response, or a submittal revision. */
   'rfi_attachment',
+  /** Equipment: a photo of a meter or a fuel bill, a machine's insurance or fitness papers. */
+  'equipment_photo',
 ] as const;
 
 /**

@@ -148,6 +148,16 @@ export const PERMISSIONS = [
   'submittals.manage',
   'submittals.review',
 
+  /*
+   * Equipment and plant (roadmap Phase 2, module 10). Viewing shows what each machine costs — hire
+   * rates, charge-out rates, cost per site — so it is not every operator's. Logging is the site's
+   * daily job: the hours, the meter, the fuel, from a phone, without seeing the rates. Managing is
+   * the register itself, moving machines between sites, servicing and booking the vendor's invoice.
+   */
+  'equipment.view',
+  'equipment.manage',
+  'equipment.log',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -482,6 +492,25 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Equipment',
+    items: [
+      {
+        permission: 'equipment.view',
+        label: 'See machines, their rates, utilisation and cost per site',
+        note: 'Hire and charge-out rates, hire statements and fuel checks',
+      },
+      {
+        permission: 'equipment.manage',
+        label: 'Register machines, move them between sites, record servicing and book hire invoices',
+      },
+      {
+        permission: 'equipment.log',
+        label: 'Log daily hours, meter readings and fuel',
+        note: 'From a phone, with meter and fuel bill photos. Without “see machines” the rates stay hidden.',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -642,6 +671,10 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'submittals.view',
     'submittals.manage',
     'submittals.review',
+    // Runs the plant on their jobs: which machines are where, their hours, servicing and hire bills.
+    'equipment.view',
+    'equipment.manage',
+    'equipment.log',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -694,6 +727,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'rfis.view',
     'rfis.manage',
     'submittals.view',
+    // Logs the machines on their site each day — hours, meter, fuel. What a machine costs is not
+    // theirs to see, the same as a subcontract's rates.
+    'equipment.log',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.
@@ -742,6 +778,8 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Reads the BOQ and raises the client's bills on it, the same half of the ledger as receipts.
     'boq.view',
     'boq.bill',
+    // Reads what the plant costs and checks the hire statement against the vendor's invoice.
+    'equipment.view',
     'messages.post',
     'messages.internal',
     'documents.view',

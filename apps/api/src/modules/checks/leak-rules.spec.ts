@@ -2,6 +2,7 @@ import { addDays } from '@sitebook/shared';
 import {
   doubleBooked,
   duplicateExpenses,
+  fuelOutliers,
   headcountGap,
   neverOff,
   unidentifiedPaid,
@@ -99,5 +100,29 @@ describe('leak rules', () => {
     expect(
       unidentifiedPaid([{ ...base, hasPhone: true, hasIdProof: false, hasPhoto: false }]),
     ).toEqual([]);
+  });
+});
+
+describe('fuelOutliers', () => {
+  const day = (date: string, litresHundredths: number, workedTenths = 80) => ({
+    equipmentId: 'm1',
+    projectId: 'p1',
+    date,
+    litresHundredths,
+    workedTenths,
+    machineLabel: 'BH-001 JCB 3DX',
+    projectName: 'Lakeview',
+  });
+
+  it('flags a machine’s day far above its own fuel per hour, once per machine and day', () => {
+    const findings = fuelOutliers([
+      day('2026-10-01', 4800),
+      day('2026-10-02', 5000),
+      day('2026-10-03', 4700),
+      day('2026-10-04', 9000),
+    ]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ kind: 'fuel_outlier', subjectKey: 'm1:2026-10-04', projectId: 'p1' });
+    expect(findings[0]!.title).toContain('BH-001 JCB 3DX drew 11.25 L/h at Lakeview');
   });
 });

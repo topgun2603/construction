@@ -19,6 +19,7 @@ export * from './safety';
 export * from './boq';
 export * from './company-groups';
 export * from './rfis';
+export * from './equipment';
 export * from './whatsapp';
 
 export * from './schemas/common';
@@ -40,6 +41,7 @@ export * from './schemas/safety';
 export * from './schemas/boq';
 export * from './schemas/company-groups';
 export * from './schemas/rfis';
+export * from './schemas/equipment';
 export * from './schemas/audit';
 export * from './schemas/site';
 export * from './schemas/portal';

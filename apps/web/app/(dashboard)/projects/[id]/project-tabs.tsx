@@ -22,6 +22,7 @@ export function ProjectTabs({
   showSafety = false,
   showBoq = false,
   showDesign = false,
+  showEquipment = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -58,6 +59,8 @@ export function ProjectTabs({
   showBoq?: boolean;
   /** RFIs and submittals together: `rfis.view` or `submittals.view`. */
   showDesign?: boolean;
+  /** Equipment needs `equipment.view`, `.log` or `.manage`; the cost on it needs `.view`. */
+  showEquipment?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -84,6 +87,7 @@ export function ProjectTabs({
     ...(showChangeOrders ? [{ key: 'change-orders', label: t('Change orders') }] : []),
     ...(showQuality ? [{ key: 'quality', label: t('Quality') }] : []),
     ...(showSafety ? [{ key: 'safety', label: t('Safety') }] : []),
+    ...(showEquipment ? [{ key: 'equipment', label: t('Equipment') }] : []),
   ];
 
   return (
