@@ -24,11 +24,8 @@ export * from './whatsapp';
 export * from './sso';
 export * from './security';
 export * from './ai';
-<<<<<<< HEAD
 export * from './m365';
-=======
 export * from './public-api';
->>>>>>> worktree-agent-a18c5dc3675d7e51c
 
 export * from './schemas/common';
 export * from './schemas/auth';
@@ -53,11 +50,8 @@ export * from './schemas/equipment';
 export * from './schemas/sso';
 export * from './schemas/security';
 export * from './schemas/ai';
-<<<<<<< HEAD
 export * from './schemas/m365';
-=======
 export * from './schemas/public-api';
->>>>>>> worktree-agent-a18c5dc3675d7e51c
 export * from './schemas/audit';
 export * from './schemas/site';
 export * from './schemas/portal';

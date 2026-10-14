@@ -16,11 +16,8 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { oneDecimal } from '../../common/decimal';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
-<<<<<<< HEAD
 import { siteZone } from '../../common/site-clock';
-=======
 import { WebhookEvents } from '../webhooks/webhook-events.service';
->>>>>>> worktree-agent-a18c5dc3675d7e51c
 
 export interface AttendanceRowView {
   id: string;

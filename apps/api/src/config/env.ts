@@ -321,7 +321,6 @@ const envSchema = z
       .refine((value) => !value || value.length >= 32, {
         message: 'WEB_CLIENT_IP_SECRET must be at least 32 characters',
       }),
-<<<<<<< HEAD
     /*
      * Microsoft 365 email and calendar (Settings → Integrations). One app registration in Microsoft
      * Entra serves every company: register it as multi-tenant ("Accounts in any organizational
@@ -369,7 +368,6 @@ const envSchema = z
       .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
         message: 'M365_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
       }),
-=======
     /**
      * Public API keys are stored as HMAC-SHA256(API_KEY_PEPPER, key), so a database dump alone
      * cannot even be used to test guesses. At least 32 characters; changing it invalidates every
@@ -406,7 +404,6 @@ const envSchema = z
       .transform((value) => value === 'true'),
     /** Requests per API key per minute on `/public/v1` (in-process, per API instance). */
     PUBLIC_API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(600),
->>>>>>> worktree-agent-a18c5dc3675d7e51c
     // Workers' documents nearing expiry, on each company's clock: first thing in the morning.
     DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
     // Cube and lab tests due today, on each company's clock: early enough to get them to the lab.
@@ -456,7 +453,6 @@ const envSchema = z
         message: 'RAZORPAY_KEY_ID is set, so RAZORPAY_WEBHOOK_SECRET must be too',
       });
     }
-<<<<<<< HEAD
     // Company mailbox tokens go to these hosts and nowhere else.
     for (const key of ['MS_GRAPH_LOGIN_URL', 'MS_GRAPH_API_URL'] as const) {
       if (!isMicrosoftHost(value[key])) {
@@ -466,14 +462,13 @@ const envSchema = z
           message: `${key} must be an https:// Microsoft host in production`,
         });
       }
-=======
+    }
     if (value.WEBHOOK_ALLOW_LOOPBACK) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['WEBHOOK_ALLOW_LOOPBACK'],
         message: 'WEBHOOK_ALLOW_LOOPBACK must be false in production',
       });
->>>>>>> worktree-agent-a18c5dc3675d7e51c
     }
     if (!value.FIREBASE_SERVICE_ACCOUNT && !value.FIREBASE_SERVICE_ACCOUNT_FILE) {
       ctx.addIssue({

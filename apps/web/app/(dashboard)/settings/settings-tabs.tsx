@@ -26,13 +26,10 @@ const TABS: Array<{ href: string; label: string; permission?: string; ownerOnly?
   { href: '/settings/integrations', label: 'Integrations', permission: 'integrations.manage' },
   // Single sign-on today; two-factor, sessions and IP rules join it as sections of the same page.
   { href: '/settings/security', label: 'Security', ownerOnly: true },
-<<<<<<< HEAD
   // Paying for the plan: priced in the company's currency, or by bank-transfer invoice.
   { href: '/settings/billing', label: 'Billing', permission: 'tenant.manage' },
-=======
   // API keys and webhooks: company data leaving without anybody signing in, so owners only.
   { href: '/settings/developers', label: 'Developers', ownerOnly: true },
->>>>>>> worktree-agent-a18c5dc3675d7e51c
 ];
 
 export function SettingsTabs({ permissions = [], role }: { permissions?: string[]; role?: string }) {
