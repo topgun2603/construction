@@ -724,15 +724,42 @@ export class AuthService {
    */
   private async liveIdentities(identities: IdentityRow[]): Promise<IdentityRow[]> {
     const live: IdentityRow[] = [];
+    // When a company is waiting out its deletion grace period, only its owner may still come in (to
+    // cancel it); everybody else is told when it goes rather than "suspended".
+    let pendingDeletion: Date | null | undefined;
     for (const identity of identities) {
       const tenant = await this.tenantDb.clientFor(identity.tenantId).tenant.findUnique({
         where: { id: identity.tenantId },
         select: { status: true },
       });
-      if (tenant?.status === 'active') live.push(identity);
+      if (tenant?.status === 'active') {
+        live.push(identity);
+      } else if (tenant?.status === 'pending_deletion') {
+        const { isOwner, purgeAfter } = await this.tenantDb.transaction(identity.tenantId, async (tx) => {
+          const [user, request] = await Promise.all([
+            tx.user.findFirst({
+              where: { id: identity.userId, deletedAt: null },
+              select: { role: true, status: true },
+            }),
+            tx.companyDeletionRequest.findFirst({
+              where: { status: 'pending' },
+              select: { purgeAfter: true },
+            }),
+          ]);
+          return {
+            isOwner: user?.role === 'owner' && user.status === 'active',
+            purgeAfter: request?.purgeAfter ?? null,
+          };
+        });
+        if (isOwner) live.push(identity);
+        else if (pendingDeletion === undefined) pendingDeletion = purgeAfter;
+      }
     }
 
-    if (live.length === 0) throw ApiError.tenantSuspended();
+    if (live.length === 0) {
+      if (pendingDeletion !== undefined) throw ApiError.tenantPendingDeletion(pendingDeletion);
+      throw ApiError.tenantSuspended();
+    }
     return live;
   }
 

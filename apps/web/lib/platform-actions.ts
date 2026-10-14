@@ -208,3 +208,31 @@ export async function deletePlan(id: string): Promise<ActionResult> {
   if (result.ok) revalidatePath('/admin/plans');
   return result;
 }
+
+/** Restores a company its owner asked to delete. The API keeps the request and both audit logs. */
+export async function cancelCompanyDeletionFromConsole(tenantId: string): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch(`/tenants/${tenantId}/deletion/cancel`, { method: 'POST', body: {} }),
+  );
+  if (result.ok) {
+    revalidatePath('/admin/deletions');
+    revalidatePath('/admin/tenants');
+  }
+  return result;
+}
+
+/** Carries out a scheduled deletion now. `confirmName` is the company's name, typed back. */
+export async function expediteCompanyDeletion(input: { tenantId: string; confirmName: string }): Promise<ActionResult> {
+  const result = await runAction(() =>
+    platformFetch(`/tenants/${input.tenantId}/deletion/expedite`, {
+      method: 'POST',
+      body: { confirm_name: input.confirmName },
+    }),
+  );
+  if (result.ok) {
+    revalidatePath('/admin/deletions');
+    revalidatePath('/admin/tenants');
+    revalidatePath('/admin');
+  }
+  return result;
+}

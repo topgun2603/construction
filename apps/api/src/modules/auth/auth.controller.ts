@@ -20,7 +20,14 @@ import {
   type AuthRefreshInput,
   type CompanySwitchInput,
 } from '@sitebook/shared';
-import { AllowAnyIp, AllowWithoutMfa, CurrentUser, Public, SessionOnly } from '../../common/decorators';
+import {
+  AllowAnyIp,
+  AllowDuringDeletion,
+  AllowWithoutMfa,
+  CurrentUser,
+  Public,
+  SessionOnly,
+} from '../../common/decorators';
 import { TenantCache } from '../../common/auth/tenant-cache.service';
 import { SessionService } from '../security/session.service';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
@@ -100,6 +107,8 @@ export class AuthController {
    */
   @AllowWithoutMfa()
   @AllowAnyIp()
+  // And by an owner while the company waits to be deleted: leaving is the one thing left to do.
+  @AllowDuringDeletion()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke every session for the current user' })

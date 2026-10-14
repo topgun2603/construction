@@ -5,7 +5,7 @@ import type { AuthenticatedRequest } from '../auth/request-user';
 import { RoleCache } from '../auth/role-cache.service';
 import { TenantCache } from '../auth/tenant-cache.service';
 import { TokenService } from '../auth/token.service';
-import { IS_PUBLIC_KEY, SESSION_ONLY_KEY } from '../decorators';
+import { ALLOW_DURING_DELETION_KEY, IS_PUBLIC_KEY, SESSION_ONLY_KEY } from '../decorators';
 import { planStanding, publicApiLooksLikeKey } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../errors/api-error';
@@ -62,7 +62,18 @@ export class JwtAuthGuard implements CanActivate {
     // A deleted tenant's tokens stay cryptographically valid until they expire, so
     // the absence of the row has to be treated as a failed login, not a 404.
     if (!tenant) throw ApiError.invalidToken('Tenant no longer exists');
-    if (tenant.status !== 'active') throw ApiError.tenantSuspended();
+    // A company waiting out its deletion grace period is closed to everybody except its owner, and
+    // to the owner only on the routes that show the date and cancel it — so nothing new is written
+    // into a company that is about to be erased, and nobody mistakes it for a working account.
+    if (tenant.status === 'pending_deletion') {
+      const allowed = this.reflector.getAllAndOverride<boolean>(ALLOW_DURING_DELETION_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (!allowed || claims.role !== 'owner') throw ApiError.tenantPendingDeletion();
+    } else if (tenant.status !== 'active') {
+      throw ApiError.tenantSuspended();
+    }
 
     /*
      * An expired term makes the account read-only, not dead.

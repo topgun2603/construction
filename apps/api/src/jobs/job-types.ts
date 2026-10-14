@@ -11,6 +11,9 @@ export const QUEUE = {
   whatsapp: 'whatsapp',
   reports: 'reports',
   media: 'media',
+  // Company data exports and the deletion sweep (data portability, Phase 3). A queue of its own:
+  // an export can run for many minutes, and must not hold up a thumbnail or a WhatsApp summary.
+  compliance: 'compliance',
 } as const;
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
@@ -162,6 +165,20 @@ export interface DocumentTextJob {
 }
 
 export type MediaJobName = 'thumbnail' | 'document-text';
+
+// --- compliance ------------------------------------------------------------
+
+/** Build one company's full export ZIP (`data_exports.id`). */
+export interface DataExportJob {
+  tenantId: string;
+  exportId: string;
+}
+
+/**
+ * `data-export` builds one export; `deletion-sweep` runs on a schedule, deleting the companies whose
+ * grace period is over and removing exports whose link has run out.
+ */
+export type ComplianceJobName = 'data-export' | 'deletion-sweep';
 
 export interface MediaJobs {
   thumbnail: ThumbnailJob;

@@ -178,7 +178,16 @@ export function TenantControls({
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
             {t('Account')}
           </span>
-          {status === 'active' ? (
+          {status === 'pending_deletion' ? (
+            // Leaves that state only by the deletion being cancelled or carried out (the API refuses
+            // a status edit), so the controls are on the Deletions page rather than here.
+            <span className="text-[12.5px] text-blocked-fg">
+              {t('Scheduled for deletion by its owner.')}{' '}
+              <a href="/admin/deletions" className="font-semibold underline underline-offset-4">
+                {t('Manage on the Deletions page')}
+              </a>
+            </span>
+          ) : status === 'active' ? (
             <ConfirmDialog
               title={t('Suspend this account?')}
               body={

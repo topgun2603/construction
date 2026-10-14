@@ -82,3 +82,5 @@ export * from './schemas/platform';
 export * from './excel';
 export * from './import-kinds';
 export * from './schemas/excel';
+export * from './data-portability';
+export * from './schemas/data-portability';

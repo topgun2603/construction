@@ -27,6 +27,7 @@ export class SchedulerService implements OnApplicationBootstrap {
   constructor(
     @InjectQueue(QUEUE.whatsapp) private readonly whatsapp: Queue,
     @InjectQueue(QUEUE.reports) private readonly reports: Queue,
+    @InjectQueue(QUEUE.compliance) private readonly compliance: Queue,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -48,6 +49,9 @@ export class SchedulerService implements OnApplicationBootstrap {
         pattern: this.config.BILLING_SWEEP_CRON,
         tz: APP_TIMEZONE,
       },
+      // Companies past their deletion grace period, and exports whose link has run out. Platform
+      // housekeeping on no company's clock, like the billing sweep.
+      { queue: this.compliance, name: 'deletion-sweep', pattern: this.config.DELETION_SWEEP_CRON, tz: 'UTC' },
     ];
 
     try {

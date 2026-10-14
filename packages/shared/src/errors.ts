@@ -37,6 +37,13 @@ export const ERROR_CODES = {
    * 'not_configured'`, which means the deployment has no model key at all.
    */
   AI_DISABLED: 'AI_DISABLED',
+  /**
+   * The company is scheduled for deletion (grace period running). Nobody can use it except its owner,
+   * and the owner only to see when it goes and to cancel; the web app routes to that screen.
+   */
+  TENANT_PENDING_DELETION: 'TENANT_PENDING_DELETION',
+  /** The action needs a sign-in in the last few minutes (deleting the company). Sign in again. */
+  REAUTH_REQUIRED: 'REAUTH_REQUIRED',
   INTERNAL: 'INTERNAL',
 } as const;
 

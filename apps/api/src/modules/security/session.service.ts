@@ -20,7 +20,9 @@ export type SessionEndReason =
   | 'idle_timeout'
   | 'absolute_timeout'
   | 'mfa_reset'
-  | 'replayed';
+  | 'replayed'
+  // The company was scheduled for deletion: everybody in it is signed out at once.
+  | 'company_deletion';
 
 /**
  * Activity is written at most this often per session. Idle timeouts are thirty minutes at the

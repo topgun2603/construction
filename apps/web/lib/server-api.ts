@@ -46,6 +46,8 @@ export async function serverFetch<T>(path: string, options: ServerFetchOptions =
       // The session is good but the company wants a second factor first: the two-factor screen,
       // never the login page, which would only sign them in to the same question again.
       if (error.code === 'MFA_REQUIRED') redirect('/two-factor');
+      // The company is scheduled for deletion: its owner's one screen is the cancel page.
+      if (error.code === 'TENANT_PENDING_DELETION') redirect('/deletion-scheduled');
     }
     throw error;
   }

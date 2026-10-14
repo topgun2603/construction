@@ -71,6 +71,7 @@ export const loadSelf = cache(async (): Promise<SelfResponse | null> => {
   if (!accessToken) return null;
 
   let needsSecondFactor = false;
+  let pendingDeletion = false;
   try {
     return await apiFetch<SelfResponse>('/me', { accessToken, headers: await clientIpHeaders() });
   } catch (error) {
@@ -79,6 +80,10 @@ export const loadSelf = cache(async (): Promise<SelfResponse | null> => {
     // `redirect()` works by throwing.
     if (error instanceof ApiRequestError && error.code === 'MFA_REQUIRED') {
       needsSecondFactor = true;
+    } else if (error instanceof ApiRequestError && error.code === 'TENANT_PENDING_DELETION') {
+      // The owner of a company waiting to be deleted: the one screen they can use shows the date
+      // and the cancel button.
+      pendingDeletion = true;
     } else if (error instanceof ApiRequestError && error.status >= 400 && error.status < 500) {
       // Any other refusal on `/me` means the cookie cannot be used: expired (401), a
       // suspended tenant (403), or a token whose user has since been deleted (404).
@@ -90,6 +95,7 @@ export const loadSelf = cache(async (): Promise<SelfResponse | null> => {
     }
   }
   if (needsSecondFactor) redirect('/two-factor');
+  if (pendingDeletion) redirect('/deletion-scheduled');
   return null;
 });
 

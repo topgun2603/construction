@@ -17,6 +17,8 @@ import { JobQueueService } from './job-queue.service';
 import { SchedulerService } from './scheduler.service';
 import { TenantRoster } from './tenant-roster.service';
 import { MediaProcessor } from './processors/media.processor';
+import { ComplianceProcessor } from './processors/compliance.processor';
+import { DataPortabilityModule } from '../modules/data-portability/data-portability.module';
 import { NotificationsProcessor } from './processors/notifications.processor';
 import { ReportsProcessor } from './processors/reports.processor';
 import { WhatsappProcessor } from './processors/whatsapp.processor';
@@ -55,6 +57,8 @@ export class JobsModule {
         WhatsappProcessor,
         ReportsProcessor,
         MediaProcessor,
+        // Company exports and the deletion sweep.
+        ComplianceProcessor,
         // Reading a PDF's text. A plain class with no dependencies, provided here rather than
         // imported from PortalModule so the worker does not pull the whole client portal in.
         DocumentTextService,
@@ -90,6 +94,8 @@ export class JobsModule {
               RfisModule,
               // Machines due for a service, and machine papers about to lapse.
               EquipmentModule,
+              // Builds company exports and deletes companies past their grace period.
+              DataPortabilityModule,
             ]
           : []),
       ],
