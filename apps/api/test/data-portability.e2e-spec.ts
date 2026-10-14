@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { DELETION_GRACE_DAYS, dataExportIsSecretColumn } from '@sitebook/shared';
 import {
@@ -108,8 +110,9 @@ describe('Data portability', () => {
     process.env['PLATFORM_ADMIN_PHONES'] = ADMIN_PHONE;
     test = await createTestApp();
     // Listening once, so every request reuses one port and a kept-alive connection instead of
-    // supertest opening a fresh server per request — this suite makes a few hundred.
-    await test.app.listen(0, '127.0.0.1');
+    // supertest opening a fresh server per request — this suite makes a few hundred. createTestApp
+    // may already have done it (it listens once for every suite now), so only if it has not.
+    if (!test.app.getHttpServer().listening) await test.app.listen(0, '127.0.0.1');
     if (process.env['ADMIN_DATABASE_URL']) {
       admin = new PrismaClient({ datasources: { db: { url: process.env['ADMIN_DATABASE_URL'] } } });
     }
@@ -292,7 +295,12 @@ describe('Data portability', () => {
       // Manifest counts are the lines in each file, and the rows in the database.
       const written = JSON.parse(zip.get('manifest.json')!.toString());
       expect(written.company.id).toBe(alpha.tenantId);
-      expect(written.schema_version).toBe('20261010000800_data_portability');
+      // The newest migration, whatever it is — a fixed name here breaks every time one is added.
+      const latest = readdirSync(join(__dirname, '..', 'prisma', 'migrations'))
+        .filter((name) => /^\d{14}_/.test(name))
+        .sort()
+        .pop();
+      expect(written.schema_version).toBe(latest);
       for (const [table, count] of Object.entries(written.tables as Record<string, number>)) {
         const text = zip.get(`tables/${table}.jsonl`)!.toString();
         const lines = text.split('\n').filter(Boolean);

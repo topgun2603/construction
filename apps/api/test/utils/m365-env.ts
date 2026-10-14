@@ -47,8 +47,13 @@ export async function startM365Env(): Promise<MockMicrosoft> {
  * ephemeral ports dry — which shows up as `connect ETIMEDOUT 127.0.0.1` in whatever test is unlucky.
  */
 export async function listenOnIpv6(test: TestApp): Promise<void> {
-  await test.app.listen(0, '::1');
-  const base = `http://[::1]:${(test.app.getHttpServer().address() as AddressInfo).port}`;
+  // createTestApp now listens once for every suite (on 127.0.0.1); reuse that socket rather than
+  // binding a second time, which Nest refuses.
+  const server = test.app.getHttpServer() as import('node:http').Server;
+  if (!server.listening) await test.app.listen(0, '::1');
+  const address = server.address() as AddressInfo;
+  const host = address.family === 'IPv6' ? `[${address.address}]` : address.address;
+  const base = `http://${host}:${address.port}`;
   test.http = () => request(base);
 }
 

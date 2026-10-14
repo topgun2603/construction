@@ -14,7 +14,8 @@ import type { TestApp } from './test-app';
  */
 export async function useKeepAlive(test: TestApp): Promise<() => Promise<void>> {
   const server = test.app.getHttpServer() as import('node:http').Server;
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  // createTestApp now listens once for every suite; only bind here if it has not.
+  if (!server.listening) await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
   const base = `http://127.0.0.1:${port}`;
   const agent = new Agent({ keepAlive: true, maxSockets: 8 });
