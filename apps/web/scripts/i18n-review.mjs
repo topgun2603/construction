@@ -71,11 +71,11 @@ if (mode === 'export') {
   for (const key of keys) {
     lines.push([key, current.entries[key] ?? '', ''].map(cell).join(','));
   }
-  fs.writeFileSync(file, '﻿' + lines.join('\r\n') + '\r\n');
+  fs.writeFileSync(file, '\uFEFF' + lines.join('\r\n') + '\r\n');
   const drafted = keys.filter((key) => current.entries[key]).length;
   console.log(`${keys.length} strings, ${drafted} with a draft -> ${file}`);
 } else {
-  const [head, ...rows] = parseCsv(fs.readFileSync(file, 'utf8').replace(/^﻿/, ''));
+  const [head, ...rows] = parseCsv(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
   const at = (name) => head.indexOf(name);
   if (at('english') < 0 || at('draft') < 0 || at('corrected') < 0) {
     console.error('the sheet needs english, draft and corrected columns');
