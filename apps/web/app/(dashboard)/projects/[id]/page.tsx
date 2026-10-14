@@ -85,6 +85,7 @@ import { BoqTab } from './boq-tab';
 import type { RfiSettings, RfiStats, RfiSummary, SubmittalStats, SubmittalSummary } from '@/lib/rfi-types';
 import { submittalFormData } from '@/lib/rfi-form-data';
 import { SiteDesign } from './site-design';
+import { SiteMeetings } from './site-meetings';
 
 const TABS = [
   'timeline',
@@ -105,6 +106,7 @@ const TABS = [
   'quality',
   'safety',
   'equipment',
+  'meetings',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -488,6 +490,7 @@ export default async function ProjectPage({
         showBoq={canSeeBoq}
         showDesign={canSeeRfis || canSeeSubmittals}
         showEquipment={canSeeEquipment}
+        showMeetings={me.permissions.includes('meetings.view')}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -694,6 +697,9 @@ export default async function ProjectPage({
       )}
       {active === 'change-orders' && clientSeesChangeOrders && (
         <ClientChangeOrders projectId={id} approvals={approvals} />
+      )}
+      {active === 'meetings' && me.permissions.includes('meetings.view') && (
+        <SiteMeetings projectId={id} me={me} />
       )}
       {active === 'quality' && canSeeQuality && (
         <SiteQuality projectId={id} projectName={project.name} me={me} />

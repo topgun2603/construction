@@ -96,6 +96,8 @@ describe('permission catalogue', () => {
         'equipment.view',
         'equipment.manage',
         'equipment.log',
+        'meetings.view',
+        'meetings.manage',
         'indents.approve',
         'indents.raise',
         'estimates.manage',
@@ -148,6 +150,7 @@ describe('permission catalogue', () => {
         'rfis.manage',
         'submittals.view',
         'equipment.log',
+        'meetings.view',
         'workers.view',
       ],
       accounts: [
@@ -208,6 +211,7 @@ describe('permission catalogue', () => {
       'team.manage',
       'roles.manage',
       'tenant.manage',
+      'integrations.manage',
       'projects.delete',
       'contractors.delete',
     ];

@@ -321,6 +321,53 @@ const envSchema = z
       .refine((value) => !value || value.length >= 32, {
         message: 'WEB_CLIENT_IP_SECRET must be at least 32 characters',
       }),
+    /*
+     * Microsoft 365 email and calendar (Settings → Integrations). One app registration in Microsoft
+     * Entra serves every company: register it as multi-tenant ("Accounts in any organizational
+     * directory"), add MS_GRAPH_REDIRECT_URI as a Web redirect URI, grant the delegated Graph
+     * permissions offline_access, Mail.Send, Calendars.ReadWrite and User.Read (no application
+     * permissions), and create a client secret. Unset, the integration card says "not set up on this
+     * server" and every "Send by email" falls back to WhatsApp, the mail app or a copied link.
+     */
+    MS_GRAPH_CLIENT_ID: z.string().optional().transform((value) => value || undefined),
+    MS_GRAPH_CLIENT_SECRET: z.string().optional().transform((value) => value || undefined),
+    /**
+     * The web app's page Microsoft sends the browser back to, exactly as registered — e.g.
+     * https://app.buildr.app/settings/integrations/microsoft/callback. Sent in the authorize request
+     * and again in the code exchange; Microsoft refuses a code redeemed against any other URI.
+     */
+    MS_GRAPH_REDIRECT_URI: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    /**
+     * Which directories may connect: `organizations` (any work or school account — the multi-tenant
+     * default), or one directory's id to lock a single-company deployment to it. Never `common`:
+     * a personal Outlook.com mailbox is not a company's.
+     */
+    MS_GRAPH_TENANT: z
+      .string()
+      .default('organizations')
+      .refine((value) => value !== 'common' && value !== 'consumers', {
+        message: 'MS_GRAPH_TENANT must be organizations or a directory id, not common/consumers',
+      }),
+    /**
+     * Microsoft's sign-in and Graph hosts. Fixed for the public cloud; overridable for a national
+     * cloud (login.microsoftonline.us + graph.microsoft.us) and, outside production, for the e2e
+     * suite's local stand-in. Production refuses anything that is not a Microsoft host over https,
+     * so a stray setting cannot send company tokens somewhere else.
+     */
+    MS_GRAPH_LOGIN_URL: z.string().url().default('https://login.microsoftonline.com'),
+    MS_GRAPH_API_URL: z.string().url().default('https://graph.microsoft.com/v1.0'),
+    /**
+     * Key for the connected mailbox's tokens at rest: 32 random bytes, base64, generated like
+     * DOCUMENT_ENCRYPTION_KEY and deliberately its own key. Unset, nobody can connect — refused
+     * rather than a refresh token stored in the clear.
+     */
+    M365_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .transform((value) => value || undefined)
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'M365_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
     // Workers' documents nearing expiry, on each company's clock: first thing in the morning.
     DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
     // Cube and lab tests due today, on each company's clock: early enough to get them to the lab.
@@ -370,6 +417,16 @@ const envSchema = z
         message: 'RAZORPAY_KEY_ID is set, so RAZORPAY_WEBHOOK_SECRET must be too',
       });
     }
+    // Company mailbox tokens go to these hosts and nowhere else.
+    for (const key of ['MS_GRAPH_LOGIN_URL', 'MS_GRAPH_API_URL'] as const) {
+      if (!isMicrosoftHost(value[key])) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} must be an https:// Microsoft host in production`,
+        });
+      }
+    }
     if (!value.FIREBASE_SERVICE_ACCOUNT && !value.FIREBASE_SERVICE_ACCOUNT_FILE) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -379,6 +436,26 @@ const envSchema = z
       });
     }
   });
+
+/** Microsoft's public and national-cloud sign-in and Graph hosts. */
+const MICROSOFT_HOSTS = [
+  'login.microsoftonline.com',
+  'graph.microsoft.com',
+  'login.microsoftonline.us',
+  'graph.microsoft.us',
+  'dod-graph.microsoft.us',
+  'login.partner.microsoftonline.cn',
+  'microsoftgraph.chinacloudapi.cn',
+];
+
+function isMicrosoftHost(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && MICROSOFT_HOSTS.includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
 
 export type Env = z.infer<typeof envSchema>;
 

@@ -23,6 +23,7 @@ export function ProjectTabs({
   showBoq = false,
   showDesign = false,
   showEquipment = false,
+  showMeetings = false,
   unreadCount = 0,
   pendingApprovals = 0,
 }: {
@@ -61,6 +62,8 @@ export function ProjectTabs({
   showDesign?: boolean;
   /** Equipment needs `equipment.view`, `.log` or `.manage`; the cost on it needs `.view`. */
   showEquipment?: boolean;
+  /** Site meetings need `meetings.view`. */
+  showMeetings?: boolean;
   unreadCount?: number;
   pendingApprovals?: number;
 }) {
@@ -98,6 +101,7 @@ export function ProjectTabs({
           : []),
         ...(showDocuments ? [{ key: 'documents', label: t('Documents') }] : []),
         ...(showDesign ? [{ key: 'design', label: t('RFIs & submittals') }] : []),
+        ...(showMeetings ? [{ key: 'meetings', label: t('Meetings') }] : []),
       ],
     },
     {

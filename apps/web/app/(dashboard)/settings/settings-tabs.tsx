@@ -22,6 +22,8 @@ const TABS: Array<{ href: string; label: string; permission?: string; ownerOnly?
   // only what being the owner or a group admin allows.
   { href: '/settings/group', label: 'Company group' },
   { href: '/settings/audit', label: 'Audit log', permission: 'audit.view' },
+  // Microsoft 365: whoever holds it chooses the mailbox every email goes out from.
+  { href: '/settings/integrations', label: 'Integrations', permission: 'integrations.manage' },
   // Single sign-on today; two-factor, sessions and IP rules join it as sections of the same page.
   { href: '/settings/security', label: 'Security', ownerOnly: true },
   // Paying for the plan: priced in the company's currency, or by bank-transfer invoice.

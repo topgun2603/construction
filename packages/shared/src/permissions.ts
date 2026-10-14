@@ -158,6 +158,14 @@ export const PERMISSIONS = [
   'equipment.manage',
   'equipment.log',
 
+  /*
+   * Site meetings (roadmap Phase 3, "Calendar and email"): the agenda, the minutes and the action
+   * items. Viewing is everybody on the job who should know what was agreed; managing is booking the
+   * meeting, sending the invites and the minutes — which go out from the company's own mailbox.
+   */
+  'meetings.view',
+  'meetings.manage',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -195,6 +203,11 @@ export const PERMISSIONS = [
   'team.manage',
   'roles.manage',
   'tenant.manage',
+  /*
+   * Connect the company's Microsoft 365 mailbox and calendar. Owner-only by default: whoever holds
+   * it decides which mailbox the product sends as, which is the company's name on every email.
+   */
+  'integrations.manage',
   /*
    * Read the audit log: every change anybody made, with the before and after. Owner-only by
    * default — it shows salaries, payments and who touched them, which is exactly what makes it
@@ -492,6 +505,17 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Meetings',
+    items: [
+      { permission: 'meetings.view', label: 'See site meetings, their minutes and action items' },
+      {
+        permission: 'meetings.manage',
+        label: 'Book site meetings, write the minutes and send them',
+        note: 'Invites and minutes go out from the connected Microsoft 365 mailbox',
+      },
+    ],
+  },
+  {
     group: 'Equipment',
     items: [
       {
@@ -576,6 +600,11 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
       { permission: 'team.manage', label: 'Invite and remove people' },
       { permission: 'roles.manage', label: 'Create and edit roles' },
       { permission: 'tenant.manage', label: 'Change company details and plan' },
+      {
+        permission: 'integrations.manage',
+        label: 'Connect Microsoft 365',
+        note: 'Chooses the mailbox emails are sent from',
+      },
       {
         permission: 'audit.view',
         label: 'Read and export the audit log',
@@ -675,6 +704,9 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'equipment.view',
     'equipment.manage',
     'equipment.log',
+    // Runs the site meetings: books them, keeps the minutes, chases the actions.
+    'meetings.view',
+    'meetings.manage',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -730,6 +762,8 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Logs the machines on their site each day — hours, meter, fuel. What a machine costs is not
     // theirs to see, the same as a subcontract's rates.
     'equipment.log',
+    // Sits in the site meetings and is given actions in them; booking and minuting is the manager's.
+    'meetings.view',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.

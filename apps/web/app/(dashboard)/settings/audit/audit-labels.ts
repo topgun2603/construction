@@ -90,6 +90,12 @@ export const ENTITY_LABELS: Record<string, string> = {
   equipment_maintenance: 'Machine service or repair',
   equipment_documents: 'Machine document',
   equipment_hire_bookings: 'Booked hire invoice',
+  // Microsoft 365 and site meetings
+  integration_m365_connections: 'Microsoft 365 connection',
+  email_deliveries: 'Email sent',
+  meetings: 'Site meeting',
+  meeting_attendees: 'Meeting attendee',
+  meeting_action_items: 'Meeting action item',
 };
 
 /** The entity filter: the tables people most often go looking through, in the order they think. */

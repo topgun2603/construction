@@ -407,6 +407,15 @@ model Tenant {
   // Plans paid by bank transfer
   planBankTransferInvoices PlanBankTransferInvoice[]
 
+  // Microsoft 365 email and calendar, and site meetings
+  m365Connection     IntegrationM365Connection?
+  m365AuthRequests   IntegrationM365AuthRequest[]
+  m365CalendarEvents IntegrationM365CalendarEvent[]
+  emailDeliveries    EmailDelivery[]
+  meetings           Meeting[]
+  meetingAttendees   MeetingAttendee[]
+  meetingActionItems MeetingActionItem[]
+
   @@map("tenants")
 }
 
@@ -638,6 +647,9 @@ model Project {
   equipmentFuel         EquipmentFuel[]
   equipmentMaintenance  EquipmentMaintenance[]
   equipmentHireBookings EquipmentHireBooking[]
+
+  // Site meetings
+  meetings Meeting[]
 
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
@@ -5229,4 +5241,189 @@ model PlanBankTransferInvoice {
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([status, createdAt])
   @@map("plan_bank_transfer_invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Microsoft 365 email and calendar, and site meetings (roadmap Phase 3, "Calendar and email")
+// ---------------------------------------------------------------------------
+
+/// The company's connected Microsoft 365 mailbox: what the product sends email as and writes calendar
+/// events to, through Microsoft Graph with delegated permissions. At most one per company.
+///
+/// Tokens are AES-256-GCM (FieldCipher) under M365_ENCRYPTION_KEY and named `_cipher` so the audit
+/// log redacts them. The access token is kept too, so every process shares one rather than each
+/// refreshing its own; the audit trigger skips it, as it changes every hour.
+model IntegrationM365Connection {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String    @unique @map("tenant_id") @db.Uuid
+  /// connected | needs_reconnect — see M365_CONNECTION_STATUSES.
+  status                String    @default("connected")
+  /// The mailbox signed in at connect: what every email is sent from.
+  mailboxEmail          String    @map("mailbox_email")
+  mailboxName           String?   @map("mailbox_name")
+  /// Graph's id for that user, so a reconnect as somebody else is noticed.
+  msUserId              String?   @map("ms_user_id")
+  /// The scopes Microsoft actually granted, space separated.
+  scopes                String
+  refreshTokenCipher    String    @map("refresh_token_cipher")
+  /// When the stored refresh token was last replaced. Microsoft issues a new one on every refresh;
+  /// it is stored at most daily, so the audit log is not a list of hourly token swaps.
+  refreshTokenRotatedAt DateTime  @default(now()) @map("refresh_token_rotated_at") @db.Timestamptz(6)
+  accessTokenCipher     String?   @map("access_token_cipher")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  /// Put milestones and RFI due dates in the mailbox's calendar.
+  calendarSync          Boolean   @default(false) @map("calendar_sync")
+  calendarSyncedAt      DateTime? @map("calendar_synced_at") @db.Timestamptz(6)
+  /// Why it stopped working, in Microsoft's words, when it did.
+  lastError             String?   @map("last_error")
+  lastUsedAt            DateTime? @map("last_used_at") @db.Timestamptz(6)
+  connectedByUserId     String?   @map("connected_by_user_id") @db.Uuid
+  connectedAt           DateTime  @default(now()) @map("connected_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("integration_m365_connections")
+}
+
+/// One "Connect Microsoft 365" in flight: the state the callback must present (only its SHA-256)
+/// and the PKCE verifier. Belongs to the person who started it; single use; ten minutes long.
+model IntegrationM365AuthRequest {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  stateHash          String    @unique @map("state_hash")
+  /// The PKCE code verifier, encrypted. Named `_cipher` so nothing ever logs it.
+  pkceVerifierCipher String    @map("pkce_verifier_cipher")
+  expiresAt          DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt             DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("integration_m365_auth_requests")
+}
+
+/// A calendar event the sync made, so the next sync updates it rather than adding another.
+/// `fingerprint` is a hash of what the event says; unchanged, the sync does not call Graph at all.
+model IntegrationM365CalendarEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  /// milestone | rfi_due — see M365_CALENDAR_SOURCES.
+  sourceType   String   @map("source_type")
+  sourceId     String   @map("source_id") @db.Uuid
+  graphEventId String   @map("graph_event_id")
+  fingerprint  String
+  syncedAt     DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sourceType, sourceId])
+  @@map("integration_m365_calendar_events")
+}
+
+/// Every email the product sent (or tried to) through the connected mailbox: to whom, about what,
+/// and what Microsoft said. Graph's sendMail returns no message id, so `providerRequestId` is the
+/// `request-id` Microsoft gave the call — what their support asks for — and our own id travels in an
+/// `X-Buildr-Delivery-Id` header on the message.
+model EmailDelivery {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  /// One of M365_EMAIL_KINDS.
+  kind              String
+  /// rfi | submittal | change_order | meeting — the record it was about, when there is one.
+  entityType        String?   @map("entity_type")
+  entityId          String?   @map("entity_id") @db.Uuid
+  projectId         String?   @map("project_id") @db.Uuid
+  fromEmail         String    @map("from_email")
+  toEmails          String[]  @map("to_emails")
+  ccEmails          String[]  @default([]) @map("cc_emails")
+  subject           String
+  /// sent | failed
+  status            String
+  providerRequestId String?   @map("provider_request_id")
+  error             String?
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(6)
+  sentByUserId      String?   @map("sent_by_user_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, createdAt])
+  @@map("email_deliveries")
+}
+
+/// A site meeting: when, who, the agenda, and afterwards the minutes and action items.
+model Meeting {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  projectId       String    @map("project_id") @db.Uuid
+  title           String
+  startsAt        DateTime  @map("starts_at") @db.Timestamptz(6)
+  endsAt          DateTime  @map("ends_at") @db.Timestamptz(6)
+  location        String?
+  agenda          String?
+  minutes         String?
+  /// scheduled | held | cancelled — see MEETING_STATUSES.
+  status          String    @default("scheduled")
+  /// The Outlook event the invite created, so a second "Send invite" updates it.
+  graphEventId    String?   @map("graph_event_id")
+  inviteSentAt    DateTime? @map("invite_sent_at") @db.Timestamptz(6)
+  minutesSentAt   DateTime? @map("minutes_sent_at") @db.Timestamptz(6)
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  attendees   MeetingAttendee[]
+  actionItems MeetingActionItem[]
+
+  @@index([tenantId, projectId, startsAt])
+  @@map("meetings")
+}
+
+/// Somebody asked to the meeting: a team member (`userId`, their address read at send time) or an
+/// outside address (the architect, the client's engineer).
+model MeetingAttendee {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  meetingId String   @map("meeting_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  email     String?
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@map("meeting_attendees")
+}
+
+/// Something agreed at the meeting, with who does it and by when.
+model MeetingActionItem {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  meetingId   String    @map("meeting_id") @db.Uuid
+  description String
+  ownerUserId String?   @map("owner_user_id") @db.Uuid
+  ownerName   String?   @map("owner_name")
+  dueOn       DateTime? @map("due_on") @db.Date
+  /// open | done
+  status      String    @default("open")
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([tenantId, ownerUserId, status])
+  @@map("meeting_action_items")
 }

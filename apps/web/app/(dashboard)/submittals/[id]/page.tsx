@@ -4,6 +4,7 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import { SUBMITTAL_TYPE_LABELS } from '@sitebook/shared';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
+import { emailsAbout, m365Status } from '@/lib/m365-status';
 import { requireSelf } from '@/lib/session';
 import { getFormat } from '@/lib/format-server';
 import { getT } from '@/lib/i18n-server';
@@ -34,6 +35,11 @@ export default async function SubmittalPage({ params }: { params: Promise<{ id: 
   const canManage = me.permissions.includes('submittals.manage');
   const current = submittal.revisions.find((revision) => revision.revision === submittal.current_revision);
   const documents = canManage && current?.status === 'draft' ? await rfiDocuments(me.permissions) : [];
+  // Whether "Send by email" is on offer, and what has been emailed about this submittal already.
+  const [m365, emails] = await Promise.all([
+    canManage && submittal.reviewer.kind === 'external' ? m365Status() : Promise.resolve({ connected: false, mailbox: null }),
+    emailsAbout(`/submittals/${id}/emails`),
+  ]);
   const badge = submittalBadge(submittal);
   const reviewer =
     submittal.reviewer.kind === 'client'
@@ -72,6 +78,8 @@ export default async function SubmittalPage({ params }: { params: Promise<{ id: 
           documents={documents}
           canManage={canManage}
           canReview={me.permissions.includes('submittals.review')}
+          m365Connected={m365.connected}
+          emails={emails}
         />
         <Card className="flex h-fit flex-col gap-3 p-4">
           <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[13px]">

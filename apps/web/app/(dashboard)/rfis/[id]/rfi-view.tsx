@@ -26,6 +26,9 @@ import {
   voidRfi,
 } from '@/lib/rfi-actions';
 import type { SiteDocument } from '@/lib/api-types';
+import { emailRfi } from '@/lib/m365-actions';
+import type { M365Delivery } from '@/lib/m365-types';
+import { EmailLog } from '@/components/email-log';
 import type { RfiDetail, RfiFile } from '@/lib/rfi-types';
 import { uploadRfiFiles } from '../file-upload';
 import { ShareLink } from '../share-link';
@@ -63,12 +66,18 @@ export function RfiView({
   canRaiseChangeOrder,
   people,
   documents,
+  m365Connected = false,
+  emails = [],
 }: {
   rfi: RfiDetail;
   canManage: boolean;
   canRaiseChangeOrder: boolean;
   people: Array<{ id: string; name: string }>;
   documents: SiteDocument[];
+  /** The company's Microsoft 365 mailbox is connected: offer "Send by email". */
+  m365Connected?: boolean;
+  /** Emails already sent about this RFI. */
+  emails?: M365Delivery[];
 }) {
   const { t } = useLanguage();
   const { instantDate, timeOfDay } = useFormat();
@@ -98,6 +107,8 @@ export function RfiView({
               sentAt={rfi.link_sent_at}
               mint={() => rfiLink(rfi.id)}
               revoke={() => revokeRfiLinks(rfi.id)}
+              sendEmail={m365Connected && rfi.addressed_to.email ? () => emailRfi(rfi.id) : undefined}
+              emailTo={rfi.addressed_to.email}
             />
           )}
           {rfi.status === 'draft' && (
@@ -156,6 +167,7 @@ export function RfiView({
           )}
         </div>
       )}
+      <EmailLog deliveries={emails} />
 
       <section className="flex flex-col gap-3">
         <h3 className="text-[14px] font-semibold">

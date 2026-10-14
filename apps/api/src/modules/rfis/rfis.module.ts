@@ -23,6 +23,7 @@ import { SubmittalsService } from './submittals.service';
   imports: [AiModule, NotificationsModule, UploadsModule],
   controllers: [RfisController, SubmittalsController, RfiLinksController],
   providers: [RfisService, SubmittalsService, RfiLinksService, RfiRemindersService, SubmittalApprovalsService],
-  exports: [SubmittalApprovalsService, RfiRemindersService],
+  // RfisService and SubmittalsService for Microsoft 365's "send by email", which goes through them.
+  exports: [SubmittalApprovalsService, RfiRemindersService, RfisService, SubmittalsService],
 })
 export class RfisModule {}
