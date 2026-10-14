@@ -8,6 +8,7 @@ import type { AskResult } from '@sitebook/shared';
 import type { SearchHit } from '@/app/api/search/route';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { AiOffNote, useAiBlocked } from '@/components/ai-features';
 
 const ICONS = {
   site: Building2,
@@ -46,12 +47,15 @@ export function SearchCommand() {
   const [asking, setAsking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The company (or the server) switched the assistant off: search still works, asking does not.
+  const assistantOff = useAiBlocked('assistant');
 
   // Worth offering the question row for. Deliberately generous — the cost of offering it on a
   // search is one ignored row; the cost of hiding it is a feature nobody finds.
-  const looksLikeQuestion =
+  const questionShaped =
     query.trim().length > 8 &&
     (query.includes('?') || /^(how|what|when|which|who|show|total)\b/i.test(query.trim()));
+  const looksLikeQuestion = questionShaped && !assistantOff;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -191,7 +195,7 @@ export function SearchCommand() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={onKeyDown}
-              placeholder={t('Search, or ask: how much on steel last month?')}
+              placeholder={assistantOff ? t('Search sites, workers, indents') : t('Search, or ask: how much on steel last month?')}
               className="h-12 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-faint"
             />
             {loading && <Loader2 className="size-4 flex-none animate-spin text-ink-faint" />}
@@ -270,6 +274,8 @@ export function SearchCommand() {
                 );
               })
             )}
+
+            {questionShaped && assistantOff && <AiOffNote feature="assistant" className="px-3 py-2.5" />}
 
             {looksLikeQuestion && !answer && (
               <button

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { FilePlus2, ImagePlus, Loader2, Quote, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { MAX_UPLOAD_BYTES, type VoiceDprResult } from '@sitebook/shared';
+import { MAX_UPLOAD_BYTES, siteTimeToday, type VoiceDprResult } from '@sitebook/shared';
 import { fileDailyReport, presignUpload } from '@/lib/actions';
 import { VoiceNoteButton } from '@/components/voice-note-button';
 import { BilingualTextarea } from '@/components/bilingual-textarea';
@@ -49,14 +49,19 @@ interface Spoken {
 export function FileReportDialog({
   projectId,
   projectName,
+  timeZone,
 }: {
   projectId: string;
   projectName: string;
+  /** The site's own zone, when it keeps one; its "today" is the report's default date. */
+  timeZone?: string | null;
 }) {
   const router = useRouter();
   const { t } = useLanguage();
-  // The company's today, not UTC's: a report filed after 18:30 UTC belongs to the next day in Kolkata.
-  const { todayIso } = useFormat();
+  // The site's today, not UTC's or the head office's: a report filed after 18:30 UTC belongs to
+  // the next day in Kolkata, and a Dubai site of a Mumbai company is still on its own day.
+  const { settings } = useFormat();
+  const todayIso = () => siteTimeToday({ time_zone: timeZone }, settings);
   const [open, setOpen] = useState(false);
   const [photos, setPhotos] = useState<Pending[]>([]);
   /*

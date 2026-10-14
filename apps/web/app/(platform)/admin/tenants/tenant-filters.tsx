@@ -88,6 +88,7 @@ export function TenantFilters({
           { value: 'active', label: t('Active') },
           { value: 'suspended', label: t('Suspended') },
           { value: 'cancelled', label: t('Cancelled') },
+          { value: 'pending_deletion', label: t('Deleting') },
         ]}
         onChange={(value) => push({ status: value })}
       />

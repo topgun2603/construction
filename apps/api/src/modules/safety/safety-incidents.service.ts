@@ -21,8 +21,10 @@ import { can, type RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { siteActor } from '../../common/site-clock';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
   PHOTO_SELECT,
@@ -66,6 +68,7 @@ export class SafetyIncidentsService {
     private readonly notifications: NotificationsService,
     private readonly jobs: JobQueueService,
     private readonly uploads: UploadsService,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   // --- reading -----------------------------------------------------------------------------------
@@ -129,7 +132,9 @@ export class SafetyIncidentsService {
 
   async create(actor: RequestUser, input: CreateSafetyIncidentInput) {
     await this.access.assertAccess(actor, input.project_id);
-    const occurredAt = companyInstant(actor, input.occurred_at);
+    // The time typed is the site's wall clock, and the day it falls on is the site's day.
+    const site = await siteActor(this.tenantDb.clientFor(actor.tenantId), actor, input.project_id);
+    const occurredAt = companyInstant(site, input.occurred_at);
     if (occurredAt.getTime() > Date.now() + 5 * 60_000) {
       throw ApiError.validationFailed({ occurred_at: input.occurred_at }, 'That time is in the future');
     }
@@ -153,7 +158,7 @@ export class SafetyIncidentsService {
             projectId: input.project_id,
             number,
             occurredAt,
-            occurredOn: companyDay(actor, occurredAt),
+            occurredOn: companyDay(site, occurredAt),
             type: input.type,
             severity: input.severity ?? defaultSeverity(input.type),
             title: input.title,
@@ -170,6 +175,7 @@ export class SafetyIncidentsService {
         });
         await this.replacePeople(tx, actor, made.id, input.people ?? []);
         await addPhotos(tx, actor, input.project_id, { incidentId: made.id }, input.photo_keys ?? []);
+        await this.webhooks.safetyIncidentReported(tx, actor.tenantId, made.id);
         return made.id;
       }),
     );
@@ -193,14 +199,15 @@ export class SafetyIncidentsService {
       if (row.status === 'closed') {
         throw ApiError.conflict('This incident is closed. Reopen it to change it.');
       }
-      const occurredAt = input.occurred_at ? companyInstant(actor, input.occurred_at) : undefined;
+      const site = await siteActor(tx, actor, row.projectId);
+      const occurredAt = input.occurred_at ? companyInstant(site, input.occurred_at) : undefined;
       becameSerious =
         input.type !== undefined && safetyIsSerious(input.type) && row.seriousNotifiedAt === null;
 
       await tx.safetyIncident.update({
         where: { id },
         data: {
-          ...(occurredAt ? { occurredAt, occurredOn: companyDay(actor, occurredAt) } : {}),
+          ...(occurredAt ? { occurredAt, occurredOn: companyDay(site, occurredAt) } : {}),
           ...(input.type === undefined ? {} : { type: input.type }),
           ...(input.severity === undefined ? {} : { severity: input.severity }),
           ...(input.title === undefined ? {} : { title: input.title }),
@@ -377,7 +384,10 @@ export class SafetyIncidentsService {
     if (!incident) return;
     const label = SAFETY_INCIDENT_TYPE_LABELS[incident.type as SafetyIncidentType];
     const number = safetyNumber('INC', incident.number);
-    const when = companyLocal(actor, incident.occurredAt).replace('T', ' ');
+    const when = companyLocal(
+      await siteActor(this.tenantDb.clientFor(actor.tenantId), actor, incident.projectId),
+      incident.occurredAt,
+    ).replace('T', ' ');
     const notice = {
       tenantId: actor.tenantId,
       type: 'safety_incident.serious',
@@ -467,6 +477,7 @@ export class SafetyIncidentsService {
     names: Names,
   ) {
     const today = companyToday(actor);
+    const site = await siteActor(this.tenantDb.clientFor(actor.tenantId), actor, row.projectId);
     const photos = await Promise.all(
       row.photos.map(async (photo) => ({
         ...photoView(photo, names),
@@ -478,7 +489,7 @@ export class SafetyIncidentsService {
       number: safetyNumber('INC', row.number),
       project: row.project,
       occurred_at: row.occurredAt.toISOString(),
-      occurred_local: companyLocal(actor, row.occurredAt),
+      occurred_local: companyLocal(site, row.occurredAt),
       occurred_on: isoDay(row.occurredOn),
       type: row.type,
       severity: row.severity,

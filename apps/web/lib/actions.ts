@@ -45,7 +45,9 @@ import type {
  * only the cookies would leave a stolen refresh token usable for 30 days.
  */
 export async function signOut(): Promise<never> {
-  await runAction(() => serverFetch('/auth/logout', { method: 'POST' }));
+  // `throw`, not the default redirect: a refusal here (a company scheduled for deletion sends its
+  // members to another page) must not skip clearing the cookies below.
+  await runAction(() => serverFetch('/auth/logout', { method: 'POST', onUnauthenticated: 'throw' }));
 
   const jar = await cookies();
   jar.delete(ACCESS_COOKIE);
@@ -616,6 +618,8 @@ export async function updateCompanySettings(input: {
   /** UAE WPS ids; null clears one. Left out, they are not touched. */
   wps_employer_id?: string | null;
   wps_bank_code?: string | null;
+  /** Saudi WPS (Mudad) establishment number; null clears it. */
+  mudad_establishment_id?: string | null;
 }): Promise<ActionResult<CompanySettings>> {
   const result = await runAction(() =>
     serverFetch<CompanySettings>('/tenants/current', { method: 'PATCH', body: input }),

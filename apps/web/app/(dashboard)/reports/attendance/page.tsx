@@ -61,6 +61,7 @@ export default async function AttendanceRegisterPage({
         to={to}
         isOwnerOrAccounts={isOwnerOrAccounts}
         showTax={canSeeTaxReport(me)}
+        showAccounting={me.permissions.includes('accounting.export')}
         maxDays={ATTENDANCE_REGISTER_MAX_DAYS}
       />
 

@@ -27,7 +27,30 @@ export interface AccessTokenClaims extends JwtPayload {
    * except switch, and get it on their next sign-in.
    */
   idn?: string;
+  /**
+   * How the identity was verified, when that matters: `sso` for a company's own identity provider.
+   * Absent for phone OTP and Firebase email/Google. Carried forward like `idn`, because a company
+   * that enforces single sign-on refuses to refresh or switch a session that did not come from it.
+   */
+  via?: SessionVia;
+  /**
+   * The `user_sessions` row this token belongs to — what "sign out this device", the idle timeout
+   * and a verified second factor hang off. Absent only on tokens from before sessions existed.
+   */
+  sid?: string;
+  /**
+   * A second factor was shown for this session (authenticator code, recovery code, a Firebase
+   * second factor, or a trusted identity provider). Read from the session row at every issue and
+   * refresh, never carried from token to token, so removing an authenticator ends it at the next
+   * refresh.
+   */
+  mfa?: true;
+  /** The session began in the mobile app (it sent a device id). What an IP list in web mode skips. */
+  app?: true;
 }
+
+/** See `AccessTokenClaims.via`. */
+export type SessionVia = 'sso';
 
 export interface RefreshTokenClaims extends JwtPayload {
   sub: string;
@@ -36,6 +59,10 @@ export interface RefreshTokenClaims extends JwtPayload {
   jti: string;
   /** See `AccessTokenClaims.idn`. Signed into the refresh token so rotation can carry it forward. */
   idn?: string;
+  /** See `AccessTokenClaims.via`. */
+  via?: SessionVia;
+  /** See `AccessTokenClaims.sid`. */
+  sid?: string;
 }
 
 /**
@@ -79,6 +106,14 @@ export interface RfiLinkClaims extends JwtPayload {
   purpose: 'rfi_link';
 }
 
+/** A single sign-on in flight: the state sent to the provider, or the ticket handed back after. */
+export interface SsoFlowClaims extends JwtPayload {
+  tenant_id: string;
+  /** The `sso_login_requests` row. */
+  rid: string;
+  purpose: 'sso_state' | 'sso_ticket';
+}
+
 /** Short-lived ticket proving a phone passed OTP but has no tenant yet. */
 export interface OnboardingTokenClaims extends JwtPayload {
   phone: string;
@@ -107,6 +142,12 @@ export class TokenService {
     roleId?: string | null;
     projectIds: string[];
     identity?: string | null;
+    via?: SessionVia | null;
+    sessionId?: string | null;
+    mfa?: boolean;
+    app?: boolean;
+    /** Lifetime in seconds; `accessTtlUntil` cuts it to a session's absolute deadline. */
+    ttlSeconds?: number;
   }): string {
     return jwt.sign(
       {
@@ -115,15 +156,30 @@ export class TokenService {
         role_id: input.roleId ?? null,
         project_ids: input.projectIds,
         ...(input.identity ? { idn: input.identity } : {}),
+        ...(input.via ? { via: input.via } : {}),
+        ...(input.sessionId ? { sid: input.sessionId } : {}),
+        ...(input.mfa ? { mfa: true } : {}),
+        ...(input.app ? { app: true } : {}),
       },
       this.config.JWT_SECRET,
       {
         subject: input.userId,
         issuer: ISSUER,
         audience: 'api',
-        expiresIn: this.accessTokenTtlSeconds,
+        expiresIn: input.ttlSeconds ?? this.accessTokenTtlSeconds,
       },
     );
+  }
+
+  /**
+   * The access-token lifetime for a session that must end at `deadline` (a company's absolute
+   * session limit): the usual fifteen minutes, or less, so no token outlives its session. At least
+   * one second — a session past its deadline is refused before a token is ever signed.
+   */
+  accessTtlUntil(deadline: Date | null): number {
+    if (!deadline) return this.accessTokenTtlSeconds;
+    const left = Math.floor((deadline.getTime() - Date.now()) / 1000);
+    return Math.max(1, Math.min(this.accessTokenTtlSeconds, left));
   }
 
   verifyAccessToken(token: string): AccessTokenClaims {
@@ -136,7 +192,13 @@ export class TokenService {
    * the row can be read. The signature carries it. Only the hash is stored, so a
    * leaked database still cannot mint a session.
    */
-  signRefreshToken(input: { userId: string; tenantId: string; identity?: string | null }): {
+  signRefreshToken(input: {
+    userId: string;
+    tenantId: string;
+    identity?: string | null;
+    via?: SessionVia | null;
+    sessionId?: string | null;
+  }): {
     token: string;
     jti: string;
     tokenHash: string;
@@ -146,6 +208,8 @@ export class TokenService {
     const payload = {
       tenant_id: input.tenantId,
       ...(input.identity ? { idn: input.identity } : {}),
+      ...(input.via ? { via: input.via } : {}),
+      ...(input.sessionId ? { sid: input.sessionId } : {}),
     };
     const token = jwt.sign(payload, this.config.JWT_REFRESH_SECRET, {
       subject: input.userId,
@@ -259,6 +323,57 @@ export class TokenService {
     return claims;
   }
 
+  /**
+   * The `state` (OIDC) or `RelayState` (SAML) sent to a company's identity provider and handed back
+   * on the callback.
+   *
+   * Signed rather than a random lookup key because the callback arrives with no tenant context and
+   * `sso_login_requests` is behind RLS — the same reason refresh tokens are JWTs. It names the
+   * company and the stored request; everything that must stay secret (the PKCE verifier, the nonce
+   * the id_token must echo) is in that row, never in the URL. Its own audience keeps it from being
+   * presented as anything else, and the row is single-use, so a replayed state goes nowhere.
+   */
+  signSsoState(input: { tenantId: string; requestId: string }): string {
+    return jwt.sign(
+      { tenant_id: input.tenantId, rid: input.requestId, purpose: 'sso_state' },
+      this.config.JWT_SECRET,
+      { issuer: ISSUER, audience: 'sso_state', expiresIn: SSO_STATE_TTL_SECONDS },
+    );
+  }
+
+  verifySsoState(token: string): SsoFlowClaims {
+    const claims = this.verify<SsoFlowClaims>(token, this.config.JWT_SECRET, 'sso_state');
+    if (claims.purpose !== 'sso_state' || !claims.tenant_id || !claims.rid) {
+      throw ApiError.invalidToken('Not a sign-in state');
+    }
+    return claims;
+  }
+
+  /**
+   * The one-time ticket the callback hands the login page, in the URL fragment, to swap for a token
+   * pair. Two minutes: it only has to survive one redirect and one request. Single use is the
+   * stored request's status, and the swap also demands the browser binding sent at the start.
+   */
+  signSsoTicket(input: { tenantId: string; requestId: string }): string {
+    return jwt.sign(
+      { tenant_id: input.tenantId, rid: input.requestId, purpose: 'sso_ticket' },
+      this.config.JWT_SECRET,
+      { issuer: ISSUER, audience: 'sso_ticket', expiresIn: SSO_TICKET_TTL_SECONDS },
+    );
+  }
+
+  verifySsoTicket(token: string): SsoFlowClaims {
+    const claims = this.verify<SsoFlowClaims>(token, this.config.JWT_SECRET, 'sso_ticket');
+    if (claims.purpose !== 'sso_ticket' || !claims.tenant_id || !claims.rid) {
+      throw ApiError.invalidToken('Not a sign-in ticket');
+    }
+    return claims;
+  }
+
+  get ssoStateTtlSeconds(): number {
+    return SSO_STATE_TTL_SECONDS;
+  }
+
   get rfiLinkTtlSeconds(): number {
     return RFI_LINK_TTL_SECONDS;
   }
@@ -313,6 +428,11 @@ const WORKER_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /** Thirty days. See `signRfiLink`. */
 const RFI_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+/** Ten minutes at the identity provider: long enough for a password and an MFA prompt. */
+const SSO_STATE_TTL_SECONDS = 10 * 60;
+/** See `signSsoTicket`. */
+const SSO_TICKET_TTL_SECONDS = 2 * 60;
 
 /** Stored so a database dump cannot be replayed as a session. */
 export function hashToken(token: string): string {

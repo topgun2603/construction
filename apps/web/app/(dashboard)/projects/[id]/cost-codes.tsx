@@ -40,6 +40,8 @@ import { amountToMinorString, minorToAmountInput } from '@/lib/money-input';
 import { useFormat } from '@/components/format-provider';
 import { useLanguage } from '@/components/language-provider';
 import { DeleteRowButton } from '@/components/delete-row-button';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -164,6 +166,7 @@ export function CostCodesTab({
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <ApplyTemplate projectId={projectId} templates={templates} />
                 <ImportDialog projectId={projectId} />
+                <ImportWizard kind="cost_codes" projectId={projectId} label={t('Import from Excel')} />
                 <CostCodeDialog projectId={projectId} lines={report.lines} />
               </div>
             ) : undefined
@@ -231,11 +234,14 @@ export function CostCodesTab({
           <Download className="size-4" />
           {t('Export CSV')}
         </Button>
+        <ExportMenu kind="cost_codes" filters={{ project_id: projectId }} label={t('Export codes')} />
         {canManage && (
           <>
             <SaveAsTemplate projectId={projectId} projectName={projectName} />
             <ApplyTemplate projectId={projectId} templates={templates} />
             <ImportDialog projectId={projectId} />
+            {/* The CSV import above stays; this one also reads .xlsx, maps columns and previews. */}
+            <ImportWizard kind="cost_codes" projectId={projectId} label={t('Import from Excel')} />
             <CostCodeDialog projectId={projectId} lines={report.lines} />
           </>
         )}

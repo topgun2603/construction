@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import OpenAI from 'openai';
 import { z } from 'zod';
 import { RFI_DISCIPLINES, type RfiAiDraft } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
+import { AiGateway } from './ai-gateway.service';
 
 /** The only shape a model's reply may take. Anything else is thrown away, not trusted. */
 const rfiReplySchema = z.object({
@@ -25,18 +25,20 @@ const rfiReplySchema = z.object({
 export class RfiReader {
   private readonly logger = new Logger(RfiReader.name);
   private readonly config = env();
-  private client?: OpenAI;
 
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
+  constructor(private readonly gateway: AiGateway) {}
 
-  async tidy(question: string, subject?: string): Promise<RfiAiDraft> {
-    if (!this.enabled) throw ApiError.conflict('Drafting RFIs with AI is not configured on this deployment');
+
+  async tidy(tenantId: string, question: string, subject?: string): Promise<RfiAiDraft> {
+    const client = await this.gateway.client(
+      tenantId,
+      'suggestions',
+      'Drafting RFIs with AI is not configured on this deployment',
+    );
 
     let raw: string;
     try {
-      const response = await this.openai().chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_ASK_MODEL,
         temperature: 0,
         max_tokens: 700,
@@ -77,8 +79,4 @@ export class RfiReader {
     return parsed.data;
   }
 
-  private openai(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-    return this.client;
-  }
 }

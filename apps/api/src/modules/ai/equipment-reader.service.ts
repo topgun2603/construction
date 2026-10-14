@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import OpenAI from 'openai';
 import { currencyMinorDigits, presetFor } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
 import type { BillCompany } from './bill-reader.service';
+import { AiGateway } from './ai-gateway.service';
 
 /** What a meter photo said, before anybody confirms it. */
 export interface MeterReadingDraft {
@@ -35,14 +35,13 @@ export interface FuelBillDraft {
 export class EquipmentReader {
   private readonly logger = new Logger(EquipmentReader.name);
   private readonly config = env();
-  private client?: OpenAI;
 
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
+  constructor(private readonly gateway: AiGateway) {}
 
-  async readMeter(file: Buffer, contentType: string): Promise<MeterReadingDraft> {
+
+  async readMeter(tenantId: string, file: Buffer, contentType: string): Promise<MeterReadingDraft> {
     const raw = await this.ask(
+      tenantId,
       file,
       contentType,
       `You read photographs of the hour meter or odometer on construction machinery and vehicles, and return JSON.
@@ -65,10 +64,11 @@ Use null for anything you cannot read with confidence. Do not guess a digit that
     };
   }
 
-  async readFuelBill(file: Buffer, contentType: string, company: BillCompany): Promise<FuelBillDraft> {
+  async readFuelBill(tenantId: string, file: Buffer, contentType: string, company: BillCompany): Promise<FuelBillDraft> {
     const country = presetFor(company.country)?.name ?? company.country;
     const digits = currencyMinorDigits(company.currency);
     const raw = await this.ask(
+      tenantId,
       file,
       contentType,
       `You read photographs of fuel pump slips and diesel bills for a construction company in ${country}, and return JSON.
@@ -101,10 +101,12 @@ Use null for anything you cannot read with confidence. Do not calculate litres f
   }
 
   /** One vision call returning parsed JSON, or a conflict the form turns into "enter it by hand". */
-  private async ask(file: Buffer, contentType: string, system: string, prompt: string): Promise<unknown> {
-    if (!this.enabled) {
-      throw ApiError.conflict('Reading photos is not configured on this deployment. Enter it by hand.');
-    }
+  private async ask(tenantId: string, file: Buffer, contentType: string, system: string, prompt: string): Promise<unknown> {
+    await this.gateway.assertEnabled(
+      tenantId,
+      'reading',
+      'Reading photos is not configured on this deployment. Enter it by hand.',
+    );
     if (!contentType.startsWith('image/')) {
       throw ApiError.validationFailed({ s3_key: 'not a photo' }, 'That file is not a photograph.');
     }
@@ -112,8 +114,8 @@ Use null for anything you cannot read with confidence. Do not calculate litres f
     const dataUrl = `data:${contentType};base64,${file.toString('base64')}`;
     let raw: string;
     try {
-      this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-      const response = await this.client.chat.completions.create({
+      const client = await this.gateway.client(tenantId, 'reading');
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_VISION_MODEL,
         temperature: 0,
         max_tokens: 200,

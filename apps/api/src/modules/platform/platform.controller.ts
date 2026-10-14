@@ -45,6 +45,7 @@ import { PlatformGuard, type PlatformRequest } from './platform.guard';
 import { PlansService } from '../plans/plans.service';
 import { PlatformOperators } from './platform-operators.service';
 import { PlatformService } from './platform.service';
+import { PlatformDeletions } from './platform-deletions.service';
 
 /**
  * The platform console API (spec §6.1: "Superadmin operations use a separate role that
@@ -65,6 +66,7 @@ export class PlatformController {
     private readonly analytics: PlatformAnalytics,
     private readonly operators: PlatformOperators,
     private readonly plans: PlansService,
+    private readonly platformDeletions: PlatformDeletions,
   ) {}
 
   /**
@@ -150,6 +152,31 @@ export class PlatformController {
     return this.platform.supportView(actor(request), id);
   }
 
+  /** A company's AI switches, region and usage — read-only; see `PlatformService.tenantAi`. */
+  @UseGuards(PlatformGuard)
+  @Get('tenants/:id/ai')
+  @ApiOperation({ summary: 'A company’s AI settings and usage (read-only)' })
+  tenantAi(@Param('id', ParseUUIDPipe) id: string) {
+    return this.platform.tenantAi(id);
+  }
+
+  /**
+   * The break-glass for a lost phone: removes a person's authenticator app and recovery codes and
+   * ends their sessions, so their next sign-in sets up a new one. Audited in the console's log and
+   * in the company's own. The operator never sees or sets a secret.
+   */
+  @UseGuards(PlatformGuard)
+  @Post('tenants/:id/users/:userId/mfa-reset')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset a person’s two-factor authentication' })
+  resetUserMfa(
+    @Req() request: PlatformRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.platform.resetUserMfa(actor(request), id, userId);
+  }
+
   @UseGuards(PlatformGuard)
   @Get('tenants/:id/export')
   @ApiOperation({ summary: 'Everything this tenant owns, as JSON' })
@@ -170,6 +197,36 @@ export class PlatformController {
     @Body(zodBody(deleteTenantSchema)) body: DeleteTenantInput,
   ) {
     return this.platform.deleteTenant(actor(request), id, body.confirm_name);
+  }
+
+  /** Companies waiting out their deletion grace period, and the certificates of those deleted. */
+  @UseGuards(PlatformGuard)
+  @Get('deletions')
+  @ApiOperation({ summary: 'Pending company deletions and deletion certificates' })
+  deletions() {
+    return this.platformDeletions.overview();
+  }
+
+  /** Restores a company whose owner asked for it to be deleted. */
+  @UseGuards(PlatformGuard)
+  @Post('tenants/:id/deletion/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel a scheduled company deletion' })
+  cancelDeletion(@Req() request: PlatformRequest, @Param('id', ParseUUIDPipe) id: string) {
+    return this.platformDeletions.cancel(actor(request), id);
+  }
+
+  /** Deletes a company now instead of at the end of its grace period. The name is typed back. */
+  @UseGuards(PlatformGuard)
+  @Post('tenants/:id/deletion/expedite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Carry out a scheduled company deletion now' })
+  expediteDeletion(
+    @Req() request: PlatformRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(zodBody(deleteTenantSchema)) body: DeleteTenantInput,
+  ) {
+    return this.platformDeletions.expedite(actor(request), id, body.confirm_name);
   }
 
   /**

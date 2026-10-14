@@ -30,6 +30,7 @@ import {
 } from '../cost-codes/cost-commitments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ApprovalLimitsService } from './approval-limits.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 
 const LINE_SELECT = {
   id: true,
@@ -146,6 +147,7 @@ export class PurchaseOrdersService implements CommitmentSource {
     private readonly access: ProjectAccess,
     private readonly limits: ApprovalLimitsService,
     private readonly notifications: NotificationsService,
+    private readonly webhooks: WebhookEvents,
     commitments: CostCommitmentsService,
   ) {
     commitments.register(this);
@@ -466,7 +468,10 @@ export class PurchaseOrdersService implements CommitmentSource {
             }
           : { status: 'pending_approval', submittedAt: new Date(), decisionNote: null },
       });
-      if (selfApproved) await this.onApproved(tx, order.indentId);
+      if (selfApproved) {
+        await this.onApproved(tx, order.indentId);
+        await this.webhooks.purchaseOrderApproved(tx, actor.tenantId, id);
+      }
 
       const approvers = selfApproved
         ? []
@@ -529,6 +534,7 @@ export class PurchaseOrdersService implements CommitmentSource {
         },
       });
       await this.onApproved(tx, order.indentId);
+      await this.webhooks.purchaseOrderApproved(tx, actor.tenantId, id);
       return orderView(await this.load(tx, actor, id), true);
     });
     await this.safeNotify({

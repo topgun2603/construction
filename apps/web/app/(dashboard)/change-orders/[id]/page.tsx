@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { CHANGE_ORDER_REASON_LABELS } from '@sitebook/shared';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
+import { emailsAbout, m365Status } from '@/lib/m365-status';
 import { requireSelf } from '@/lib/session';
 import { getFormat } from '@/lib/format-server';
 import { getT } from '@/lib/i18n-server';
@@ -11,8 +12,10 @@ import type { SiteDocument } from '@/lib/api-types';
 import type { ChangeOrderDetail } from '@/lib/change-order-types';
 import { Badge } from '@/components/ui/badge';
 import { FadeIn } from '@/components/motion';
+import { EmailLog } from '@/components/email-log';
 import { CHANGE_ORDER_STATUS, changeOrderDaysText } from '../labels';
 import { ChangeOrderView } from './change-order-view';
+import { EmailClientButton } from './email-client-button';
 
 export const metadata = { title: 'Change order · BUILDR' };
 
@@ -46,6 +49,12 @@ export default async function ChangeOrderPage({ params }: { params: Promise<{ id
           .catch(() => [] as SiteDocument[])
       : [];
   const status = CHANGE_ORDER_STATUS[changeOrder.status];
+  // Waiting on the client, a mailbox connected: offer to tell them by email as well.
+  const canEmail = changeOrder.status === 'sent' && (canManage || can('change_orders.approve'));
+  const [m365, emails] = await Promise.all([
+    canEmail ? m365Status() : Promise.resolve({ connected: false, mailbox: null }),
+    emailsAbout(`/change-orders/${id}/emails`),
+  ]);
 
   return (
     <FadeIn className="flex flex-col gap-5">
@@ -89,6 +98,15 @@ export default async function ChangeOrderPage({ params }: { params: Promise<{ id
           ownSubmission: changeOrder.submitted_by?.id === me.user.id && me.user.role !== 'owner',
         }}
       />
+      {canEmail && m365.connected && (
+        <div className="flex flex-wrap items-center gap-2">
+          <EmailClientButton id={changeOrder.id} />
+          <span className="text-[12.5px] text-ink-muted">
+            {t('Tells the site’s client users by email that this is waiting in their approvals.')}
+          </span>
+        </div>
+      )}
+      <EmailLog deliveries={emails} />
     </FadeIn>
   );
 }

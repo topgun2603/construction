@@ -22,6 +22,8 @@ import { env } from '../../config/env';
 import { PlansService } from '../plans/plans.service';
 import { SYSTEM_ROLE_NAMES } from '../tenants/tenants.service';
 import { PlatformDb } from './platform-db.service';
+import { AiGateway } from '../ai/ai-gateway.service';
+import { aiModelsByFeature, aiPresentUsage, aiUsageSince } from '../ai/ai-settings.service';
 
 export interface TenantRow {
   id: string;
@@ -61,6 +63,7 @@ export class PlatformService {
   constructor(
     private readonly db: PlatformDb,
     private readonly plans: PlansService,
+    private readonly ai: AiGateway,
   ) {}
 
   /**
@@ -443,6 +446,11 @@ export class PlatformService {
       select: { id: true, name: true, plan: true, status: true, enabledModules: true },
     });
     if (!before) throw ApiError.notFound('Tenant');
+    // A company waiting to be deleted leaves that state only by its deletion being cancelled (or
+    // carried out), which keeps the request row, the sign-outs and both audit logs in step.
+    if (input.status && before.status === 'pending_deletion') {
+      throw ApiError.conflict('This company is scheduled for deletion. Cancel the deletion to change its status.');
+    }
 
     const modules =
       input.enabled_modules ??
@@ -632,6 +640,83 @@ export class PlatformService {
         expenses_waiting: pendingExpenses,
       },
     };
+  }
+
+  /**
+   * A company's AI settings and the last 30 days of usage, read-only.
+   *
+   * The console never changes a company's own switches — that is the owner's decision, and the
+   * audit trail on `ai_settings` should only ever show the company's people. What the operator has
+   * instead is `AI_DISABLED_FEATURES`, the kill switch for every company, shown here beside them so
+   * a support call about "the scan button disappeared" can be answered from one screen.
+   */
+  async tenantAi(tenantId: string) {
+    const prisma = this.db.client;
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+    if (!tenant) throw ApiError.notFound('Tenant');
+
+    const [settings, usage] = await Promise.all([
+      prisma.aiSettings.findUnique({ where: { tenantId } }),
+      prisma.aiUsageDaily.findMany({ where: { tenantId, day: { gte: aiUsageSince() } } }),
+    ]);
+    return {
+      deployment: {
+        configured: this.ai.configured,
+        models: aiModelsByFeature(),
+        platform_disabled: this.ai.platformDisabled(),
+        regions: this.ai.regionAvailability(),
+      },
+      settings: {
+        enabled: settings?.enabled ?? true,
+        disabled_features: settings?.disabledFeatures ?? [],
+        region: settings?.region ?? 'default',
+        updated_at: settings?.updatedAt.toISOString() ?? null,
+      },
+      // The same states the company sees, worked out by the same rules.
+      states: await this.ai.states(tenantId),
+      usage: aiPresentUsage(usage),
+    };
+  }
+
+  /**
+   * Resets one person's two-factor (see the controller). Runs on the console's connection, which
+   * has no tenant context, so every row is pinned to the tenant by hand — the person must belong to
+   * the company named in the URL, or nothing happens.
+   */
+  async resetUserMfa(actorPhone: string, tenantId: string, userId: string) {
+    const prisma = this.db.client;
+    const user = await prisma.user.findFirst({
+      where: { id: userId, tenantId, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (!user) throw ApiError.notFound('User');
+
+    const result = await prisma.$transaction(async (tx) => {
+      const factors = await tx.mfaFactor.deleteMany({ where: { tenantId, userId } });
+      const codes = await tx.mfaRecoveryCode.deleteMany({ where: { tenantId, userId } });
+      const now = new Date();
+      // Their sessions end too: a reset is usually a lost or stolen phone, and whatever was signed
+      // in on it should not outlive the factor it had shown.
+      const sessions = await tx.userSession.updateMany({
+        where: { tenantId, userId, revokedAt: null },
+        data: { revokedAt: now, revokedReason: 'mfa_reset', mfaAt: null, mfaMethod: null },
+      });
+      await tx.refreshToken.updateMany({
+        where: { tenantId, userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      return { factors: factors.count, codes: codes.count, sessions: sessions.count };
+    });
+
+    await prisma.platformAuditLog.create({
+      data: {
+        actorPhone,
+        action: 'user.mfa_reset',
+        tenantId,
+        after: { user_id: user.id, user_name: user.name, ...result },
+      },
+    });
+    return { reset: result.factors > 0, sessions_ended: result.sessions };
   }
 
   /**

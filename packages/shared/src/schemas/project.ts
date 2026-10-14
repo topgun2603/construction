@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PROJECT_STATUSES, USER_ROLES } from '../enums';
 import { isoDateSchema, paiseSchema, uuidSchema } from './common';
+import { isValidTimeZone } from '../locale';
 
 export const createProjectSchema = z
   .object({
@@ -13,6 +14,18 @@ export const createProjectSchema = z
     target_end_date: isoDateSchema.optional(),
     budget_amount: paiseSchema.optional(),
     status: z.enum(PROJECT_STATUSES).default('planning'),
+    /**
+     * The site's own IANA zone, when it is not the company's (a Dubai site of a Mumbai company).
+     * Null — or left out — keeps the company's; see `siteTimeZone`.
+     */
+    time_zone: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .refine(isValidTimeZone, 'unknown time zone')
+      .nullable()
+      .optional(),
   })
   .refine(
     (value) =>

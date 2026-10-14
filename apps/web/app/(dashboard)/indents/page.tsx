@@ -4,6 +4,7 @@ import { requireSelf } from '@/lib/session';
 import type { Indent, Page } from '@/lib/api-types';
 import { FadeIn, Stagger, StaggerItem } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
+import { ExportMenu } from '@/components/export-menu';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IndentCard } from './indent-card';
 import { getT } from '@/lib/i18n-server';
@@ -57,6 +58,10 @@ export default async function IndentsPage({
           animate
           note={t('With something pending')}
         />
+      </div>
+
+      <div className="flex justify-end">
+        <ExportMenu kind="indents" filters={{ status }} />
       </div>
 
       {indents.items.length === 0 ? (

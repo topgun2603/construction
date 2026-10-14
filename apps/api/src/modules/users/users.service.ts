@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { planStanding, type TenantLocaleInput } from '@sitebook/shared';
+import { planStanding, type AiFeatureStates, type TenantLocaleInput } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { PhoneAuthService } from '../auth/phone-auth.service';
 import { PlansService } from '../plans/plans.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
@@ -39,6 +40,12 @@ export interface SelfView {
   project_ids: string[];
   sees_all_projects: boolean;
   unread_notifications: number;
+  /**
+   * Where each AI feature stands for this company — on, turned off by the company or the operator,
+   * or not set up on this server — so the clients hide or explain an AI button instead of offering
+   * one that is refused.
+   */
+  ai_features: AiFeatureStates;
 }
 
 @Injectable()
@@ -47,12 +54,13 @@ export class UsersService {
     private readonly tenantDb: TenantDb,
     private readonly plans: PlansService,
     private readonly phoneAuth: PhoneAuthService,
+    private readonly ai: AiGateway,
   ) {}
 
   async describeSelf(actor: RequestUser): Promise<SelfView> {
     const db = this.tenantDb.clientFor(actor.tenantId);
 
-    const [user, tenant, unread] = await Promise.all([
+    const [user, tenant, unread, aiFeatures] = await Promise.all([
       db.user.findFirst({
         where: { id: actor.userId, deletedAt: null },
         select: { id: true, name: true, phone: true, email: true, role: true, status: true },
@@ -69,6 +77,7 @@ export class UsersService {
         },
       }),
       db.notification.count({ where: { userId: actor.userId, readAt: null } }),
+      this.ai.states(actor.tenantId),
     ]);
 
     // A token whose subject no longer exists is an invalid token, not a missing
@@ -108,6 +117,7 @@ export class UsersService {
       project_ids: actor.projectIds,
       sees_all_projects: actor.seesAllProjects,
       unread_notifications: unread,
+      ai_features: aiFeatures,
     };
   }
 

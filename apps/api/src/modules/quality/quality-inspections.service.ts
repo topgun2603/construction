@@ -5,7 +5,6 @@ import {
   qualityCompletionProblems,
   qualityMeasurementOutcome,
   qualityOverallResult,
-  todayIn,
   type CompleteQualityInspectionInput,
   type CreateQualityInspectionInput,
   type ListQualityInspectionsQuery,
@@ -25,6 +24,7 @@ import { can, type RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { siteToday } from '../../common/site-clock';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
@@ -166,7 +166,10 @@ export class QualityInspectionsService {
             title: template.name,
             trade: template.trade,
             location: input.location,
-            inspectionDate: isoDateToUtcDate(input.inspection_date ?? todayIn(actor.timezone)),
+            // Left out, the inspection is today at the site — its own clock, not the company's.
+            inspectionDate: isoDateToUtcDate(
+              input.inspection_date ?? (await siteToday(tx, actor, input.project_id)),
+            ),
             inspectorId: input.inspector_id ?? actor.userId,
             costCodeId: input.cost_code_id ?? null,
             milestoneId: input.milestone_id ?? null,

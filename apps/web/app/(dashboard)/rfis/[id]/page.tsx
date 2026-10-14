@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Printer } from 'lucide-react';
 import { RFI_DISCIPLINE_LABELS, RFI_PRIORITY_LABELS } from '@sitebook/shared';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
+import { emailsAbout, m365Status } from '@/lib/m365-status';
 import { requireSelf } from '@/lib/session';
 import { getFormat } from '@/lib/format-server';
 import { getT } from '@/lib/i18n-server';
@@ -47,6 +48,11 @@ export default async function RfiPage({ params }: { params: Promise<{ id: string
           rfiDocuments(me.permissions),
         ])
       : [[] as TeamMember[], []];
+  // Whether "Send by email" is on offer, and what has been emailed about this RFI already.
+  const [m365, emails] = await Promise.all([
+    canManage && live ? m365Status() : Promise.resolve({ connected: false, mailbox: null }),
+    emailsAbout(`/rfis/${id}/emails`),
+  ]);
   const people = team
     .filter((person) => person.role !== 'client' && person.status === 'active')
     .map((person) => ({ id: person.id, name: person.name }));
@@ -117,6 +123,8 @@ export default async function RfiPage({ params }: { params: Promise<{ id: string
             canRaiseChangeOrder={canManage && me.permissions.includes('change_orders.manage')}
             people={people}
             documents={documents}
+            m365Connected={m365.connected}
+            emails={emails}
           />
         </div>
 

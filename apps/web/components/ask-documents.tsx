@@ -7,6 +7,7 @@ import { askDocuments } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/components/language-provider';
+import { AiOffNote, useAiBlocked } from '@/components/ai-features';
 
 /**
  * Asks a question of the drawings and contracts on this page.
@@ -32,6 +33,7 @@ export function AskDocuments({
   const [asking, setAsking] = useState(false);
   const [result, setResult] = useState<AskDocumentsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const documentsOff = useAiBlocked('documents');
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -49,6 +51,15 @@ export function AskDocuments({
       return;
     }
     setResult(answer.data);
+  }
+
+  // Switched off for the company: say so where the box would be, rather than offer one that refuses.
+  if (documentsOff) {
+    return (
+      <section className="rounded-panel border border-line bg-raised p-4">
+        <AiOffNote feature="documents" manual={t('The documents themselves are all still here to open.')} />
+      </section>
+    );
   }
 
   return (

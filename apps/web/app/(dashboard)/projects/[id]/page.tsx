@@ -38,6 +38,7 @@ import { WhatsappButton } from '@/components/whatsapp-button';
 import { MaterialEstimates } from './material-estimates';
 import { ForecastCard } from './forecast-card';
 import { EditSiteDialog } from './edit-site-dialog';
+import { SiteZoneHint } from '@/components/site-zone-hint';
 import { AddMemberDialog } from './add-member-dialog';
 import { FileReportDialog } from './file-report-dialog';
 import { ReportPhotos } from './report-photos';
@@ -84,6 +85,7 @@ import { BoqTab } from './boq-tab';
 import type { RfiSettings, RfiStats, RfiSummary, SubmittalStats, SubmittalSummary } from '@/lib/rfi-types';
 import { submittalFormData } from '@/lib/rfi-form-data';
 import { SiteDesign } from './site-design';
+import { SiteMeetings } from './site-meetings';
 
 const TABS = [
   'timeline',
@@ -104,6 +106,7 @@ const TABS = [
   'quality',
   'safety',
   'equipment',
+  'meetings',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -441,6 +444,8 @@ export default async function ProjectPage({
             {timeline && timeline.tone !== 'done' && (
               <Badge tone={timeline.tone}>{t(timeline.label)}</Badge>
             )}
+            {/* A site on its own clock says so: its "today" is not the company's. */}
+            <SiteZoneHint zone={project.time_zone} />
           </div>
           <span className="text-[13px] text-ink-muted">
             {[project.address, project.client_name].filter(Boolean).join(' · ') ||
@@ -485,6 +490,7 @@ export default async function ProjectPage({
         showBoq={canSeeBoq}
         showDesign={canSeeRfis || canSeeSubmittals}
         showEquipment={canSeeEquipment}
+        showMeetings={me.permissions.includes('meetings.view')}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -692,6 +698,9 @@ export default async function ProjectPage({
       {active === 'change-orders' && clientSeesChangeOrders && (
         <ClientChangeOrders projectId={id} approvals={approvals} />
       )}
+      {active === 'meetings' && me.permissions.includes('meetings.view') && (
+        <SiteMeetings projectId={id} me={me} />
+      )}
       {active === 'quality' && canSeeQuality && (
         <SiteQuality projectId={id} projectName={project.name} me={me} />
       )}
@@ -709,7 +718,11 @@ export default async function ProjectPage({
         <div className="flex flex-col gap-3">
           {me.permissions.includes('dpr.file') && (
             <div className="flex justify-end">
-              <FileReportDialog projectId={id} projectName={project.name} />
+              <FileReportDialog
+                projectId={id}
+                projectName={project.name}
+                timeZone={project.time_zone}
+              />
             </div>
           )}
           {reports.items.length === 0 ? (

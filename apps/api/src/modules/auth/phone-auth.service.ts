@@ -14,8 +14,8 @@ import { ApiError } from '../../common/errors/api-error';
  * with two optional fields lets one of them be forgotten.
  */
 export type VerifiedIdentity =
-  | { kind: 'phone'; phone: string }
-  | { kind: 'email'; email: string };
+  | { kind: 'phone'; phone: string; secondFactor?: boolean }
+  | { kind: 'email'; email: string; secondFactor?: boolean };
 
 /**
  * Verifies a Firebase ID token and returns what it proves (spec §6.2). Firebase is the vendor for
@@ -81,7 +81,18 @@ export class PhoneAuthService {
      * and be handed their account.
      */
     if (decoded.email && decoded.email_verified) {
-      return { kind: 'email', email: normaliseEmail(decoded.email) };
+      return {
+        kind: 'email',
+        email: normaliseEmail(decoded.email),
+        /*
+         * Firebase records a second factor it checked itself — the authenticator on an
+         * email-and-password sign-in (account page) — as `firebase.sign_in_second_factor` in the
+         * token it signs. That claim is the proof, so a company requiring two-factor accepts this
+         * sign-in without asking again. A phone token can never carry one: Firebase refuses a second
+         * factor on a phone sign-in, and a phone OTP counts as one factor here.
+         */
+        secondFactor: Boolean(decoded.firebase?.sign_in_second_factor),
+      };
     }
     if (decoded.email) {
       throw ApiError.invalidToken('That Google account has no verified email address');
@@ -153,8 +164,12 @@ export class PhoneAuthService {
  */
 function devBypassIdentity(token: string): VerifiedIdentity | null {
   if (!token.startsWith('dev:')) return null;
-  const subject = token.slice('dev:'.length).trim();
-  if (subject.includes('@')) return { kind: 'email', email: normaliseEmail(subject) };
+  let subject = token.slice('dev:'.length).trim();
+  // `dev:someone@example.com#mfa` stands in for an email sign-in on which Firebase checked an
+  // authenticator — the only way to exercise that path without a real Firebase project.
+  const secondFactor = subject.endsWith('#mfa');
+  if (secondFactor) subject = subject.slice(0, -'#mfa'.length);
+  if (subject.includes('@')) return { kind: 'email', email: normaliseEmail(subject), secondFactor };
 
   const phone = normalisePhone(subject);
   return phone ? { kind: 'phone', phone } : null;

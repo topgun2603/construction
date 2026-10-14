@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import OpenAI from 'openai';
 import { env } from '../../config/env';
+import { AiGateway } from '../ai/ai-gateway.service';
 
 /**
  * Rewords a forecast's explanation into plain language — and nothing else.
@@ -17,17 +17,17 @@ import { env } from '../../config/env';
 export class ForecastExplainer {
   private readonly logger = new Logger(ForecastExplainer.name);
   private readonly config = env();
-  private client: OpenAI | null = null;
 
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
+  constructor(private readonly gateway: AiGateway) {}
 
   /** The reworded sentence, or null to keep the template. */
-  async reword(siteName: string, template: string): Promise<string | null> {
-    if (!this.enabled) return null;
+  async reword(tenantId: string, siteName: string, template: string): Promise<string | null> {
+    // Off for this company (or no key): the template sentence stands, and nothing is sent. This runs
+    // in the nightly job, so this check is what keeps a switched-off company out of the vendor's logs.
+    if (!(await this.gateway.isOn(tenantId, 'suggestions'))) return null;
     try {
-      const response = await this.openai().chat.completions.create({
+      const client = await this.gateway.client(tenantId, 'suggestions');
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_ASK_MODEL,
         temperature: 0.2,
         max_tokens: 160,
@@ -50,10 +50,6 @@ export class ForecastExplainer {
     }
   }
 
-  private openai(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-    return this.client;
-  }
 }
 
 /**

@@ -21,6 +21,11 @@ export const TEMPLATES = {
   wageSheetSummary: 'wage_sheet_summary',
   /** {builder} {incident type} {site} {number and title} {when} — a lost-time injury or a death. */
   safetyIncidentAlert: 'safety_incident_alert',
+  /**
+   * To the platform's root operators: {company} {plan} {amount with currency} {invoice number} —
+   * a company has asked for a plan to be invoiced for bank transfer.
+   */
+  bankTransferRequest: 'bank_transfer_request',
 } as const;
 
 export type TemplateName = (typeof TEMPLATES)[keyof typeof TEMPLATES];
@@ -51,6 +56,11 @@ export class WhatsappService {
   }
 
   async send(message: TemplateMessage): Promise<SendResult> {
+    // A person created by single sign-on or SCIM has a stand-in instead of a phone
+    // (`ssoIsPlaceholderPhone`); there is nobody to message, and Meta would only refuse it.
+    if (!/^\d{8,15}$/.test(message.to)) {
+      return { ok: false, delivered: 0, dryRun: false, error: 'No WhatsApp number for this person' };
+    }
     if (!this.configured) {
       this.logger.log(
         { to: message.to, template: message.template, params: message.params },

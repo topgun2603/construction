@@ -30,6 +30,10 @@ export async function createTestApp(): Promise<TestApp> {
   const app = moduleRef.createNestApplication({ ...APP_OPTIONS, logger: false });
   configureApp(app);
   await app.init();
+  // One listening port per suite. Handed an unbound server, supertest binds a fresh ephemeral port
+  // for every request, and a suite of a few hundred requests can run a busy Windows machine out of
+  // ports mid-run (connect ETIMEDOUT on 127.0.0.1).
+  await app.listen(0, '127.0.0.1');
 
   return {
     app,

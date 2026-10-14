@@ -4,6 +4,7 @@ import { addDaysIso } from '@/lib/format';
 import { getFormat } from '@/lib/format-server';
 import type { Expense, ExpenseSummary, Page, ProjectSummary } from '@/lib/api-types';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { StatTile } from '@/components/stat-tile';
 import { RecordExpenseDialog } from './record-expense-dialog';
 import { ExpensesTable } from './expenses-table';
@@ -63,7 +64,8 @@ export default async function ExpensesPage() {
         />
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <ExportMenu kind="expenses" />
         <RecordExpenseDialog projects={projects.items} />
       </div>
 

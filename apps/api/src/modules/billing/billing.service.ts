@@ -1,10 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import {
   defaultModulesForPlan,
+  planBankTransferOffered,
+  planPriceFromMinor,
+  planQuote,
   type CancelSubscriptionInput,
   type Plan,
+  type PlanBankTransferRequestInput,
   type StartSubscriptionInput,
 } from '@sitebook/shared';
+import { TEMPLATES, WhatsappService } from '../../integrations/whatsapp.service';
+import { PlatformAdmins } from '../platform/platform-admins.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { TenantCache } from '../../common/auth/tenant-cache.service';
 import { ApiError } from '../../common/errors/api-error';
@@ -50,6 +57,9 @@ export class BillingService {
     private readonly razorpay: RazorpayService,
     private readonly stripe: StripeService,
     private readonly tenantCache: TenantCache,
+    private readonly whatsapp: WhatsappService,
+    /** Who the platform team is, for telling them about a bank-transfer request. Env only. */
+    private readonly admins: PlatformAdmins,
   ) {}
 
   async current(actor: RequestUser): Promise<BillingView> {
@@ -288,13 +298,19 @@ export class BillingService {
   ) {
     const plan = await this.plans.forCode(input.plan);
     if (!plan) throw ApiError.notFound('Plan');
-    const priced = plan.prices[tenant.currency];
-    if (!priced) {
+    /*
+     * The company's own currency when the catalogue has it, otherwise the US-dollar price when
+     * there is one (South Asian plans are often sold that way), otherwise contact us. Never an
+     * exchange rate — see `planQuote`.
+     */
+    const quote = planQuote(plan, tenant.currency);
+    if (!quote) {
       throw ApiError.conflict(
         `This plan has no ${tenant.currency} price yet — contact us to subscribe.`,
       );
     }
-    const amount = BigInt(priced);
+    const amount = BigInt(quote.amount);
+    const currency = quote.currency;
 
     const web = this.config.WEB_BASE_URL ?? 'http://localhost:4000';
     const checkout = await this.stripe.createCheckout({
@@ -302,7 +318,7 @@ export class BillingService {
       tenantName: tenant.name,
       plan: input.plan,
       planName: plan.name,
-      currency: tenant.currency,
+      currency,
       amount,
       months: plan.months,
       successUrl: `${web}/settings/billing?checkout=done`,
@@ -313,7 +329,7 @@ export class BillingService {
       plan: input.plan,
       status: 'trialing' as const,
       provider: 'stripe',
-      currency: tenant.currency,
+      currency,
       stripeSessionId: checkout.id,
       amount,
       cancelAt: null,
@@ -332,7 +348,130 @@ export class BillingService {
       dry_run: checkout.dryRun,
       plan: input.plan,
       amount: amount.toString(),
+      currency,
     };
+  }
+
+  /**
+   * The plans on sale, each priced for this company — the billing page's plan picker.
+   *
+   * The quote follows `planQuote`: the company's own currency, else US dollars, else null for
+   * "contact us". `bank_transfer` says whether this company may ask for an invoice instead of a
+   * card checkout (Bangladesh and Nepal).
+   */
+  async catalogue(actor: RequestUser) {
+    const tenant = await this.tenantDb.clientFor(actor.tenantId).tenant.findUniqueOrThrow({
+      where: { id: actor.tenantId },
+      select: { country: true, currency: true },
+    });
+    const plans = await this.plans.listActive();
+    return {
+      currency: tenant.currency,
+      country: tenant.country,
+      provider: tenant.currency === 'INR' ? 'razorpay' : 'stripe',
+      billing_configured:
+        tenant.currency === 'INR' ? this.razorpay.configured : this.stripe.configured,
+      bank_transfer: planBankTransferOffered(tenant.country),
+      items: plans.map((plan) => ({
+        code: plan.code,
+        name: plan.name,
+        months: plan.months,
+        description: plan.description,
+        badge: plan.badge,
+        highlights: plan.highlights,
+        quote: planQuote(plan, tenant.currency),
+      })),
+    };
+  }
+
+  /** This company's bank-transfer invoice requests, newest first. */
+  async bankTransfers(actor: RequestUser) {
+    const rows = await this.tenantDb.clientFor(actor.tenantId).planBankTransferInvoice.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return { items: rows.map(bankTransferView) };
+  }
+
+  /**
+   * Ask for a plan to be invoiced for payment by bank transfer.
+   *
+   * Nothing is granted: the request is a pending invoice at the catalogue's quote, and the plan
+   * applies only when the platform team marks it paid from the console, having seen the money
+   * arrive. The team is told by WhatsApp (the platform's root operators) as well as by the
+   * console's pending list, so a request does not sit unseen until somebody happens to look.
+   */
+  async requestBankTransfer(actor: RequestUser, input: PlanBankTransferRequestInput) {
+    const db = this.tenantDb.clientFor(actor.tenantId);
+    const tenant = await db.tenant.findUniqueOrThrow({
+      where: { id: actor.tenantId },
+      select: { name: true, country: true, currency: true },
+    });
+    if (!planBankTransferOffered(tenant.country)) {
+      throw ApiError.conflict('Bank-transfer invoices are not offered in your country — subscribe by card.');
+    }
+    const plan = await this.plans.forCode(input.plan);
+    if (!plan || !plan.is_active) throw ApiError.notFound('Plan');
+    const quote = planQuote(plan, tenant.currency);
+    if (!quote) {
+      throw ApiError.conflict(
+        `This plan has no ${tenant.currency} price yet — contact us to subscribe.`,
+      );
+    }
+
+    const pending = await db.planBankTransferInvoice.findFirst({
+      where: { status: 'pending', plan: input.plan },
+      select: { number: true },
+    });
+    if (pending) {
+      throw ApiError.conflict(
+        `Invoice ${pending.number} for this plan is already waiting for payment.`,
+      );
+    }
+
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const row = await this.tenantDb.transaction(actor.tenantId, (tx) =>
+      tx.planBankTransferInvoice.create({
+        data: {
+          tenantId: actor.tenantId,
+          // Random rather than a sequence: numbers are unique across companies, and a per-company
+          // counter cannot see the others through RLS.
+          number: `BT-${today}-${randomBytes(3).toString('hex').toUpperCase()}`,
+          plan: input.plan,
+          currency: quote.currency,
+          amount: BigInt(quote.amount),
+          requestedBy: actor.userId,
+          note: input.note ?? null,
+        },
+      }),
+    );
+
+    await this.tellPlatformTeam(tenant.name, row.number, plan.name, quote);
+    return bankTransferView(row);
+  }
+
+  /** WhatsApp to each root operator. A failure is logged, never the owner's problem. */
+  private async tellPlatformTeam(
+    company: string,
+    number: string,
+    planName: string,
+    quote: { currency: string; amount: string },
+  ): Promise<void> {
+    const amount = `${quote.currency} ${planPriceFromMinor(quote.amount, quote.currency)}`;
+    this.logger.warn(`Bank-transfer invoice ${number} requested by ${company}: ${planName}, ${amount}`);
+    try {
+      await this.whatsapp.sendMany(
+        this.admins.phones.map((phone) => ({
+          to: phone,
+          template: TEMPLATES.bankTransferRequest,
+          params: [company, planName, amount, number],
+        })),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Could not tell the platform team about ${number}: ${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 
   /** Stripe's events, after the signature check. Unknown types are recorded and ignored. */
@@ -823,6 +962,33 @@ function subscriptionEntity(payload: Record<string, unknown>): SubscriptionEntit
     ...(entity['notes'] && typeof entity['notes'] === 'object'
       ? { notes: entity['notes'] as Record<string, unknown> }
       : {}),
+  };
+}
+
+/** A bank-transfer request on the wire; shared with the console, which adds the company. */
+export function bankTransferView(row: {
+  id: string;
+  number: string;
+  plan: string;
+  currency: string;
+  amount: bigint;
+  status: string;
+  note: string | null;
+  paymentReference: string | null;
+  paidAt: Date | null;
+  createdAt: Date;
+}) {
+  return {
+    id: row.id,
+    number: row.number,
+    plan: row.plan,
+    currency: row.currency,
+    amount: row.amount.toString(),
+    status: row.status,
+    note: row.note,
+    payment_reference: row.paymentReference,
+    paid_at: row.paidAt?.toISOString() ?? null,
+    created_at: row.createdAt.toISOString(),
   };
 }
 

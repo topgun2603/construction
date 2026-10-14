@@ -19,6 +19,7 @@ import { Input, Textarea } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/components/language-provider';
+import { AiOffNote } from '@/components/ai-features';
 import { createSnag, quickSnag, sitePeopleOptions } from '@/lib/quality-actions';
 import { ANY, SNAG_PRIORITY } from './labels';
 import { FormError, PhotoPicker } from './quality-ui';
@@ -372,6 +373,10 @@ export function QuickCaptureDialog({
             />
           </Field>
           <VoiceRecorder blob={voice} onChange={setVoice} onError={setError} disabled={pending} />
+          {/* Off is not broken here: a voice note is kept on the snag to listen to, and the keyword
+              rules still make the first guess at the title and trade. */}
+          <AiOffNote feature="voice" manual={t('A voice note is kept on the snag to listen to, not transcribed.')} />
+          <AiOffNote feature="suggestions" manual={t('The title and trade are guessed from keywords instead.')} />
           <Field label={t('Where')} htmlFor="quick-location" optional>
             <Input id="quick-location" name="location" maxLength={200} />
           </Field>

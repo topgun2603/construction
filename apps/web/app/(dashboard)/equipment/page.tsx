@@ -15,6 +15,8 @@ import type {
   EquipmentUtilisationReport,
 } from '@/lib/equipment-types';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
 import { StatTile } from '@/components/stat-tile';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -108,6 +110,7 @@ export default async function EquipmentPage({
               <Link href="/equipment/hire-statement">{t('Hire statements')}</Link>
             </Button>
           )}
+          {canManage && <ImportWizard kind="equipment" />}
           {canManage && <EquipmentDialog vendors={vendorOptions} />}
         </div>
       </div>
@@ -167,9 +170,15 @@ export default async function EquipmentPage({
             </Link>
           ))}
         </nav>
-        {canView && (active === 'register' || active === 'reports') && (
+        {active === 'register' && (
+          <div className="pb-1.5">
+            {/* Rates are left out of the Excel for someone who only logs, as on this screen. */}
+            <ExportMenu kind="equipment" csvHref={canView ? `/equipment/export?kind=register&${range.toString()}` : undefined} />
+          </div>
+        )}
+        {canView && active === 'reports' && (
           <a
-            href={`/equipment/export?kind=${active === 'register' ? 'register' : 'costs'}&${range.toString()}`}
+            href={`/equipment/export?kind=costs&${range.toString()}`}
             className="inline-flex items-center gap-1 pb-2 text-[12.5px] text-accent hover:underline"
           >
             <Download className="size-3.5" /> {t('Export CSV')}

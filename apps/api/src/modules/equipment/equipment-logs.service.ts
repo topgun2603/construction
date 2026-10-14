@@ -32,6 +32,7 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { EquipmentReader } from '../ai/equipment-reader.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
   assertEquipmentKey,
@@ -66,6 +67,8 @@ const FUEL_INCLUDE = {
 
 type FuelRow = Prisma.EquipmentFuelGetPayload<{ include: typeof FUEL_INCLUDE }>;
 
+const READING_NOT_CONFIGURED = 'Reading photos is not configured on this deployment. Enter it by hand.';
+
 /**
  * The daily logs and the fuel (roadmap Phase 2, module 10): the supervisor's or operator's job, from
  * a phone, at the end of a shift. One log per machine per day; the site comes from where the machine
@@ -78,6 +81,7 @@ export class EquipmentLogsService {
     private readonly access: ProjectAccess,
     private readonly uploads: UploadsService,
     private readonly reader: EquipmentReader,
+    private readonly gateway: AiGateway,
   ) {}
 
   // --- logs ---------------------------------------------------------------------------------------
@@ -316,21 +320,18 @@ export class EquipmentLogsService {
   /** Read a meter photo. Writes nothing: the reading pre-fills the form and the person confirms it. */
   async scanMeter(actor: RequestUser, input: EquipmentScanInput): Promise<EquipmentMeterScanResult> {
     assertEquipmentKey(actor, input.s3_key);
-    if (!this.reader.enabled) {
-      throw ApiError.conflict('Reading photos is not configured on this deployment. Enter it by hand.');
-    }
+    // Before the photo is fetched: refused (not configured, or switched off) costs nothing.
+    await this.gateway.assertEnabled(actor.tenantId, 'reading', READING_NOT_CONFIGURED);
     const file = await this.uploads.readObject(actor, input.s3_key, MAX_PHOTO_BYTES);
-    return this.reader.readMeter(file.body, file.contentType);
+    return this.reader.readMeter(actor.tenantId, file.body, file.contentType);
   }
 
   /** Read a fuel bill. The amount becomes minor units here, in tested code, never in the model. */
   async scanFuelBill(actor: RequestUser, input: EquipmentScanInput): Promise<EquipmentFuelBillScanResult> {
     assertEquipmentKey(actor, input.s3_key);
-    if (!this.reader.enabled) {
-      throw ApiError.conflict('Reading photos is not configured on this deployment. Enter it by hand.');
-    }
+    await this.gateway.assertEnabled(actor.tenantId, 'reading', READING_NOT_CONFIGURED);
     const file = await this.uploads.readObject(actor, input.s3_key, MAX_PHOTO_BYTES);
-    const draft = await this.reader.readFuelBill(file.body, file.contentType, {
+    const draft = await this.reader.readFuelBill(actor.tenantId, file.body, file.contentType, {
       country: actor.country,
       currency: actor.currency,
       taxRegime: actor.taxRegime,

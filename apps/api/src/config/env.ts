@@ -197,6 +197,24 @@ const envSchema = z
      * producing something plausible.
      */
     OPENAI_DOCUMENT_MODEL: z.string().default('gpt-4o'),
+    /*
+     * Where model calls go, per company region (Settings → Security → AI and data).
+     *
+     * Unset means the provider's own default endpoint. A regional URL is only offered to companies
+     * when it is configured here — the product never guesses one — and a company that chose a
+     * region whose URL is later removed has its AI refused (`region_unavailable`) rather than
+     * quietly sent to the default endpoint it asked to avoid.
+     */
+    OPENAI_BASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    OPENAI_BASE_URL_EU: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    OPENAI_BASE_URL_US: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    /*
+     * The operator's kill switch: `all`, or a comma list of AI_FEATURES (`voice,translation`).
+     * Applies to every company, whatever their own settings, and the settings screen says the
+     * feature is off "on this server" rather than "for your company". Read at start-up like every
+     * other setting here, so changing it takes a restart and no code.
+     */
+    AI_DISABLED_FEATURES: z.string().default(''),
 
     /**
      * Map tiles and geocoding. Without it the geocoder falls back to Nominatim's volunteer
@@ -235,6 +253,157 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    /**
+     * Where this API is reachable from the internet, without `/v1` — e.g. https://api.buildr.app.
+     * Single sign-on needs it: the OIDC redirect URI, the SAML ACS URL and entity id are all built
+     * from it, and an identity provider will only send people back to the exact URL it was given.
+     * Unset, SSO answers "not configured"; nothing else uses it.
+     */
+    API_PUBLIC_URL: z.string().url().optional(),
+    /**
+     * Key for SSO client secrets at rest: 32 random bytes, base64, generated like
+     * DOCUMENT_ENCRYPTION_KEY and deliberately a different key — losing one must not expose the
+     * other's data. Unset, an OIDC connection cannot store a client secret (SAML needs none).
+     */
+    SSO_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'SSO_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
+    /**
+     * Key for authenticator-app (TOTP) secrets at rest: 32 random bytes, base64, generated like
+     * DOCUMENT_ENCRYPTION_KEY and deliberately its own key. Unset, nobody can enrol an authenticator
+     * and a company cannot switch on required two-factor — refused rather than stored in the clear.
+     */
+    MFA_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
+    /**
+     * Which proxies Express may believe about the client's address — the value of its `trust proxy`
+     * setting. The IP allow-list and the audit log read `req.ip`, which is the socket's address
+     * unless this says otherwise.
+     *
+     *   false (default)  nothing in front: the socket address is the client. Right for local runs.
+     *   1                one proxy in front (Caddy in infra/, or Fly's edge): believe the address it
+     *                    appends to X-Forwarded-For, nothing further left.
+     *   a list           specific proxies: `loopback, 10.0.0.0/8`.
+     *
+     * `true` is refused: it believes the leftmost X-Forwarded-For entry, which the client writes,
+     * so anybody could claim to be inside the office and walk past the allow-list.
+     */
+    TRUST_PROXY: z
+      .string()
+      .default('false')
+      .refine((value) => value.trim().toLowerCase() !== 'true', {
+        message: 'TRUST_PROXY=true would trust a client-written header; give a hop count such as 1',
+      })
+      .transform((value): boolean | number | string => {
+        const trimmed = value.trim();
+        if (trimmed === '' || trimmed.toLowerCase() === 'false') return false;
+        if (/^\d+$/.test(trimmed)) return Number(trimmed);
+        return trimmed;
+      }),
+    /**
+     * Shared with the web app's server, which calls this API on the browser's behalf: with it, the
+     * web server passes the browser's address in `X-Buildr-Client-Ip` beside this secret in
+     * `X-Buildr-Proxy-Secret`, and the API believes it. Without it every dashboard request appears
+     * to come from the web server, and an IP allow-list in web mode would be checking the server.
+     * At least 32 characters. Never sent to a browser.
+     */
+    WEB_CLIENT_IP_SECRET: z
+      .string()
+      .optional()
+      .transform((value) => value || undefined)
+      .refine((value) => !value || value.length >= 32, {
+        message: 'WEB_CLIENT_IP_SECRET must be at least 32 characters',
+      }),
+    /*
+     * Microsoft 365 email and calendar (Settings → Integrations). One app registration in Microsoft
+     * Entra serves every company: register it as multi-tenant ("Accounts in any organizational
+     * directory"), add MS_GRAPH_REDIRECT_URI as a Web redirect URI, grant the delegated Graph
+     * permissions offline_access, Mail.Send, Calendars.ReadWrite and User.Read (no application
+     * permissions), and create a client secret. Unset, the integration card says "not set up on this
+     * server" and every "Send by email" falls back to WhatsApp, the mail app or a copied link.
+     */
+    MS_GRAPH_CLIENT_ID: z.string().optional().transform((value) => value || undefined),
+    MS_GRAPH_CLIENT_SECRET: z.string().optional().transform((value) => value || undefined),
+    /**
+     * The web app's page Microsoft sends the browser back to, exactly as registered — e.g.
+     * https://app.buildr.app/settings/integrations/microsoft/callback. Sent in the authorize request
+     * and again in the code exchange; Microsoft refuses a code redeemed against any other URI.
+     */
+    MS_GRAPH_REDIRECT_URI: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    /**
+     * Which directories may connect: `organizations` (any work or school account — the multi-tenant
+     * default), or one directory's id to lock a single-company deployment to it. Never `common`:
+     * a personal Outlook.com mailbox is not a company's.
+     */
+    MS_GRAPH_TENANT: z
+      .string()
+      .default('organizations')
+      .refine((value) => value !== 'common' && value !== 'consumers', {
+        message: 'MS_GRAPH_TENANT must be organizations or a directory id, not common/consumers',
+      }),
+    /**
+     * Microsoft's sign-in and Graph hosts. Fixed for the public cloud; overridable for a national
+     * cloud (login.microsoftonline.us + graph.microsoft.us) and, outside production, for the e2e
+     * suite's local stand-in. Production refuses anything that is not a Microsoft host over https,
+     * so a stray setting cannot send company tokens somewhere else.
+     */
+    MS_GRAPH_LOGIN_URL: z.string().url().default('https://login.microsoftonline.com'),
+    MS_GRAPH_API_URL: z.string().url().default('https://graph.microsoft.com/v1.0'),
+    /**
+     * Key for the connected mailbox's tokens at rest: 32 random bytes, base64, generated like
+     * DOCUMENT_ENCRYPTION_KEY and deliberately its own key. Unset, nobody can connect — refused
+     * rather than a refresh token stored in the clear.
+     */
+    M365_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .transform((value) => value || undefined)
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'M365_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
+    /**
+     * Public API keys are stored as HMAC-SHA256(API_KEY_PEPPER, key), so a database dump alone
+     * cannot even be used to test guesses. At least 32 characters; changing it invalidates every
+     * key. Unset outside production, a pepper is derived from JWT_SECRET so local runs and tests
+     * need nothing; unset in production, keys cannot be made or used (refused as not configured).
+     */
+    API_KEY_PEPPER: z
+      .string()
+      .optional()
+      .transform((value) => value || undefined)
+      .refine((value) => !value || value.length >= 32, {
+        message: 'API_KEY_PEPPER must be at least 32 characters',
+      }),
+    /**
+     * Key for webhook signing secrets at rest: 32 random bytes, base64, its own key like
+     * SSO_ENCRYPTION_KEY. The secret has to be recoverable — every delivery is signed with it — so it
+     * is encrypted rather than hashed. Unset outside production, derived from JWT_SECRET; unset in
+     * production, webhook endpoints cannot be registered.
+     */
+    WEBHOOK_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'WEBHOOK_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
+    /**
+     * Lets webhooks go to plain http on this machine's loopback address (127.0.0.1, ::1, localhost)
+     * — for a developer testing a receiver locally. Every other private address stays refused.
+     * Refused outright in production.
+     */
+    WEBHOOK_ALLOW_LOOPBACK: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    /** Requests per API key per minute on `/public/v1` (in-process, per API instance). */
+    PUBLIC_API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(600),
     // Workers' documents nearing expiry, on each company's clock: first thing in the morning.
     DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
     // Cube and lab tests due today, on each company's clock: early enough to get them to the lab.
@@ -248,6 +417,15 @@ const envSchema = z
     // Machines due for a service and machine papers about to lapse, on each company's clock: early,
     // so the fitter is booked before the machine starts work.
     EQUIPMENT_REMINDER_CRON: z.string().default('30 7 * * *'),
+    // Data export and deletion (roadmap Phase 3, compliance). The version string of the data
+    // processing agreement companies are asked to accept, and where its text is published. Legal
+    // text is not shipped in the app: change the version here when the document changes, and every
+    // company is asked to accept the new one.
+    DPA_VERSION: z.string().trim().min(1).default('2026-10'),
+    DPA_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    // How often the worker looks for companies past their deletion grace period and for expired
+    // exports to remove. Hourly: a deletion is due on a day, not a minute.
+    DELETION_SWEEP_CRON: z.string().default('15 * * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;
@@ -284,6 +462,23 @@ const envSchema = z
         message: 'RAZORPAY_KEY_ID is set, so RAZORPAY_WEBHOOK_SECRET must be too',
       });
     }
+    // Company mailbox tokens go to these hosts and nowhere else.
+    for (const key of ['MS_GRAPH_LOGIN_URL', 'MS_GRAPH_API_URL'] as const) {
+      if (!isMicrosoftHost(value[key])) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} must be an https:// Microsoft host in production`,
+        });
+      }
+    }
+    if (value.WEBHOOK_ALLOW_LOOPBACK) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['WEBHOOK_ALLOW_LOOPBACK'],
+        message: 'WEBHOOK_ALLOW_LOOPBACK must be false in production',
+      });
+    }
     if (!value.FIREBASE_SERVICE_ACCOUNT && !value.FIREBASE_SERVICE_ACCOUNT_FILE) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -293,6 +488,26 @@ const envSchema = z
       });
     }
   });
+
+/** Microsoft's public and national-cloud sign-in and Graph hosts. */
+const MICROSOFT_HOSTS = [
+  'login.microsoftonline.com',
+  'graph.microsoft.com',
+  'login.microsoftonline.us',
+  'graph.microsoft.us',
+  'dod-graph.microsoft.us',
+  'login.partner.microsoftonline.cn',
+  'microsoftgraph.chinacloudapi.cn',
+];
+
+function isMicrosoftHost(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && MICROSOFT_HOSTS.includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
 
 export type Env = z.infer<typeof envSchema>;
 

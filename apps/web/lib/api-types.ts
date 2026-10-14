@@ -25,6 +25,10 @@ export interface ProjectSummary {
   target_end_date: string | null;
   budget_amount: string | null;
   status: string;
+  /** The site's own IANA zone; null keeps the company's. */
+  time_zone?: string | null;
+  /** Today at the site, on its own clock. */
+  today?: string;
 }
 
 export interface ProjectListItem extends ProjectSummary {
@@ -172,6 +176,9 @@ export interface AttendanceRow {
 export interface AttendanceDay {
   project_id: string;
   attendance_date: string;
+  /** Today at the site, on its own clock, and the zone that decides it. */
+  site_today?: string;
+  time_zone?: string;
   locked: boolean;
   total_earned: string;
   present_count: number;
@@ -469,6 +476,8 @@ export interface TeamMember {
   id: string;
   name: string;
   phone: string;
+  /** Their work address; shown instead of the phone for an SSO-provisioned person. */
+  email?: string | null;
   role: string;
   status: string;
   last_login: string | null;
@@ -512,6 +521,8 @@ export interface CompanySettings {
   wps_employer_id: string | null;
   /** UAE WPS: routing code of the bank or exchange house that pays the salaries. */
   wps_bank_code: string | null;
+  /** Saudi WPS (Mudad): the MHRSD establishment number, "1-123456". */
+  mudad_establishment_id?: string | null;
 }
 
 export interface Role {

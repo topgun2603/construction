@@ -1,6 +1,7 @@
 import { serverFetch } from '@/lib/server-api';
 import type { Contractor, Page, WagePeriod } from '@/lib/api-types';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { StatTile } from '@/components/stat-tile';
 import { getFormat } from '@/lib/format-server';
 import { GeneratePeriodDialog } from './generate-dialog';
@@ -42,7 +43,8 @@ export default async function WagePeriodsPage() {
         />
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <ExportMenu kind="wage_periods" />
         <GeneratePeriodDialog contractors={contractors.items} />
       </div>
 

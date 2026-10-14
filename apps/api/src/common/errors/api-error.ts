@@ -102,11 +102,86 @@ export class ApiError extends HttpException {
     );
   }
 
+  /**
+   * The company enforces single sign-on for this person. 403 at sign-in; 401 when a refresh is
+   * refused, so the client treats it as a session that has ended rather than as a broken page.
+   */
+  static ssoRequired(status: HttpStatus.FORBIDDEN | HttpStatus.UNAUTHORIZED = HttpStatus.FORBIDDEN): ApiError {
+    return new ApiError(
+      status,
+      ERROR_CODES.SSO_REQUIRED,
+      'Your company requires single sign-on. Choose "Sign in with SSO" and use your work email.',
+    );
+  }
+
+  /**
+   * The company requires a second factor of this person and the session has not shown one. 403,
+   * not 401: the session is good, it just has a step left — a client that read it as "signed out"
+   * would throw away exactly the session the two-factor screen needs.
+   */
+  static mfaRequired(): ApiError {
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.MFA_REQUIRED,
+      'Your company requires two-factor authentication. Enter the code from your authenticator app to continue.',
+    );
+  }
+
+  /** The company's IP allow-list does not include this address. Says which, so IT can add it. */
+  static ipNotAllowed(ip: string): ApiError {
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.IP_NOT_ALLOWED,
+      `Your company only allows sign-in from its approved networks, and ${ip || 'this address'} is not one of them.`,
+      { ip },
+    );
+  }
+
+  /** The session ran past the company's idle timeout or absolute lifetime. 401: sign in again. */
+  static sessionExpired(reason: 'idle' | 'expired'): ApiError {
+    return new ApiError(
+      HttpStatus.UNAUTHORIZED,
+      ERROR_CODES.SESSION_EXPIRED,
+      reason === 'idle'
+        ? 'You were signed out after a period of inactivity. Sign in again.'
+        : 'Your company limits how long a session lasts. Sign in again.',
+      { reason },
+    );
+  }
+
+  static rateLimited(message: string, details?: unknown): ApiError {
+    return new ApiError(HttpStatus.TOO_MANY_REQUESTS, ERROR_CODES.RATE_LIMITED, message, details);
+  }
+
   static phoneAlreadyRegistered(): ApiError {
     return new ApiError(
       HttpStatus.CONFLICT,
       ERROR_CODES.PHONE_ALREADY_REGISTERED,
       'That phone number is already on the team',
+    );
+  }
+
+  /**
+   * The company is waiting out its deletion grace period. With the date when it is known (sign-in
+   * reads the request); the per-request guard has only the cached tenant and says it without one.
+   */
+  static tenantPendingDeletion(purgeAfter?: Date | null): ApiError {
+    const when = purgeAfter ? ` on ${purgeAfter.toISOString().slice(0, 10)}` : '';
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.TENANT_PENDING_DELETION,
+      `This company is scheduled for deletion${when}. Only its owner can sign in, to cancel the deletion.`,
+      purgeAfter ? { purge_after: purgeAfter.toISOString() } : undefined,
+    );
+  }
+
+  /** A fresh sign-in is needed first (deleting the company). The web app sends them to sign in. */
+  static reauthRequired(minutes: number): ApiError {
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.REAUTH_REQUIRED,
+      `For your security, sign out and sign in again, then do this within ${minutes} minutes.`,
+      { within_minutes: minutes },
     );
   }
 }

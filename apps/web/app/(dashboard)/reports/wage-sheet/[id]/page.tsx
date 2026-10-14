@@ -5,6 +5,7 @@ import type { WageSheet } from '@/lib/api-types';
 import { getFormat } from '@/lib/format-server';
 import { PrintButton } from './print-button';
 import { getT } from '@/lib/i18n-server';
+import { ExportMenu } from '@/components/export-menu';
 
 export const metadata = { title: 'Wage sheet · BUILDR' };
 
@@ -38,7 +39,10 @@ export default async function WageSheetPage({ params }: { params: Promise<{ id: 
             {sheet.contractor.name} · {longDate(sheet.period_start)} to {longDate(sheet.period_end)}
           </p>
         </div>
-        <PrintButton />
+        <div className="flex items-center gap-2">
+          <ExportMenu kind="wage_sheet" filters={{ wage_period_id: id }} />
+          <PrintButton />
+        </div>
       </div>
 
       <div className="rounded-panel border border-line bg-surface p-6 print:rounded-none print:border-0 print:p-0">

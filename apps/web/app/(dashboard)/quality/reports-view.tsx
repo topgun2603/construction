@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Download } from 'lucide-react';
 import {
   QUALITY_TEST_TYPE_LABELS,
   qualitySpecLabel,
@@ -10,7 +9,7 @@ import { getT } from '@/lib/i18n-server';
 import { StatTile } from '@/components/stat-tile';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { buttonVariants } from '@/components/ui/button';
+import { ExportMenu } from '@/components/export-menu';
 import { filterQuery, passRate } from './labels';
 
 /**
@@ -69,16 +68,19 @@ export async function QualityReportsView({
         </span>
         {(
           [
-            ['snags', 'Snags'],
-            ['inspections', 'Inspections'],
-            ['tests', 'Tests'],
+            ['snags', 'snags', 'Snags'],
+            ['inspections', 'inspections', 'Inspections'],
+            ['tests', 'quality_tests', 'Tests'],
           ] as const
-        ).map(([kind, label]) => (
-          // A plain anchor: the route answers with a file, which a client-side navigation would not save.
-          <a key={kind} href={exportHref(kind)} className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-            <Download className="size-4" />
-            {t(label)}
-          </a>
+        ).map(([kind, excelKind, label]) => (
+          // Excel through the shared export; the CSV stays the register's own.
+          <ExportMenu
+            key={kind}
+            kind={excelKind}
+            filters={Object.fromEntries(new URLSearchParams(filterQuery(filters)))}
+            csvHref={exportHref(kind)}
+            label={t(label)}
+          />
         ))}
       </div>
 

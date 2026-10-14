@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   isoDateToUtcDate,
   MAX_UPLOAD_BYTES,
-  todayIn,
   utcDateToIsoDate,
   type CreateDprInput,
   type ListDprQuery,
@@ -16,10 +15,13 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { siteToday } from '../../common/site-clock';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import { VoiceReader } from '../ai/voice-reader.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { ScopeCreepService } from '../change-orders/scope-creep.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 
 const SELECT = {
   id: true,
@@ -45,8 +47,10 @@ export class DprService {
     private readonly access: ProjectAccess,
     private readonly jobs: JobQueueService,
     private readonly voice: VoiceReader,
+    private readonly gateway: AiGateway,
     private readonly uploads: UploadsService,
     private readonly scopeCreep: ScopeCreepService,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   async list(actor: RequestUser, query: ListDprQuery): Promise<Page<ReturnType<typeof toView>>> {
@@ -93,7 +97,10 @@ export class DprService {
    */
   async create(actor: RequestUser, input: CreateDprInput) {
     await this.access.assertAccess(actor, input.project_id);
-    const reportDate = isoDateToUtcDate(input.report_date);
+    const reportDate = isoDateToUtcDate(
+      input.report_date ??
+        (await siteToday(this.tenantDb.clientFor(actor.tenantId), actor, input.project_id)),
+    );
 
     const view = await this.tenantDb.transaction(actor.tenantId, async (tx) => {
       if (input.client_id) {
@@ -243,6 +250,7 @@ export class DprService {
         data: { status: 'submitted', submittedAt: new Date(), submittedBy: actor.userId },
         select: SELECT,
       });
+      await this.webhooks.dprSubmitted(tx, actor.tenantId, id);
       return { view: toView(submitted), changed: true };
     });
 
@@ -357,6 +365,9 @@ export class DprService {
     input: TranscribeDprInput,
   ): Promise<VoiceDprResult> {
     await this.access.assertAccess(actor, input.project_id);
+    this.uploads.assertOwnKey(actor, input.s3_key);
+    // Before the recording is fetched; filling the report form by hand is unaffected.
+    await this.gateway.assertEnabled(actor.tenantId, 'voice', 'Voice notes are not configured on this deployment');
 
     const audio = await this.uploads.readObject(actor, input.s3_key, MAX_UPLOAD_BYTES.audio);
     if (!audio.contentType.startsWith('audio/')) {
@@ -366,12 +377,12 @@ export class DprService {
       );
     }
 
-    const { text, language } = await this.voice.transcribe(audio.body, audio.contentType);
+    const { text, language } = await this.voice.transcribe(actor.tenantId, audio.body, audio.contentType);
 
     // The trades this site's own people are registered under, so "kottanar" lands on the tenant's
     // own word for mason instead of creating a second one that means the same thing.
     const knownTrades = await this.tradesOn(actor, input.project_id);
-    const speech = await this.voice.readSpeech(text, knownTrades);
+    const speech = await this.voice.readSpeech(actor.tenantId, text, knownTrades);
 
     /*
      * A trade nobody on this site has is reported, not dropped.
@@ -393,7 +404,9 @@ export class DprService {
       transcript: text,
       language,
       draft: {
-        report_date: input.report_date ?? todayIn(actor.timezone),
+        report_date:
+          input.report_date ??
+          (await siteToday(this.tenantDb.clientFor(actor.tenantId), actor, input.project_id)),
         weather: speech.weather,
         work_done: speech.work_done,
         issues: speech.issues,

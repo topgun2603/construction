@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import type { UserRole } from '@sitebook/shared';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { ipAllowed, securityAbsoluteDeadline, securityIpApplies, type UserRole } from '@sitebook/shared';
 import type {
   AuthExchangeInput,
   AuthRefreshInput,
@@ -13,9 +13,15 @@ import {
   TokenService,
   identityClaim,
   parseIdentityClaim,
+  type SessionVia,
 } from '../../common/auth/token.service';
 import type { RequestUser } from '../../common/auth/request-user';
+import { TenantCache, type TenantSecurityGate } from '../../common/auth/tenant-cache.service';
+import { currentAuditActor } from '../../common/audit/audit-context';
+import { SecurityAuditService } from '../security/security-audit.service';
+import { SessionService, type MfaMethod, type SessionEndReason } from '../security/session.service';
 import { PhoneAuthService, type VerifiedIdentity } from './phone-auth.service';
+import { SsoPolicyService, type SignInMethod } from './sso-policy.service';
 
 export interface TenantChoice {
   tenant_id: string;
@@ -56,6 +62,10 @@ export class AuthService {
     private readonly tenantDb: TenantDb,
     private readonly tokens: TokenService,
     private readonly phoneAuth: PhoneAuthService,
+    private readonly ssoPolicy: SsoPolicyService,
+    private readonly tenantCache: TenantCache,
+    private readonly sessions: SessionService,
+    private readonly securityAudit: SecurityAuditService,
   ) {}
 
   /**
@@ -97,12 +107,15 @@ export class AuthService {
       };
     }
 
-    const live = await this.liveIdentities(identities);
+    const active = await this.liveIdentities(identities);
+    const live = await this.permittedIdentities(active, proof.kind);
 
     let identity: IdentityRow | null;
     if (input.tenant_id) {
       identity = live.find((row) => row.tenantId === input.tenant_id) ?? null;
       if (!identity) {
+        // Theirs and active, but that company makes them use its identity provider.
+        if (active.some((row) => row.tenantId === input.tenant_id)) throw ApiError.ssoRequired();
         // A company they do belong to but which is suspended says so; one they do not belong to
         // gets the same refusal whether or not it exists, so the endpoint cannot be used to probe.
         if (identities.some((row) => row.tenantId === input.tenant_id)) {
@@ -125,6 +138,8 @@ export class AuthService {
       userAgent,
       activatePending: true,
       identity: identityClaim(proof),
+      // Only Firebase's own record of a second factor counts, never anything the client says.
+      ...(proof.secondFactor ? { mfaMethod: 'firebase' as const } : {}),
     });
     return { kind: 'session', tokens };
   }
@@ -212,6 +227,15 @@ export class AuthService {
     const [live] = await this.liveIdentities([target]);
     if (!live) throw ApiError.tenantSuspended();
 
+    // A company that enforces single sign-on applies it here too: a session proved by phone or
+    // Google elsewhere must not become a way into it. One proved by an identity provider may —
+    // that provider owns the verified domain the email is on (see SsoLoginService).
+    const method: SignInMethod = actor.via === 'sso' ? 'sso' : proof.kind;
+    const permitted = await this.tenantDb.transaction(live.tenantId, (tx) =>
+      this.ssoPolicy.permits(tx, live.userId, method),
+    );
+    if (!permitted) throw ApiError.ssoRequired();
+
     const tokens = await this.issueSession({
       tenantId: live.tenantId,
       userId: live.userId,
@@ -221,6 +245,13 @@ export class AuthService {
       // that membership's first sign-in, exactly as if they had picked it on the login screen.
       activatePending: true,
       identity: actor.identity ?? null,
+      via: actor.via ?? null,
+      // A second factor is never carried into another company: each company's rule is met by an
+      // authenticator enrolled there (a person is a separate user in each). Not even a single
+      // sign-on session's — that provider is the *other* company's, and this company's "trust our
+      // identity provider" setting is about its own.
+      mfaMethod: null,
+      app: actor.app === true,
     });
 
     if (input.refresh_token) await this.revokeLeftSession(actor, input.refresh_token);
@@ -260,18 +291,39 @@ export class AuthService {
       input.device_id,
       userAgent,
       claims.idn ?? null,
+      claims.via === 'sso' ? 'sso' : null,
     );
 
     if (outcome.kind === 'replayed') {
       // Revoking has to happen in its own committed transaction: doing it inside the
       // one that then throws would roll the revocation straight back, leaving the
       // attacker's freshly issued token alive. Revoke first, then reject.
-      await this.revokeAllSessions(tenantId, outcome.userId);
+      await this.revokeAllSessions(tenantId, outcome.userId, 'replayed');
       this.logger.warn(
         { userId: outcome.userId, tenantId },
         'Revoked refresh token replayed — all sessions revoked',
       );
       throw ApiError.invalidToken('Refresh token has been used already');
+    }
+
+    if (outcome.kind === 'timed_out') {
+      // Ended and recorded in their own transactions, for the same reason as above: the refusal
+      // must not roll back the record of why.
+      const reason: SessionEndReason = outcome.verdict === 'idle' ? 'idle_timeout' : 'absolute_timeout';
+      await this.tenantDb.transaction(tenantId, (tx) => this.sessions.end(tx, outcome.sessionId, reason));
+      await this.securityAudit.record(tenantId, {
+        actorId: outcome.userId,
+        action: 'security.session_timed_out',
+        entity: 'user_sessions',
+        entityId: outcome.sessionId,
+        after: { reason },
+      });
+      throw ApiError.sessionExpired(outcome.verdict);
+    }
+
+    if (outcome.kind === 'refused') {
+      await this.recordSignInRefusal(tenantId, outcome.userId, 'refresh', outcome.ip);
+      throw ApiError.ipNotAllowed(outcome.ip);
     }
 
     return outcome.tokens;
@@ -283,13 +335,37 @@ export class AuthService {
     deviceId: string | undefined,
     userAgent: string | undefined,
     identity: string | null,
-  ): Promise<{ kind: 'rotated'; tokens: TokenPair } | { kind: 'replayed'; userId: string }> {
+    via: SessionVia | null,
+  ): Promise<
+    | { kind: 'rotated'; tokens: TokenPair }
+    | { kind: 'replayed'; userId: string }
+    | { kind: 'timed_out'; userId: string; sessionId: string; verdict: 'idle' | 'expired' }
+    | { kind: 'refused'; userId: string; ip: string }
+  > {
+    const gate = await this.securityGate(tenantId);
+    const ip = currentAuditActor().ip;
+
     return this.tenantDb.transaction(tenantId, async (tx) => {
       const stored = await tx.refreshToken.findUnique({
         where: { tokenHash },
-        select: { id: true, userId: true, revokedAt: true, expiresAt: true, deviceId: true },
+        select: {
+          id: true,
+          userId: true,
+          revokedAt: true,
+          expiresAt: true,
+          deviceId: true,
+          createdAt: true,
+          session: {
+            select: { id: true, revokedAt: true, startedAt: true, lastActiveAt: true, mfaAt: true, client: true },
+          },
+        },
       });
       if (!stored) throw ApiError.invalidToken('Refresh token is not recognised');
+
+      // A session somebody signed out — this device, "everywhere", or an owner's "sign out" — is
+      // simply over. Checked before the replay rule: its tokens were revoked on purpose, and
+      // presenting one is a stale device, not a thief, so it must not end the person's other sessions.
+      if (stored.session?.revokedAt) throw ApiError.invalidToken('This session was signed out');
 
       if (stored.revokedAt) return { kind: 'replayed' as const, userId: stored.userId };
       if (stored.expiresAt.getTime() <= Date.now()) throw ApiError.tokenExpired();
@@ -301,10 +377,54 @@ export class AuthService {
       if (!user) throw ApiError.invalidToken('User no longer exists');
       if (user.status !== 'active') throw ApiError.userPending();
 
+      /*
+       * Enforcement switched on after this session began ends it here, at the next refresh. The
+       * session is left unrevoked — refusing is enough, and it is still the person's to sign out
+       * of — and a session without an identity claim predates switching and is read as a phone
+       * sign-in, the most it could have been.
+       */
+      const method: SignInMethod =
+        via === 'sso' ? 'sso' : (parseIdentityClaim(identity)?.kind ?? 'phone');
+      if (!(await this.ssoPolicy.permits(tx, user.id, method))) {
+        throw ApiError.ssoRequired(HttpStatus.UNAUTHORIZED);
+      }
+
+      // A token from before sessions existed is given one now, dated from when that token was
+      // issued — the earliest this sign-in could have been, so an absolute limit errs early.
+      const session =
+        stored.session ??
+        (await this.sessions.open(tx, {
+          tenantId,
+          userId: user.id,
+          method,
+          deviceId: deviceId ?? stored.deviceId,
+          userAgent,
+          ip,
+          app: Boolean(deviceId ?? stored.deviceId),
+          mfaMethod: null,
+          startedAt: stored.createdAt,
+        }));
+      const app = session.client === 'app';
+
+      // The company's timeouts, measured on the session rather than this token.
+      const verdict = this.sessions.verdict(session, gate);
+      if (verdict !== 'active') {
+        return { kind: 'timed_out' as const, userId: user.id, sessionId: session.id, verdict };
+      }
+      if (gate && ipRefused(gate, user.role, app, ip)) {
+        return { kind: 'refused' as const, userId: user.id, ip };
+      }
+
       const projectIds = await this.loadProjectIds(tx, user.id);
       // The verified identity rides along unchanged: rotation proves possession of the session,
       // not of the phone, so it can carry the claim forward but never mint a new one.
-      const issued = this.tokens.signRefreshToken({ userId: user.id, tenantId, identity });
+      const issued = this.tokens.signRefreshToken({
+        userId: user.id,
+        tenantId,
+        identity,
+        via,
+        sessionId: session.id,
+      });
 
       const created = await tx.refreshToken.create({
         data: {
@@ -314,6 +434,7 @@ export class AuthService {
           expiresAt: issued.expiresAt,
           deviceId: deviceId ?? stored.deviceId,
           userAgent,
+          sessionId: session.id,
         },
         select: { id: true },
       });
@@ -321,7 +442,13 @@ export class AuthService {
         where: { id: stored.id },
         data: { revokedAt: new Date(), replacedById: created.id },
       });
+      // A refresh is activity: somebody opened the app or the page.
+      await tx.userSession.update({
+        where: { id: session.id },
+        data: { lastActiveAt: new Date(), ...(ip ? { lastIp: ip } : {}) },
+      });
 
+      const ttl = this.tokens.accessTtlUntil(securityAbsoluteDeadline(session.startedAt, gate?.absoluteLifetimeHours ?? null));
       return {
         kind: 'rotated' as const,
         tokens: {
@@ -332,19 +459,110 @@ export class AuthService {
             roleId: user.roleId,
             projectIds,
             identity,
+            via,
+            sessionId: session.id,
+            // From the session row, never from the old token: removing an authenticator or a
+            // console reset takes the second factor away at the very next refresh.
+            mfa: session.mfaAt !== null,
+            app,
+            ttlSeconds: ttl,
           }),
           refresh_token: issued.token,
-          expires_in: this.tokens.accessTokenTtlSeconds,
+          expires_in: ttl,
         },
       };
     });
   }
 
-  /** Revokes every live session for a user — used on logout and on role removal. */
-  async revokeAllSessions(tenantId: string, userId: string): Promise<void> {
-    await this.tenantDb.clientFor(tenantId).refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
+  /**
+   * Ends every session a person has in this company — "sign out everywhere", a replayed refresh
+   * token, removal from the company.
+   */
+  async revokeAllSessions(
+    tenantId: string,
+    userId: string,
+    reason: SessionEndReason = 'sign_out_everywhere',
+  ): Promise<void> {
+    await this.tenantDb.transaction(tenantId, (tx) => this.sessions.endAllFor(tx, userId, reason));
+  }
+
+  /** "Sign out everywhere else": every session but the one asking. */
+  async revokeOtherSessions(actor: RequestUser): Promise<{ ended: number }> {
+    const ended = await this.tenantDb.transaction(actor.tenantId, (tx) =>
+      this.sessions.endAllFor(tx, actor.userId, 'sign_out_everywhere', actor.sessionId ?? null),
+    );
+    return { ended };
+  }
+
+  /**
+   * A fresh token pair for the session the caller is already in — after its second factor has just
+   * been shown, so the new access token carries `mfa`. The session's other live refresh tokens are
+   * retired into the new one, exactly as a rotation would, so the session still has one chain.
+   */
+  async reissueForSession(actor: RequestUser): Promise<TokenPair> {
+    if (!actor.sessionId) throw ApiError.forbidden('Sign out and sign in again to continue.');
+    const sessionId = actor.sessionId;
+    const gate = await this.securityGate(actor.tenantId);
+
+    return this.tenantDb.transaction(actor.tenantId, async (tx) => {
+      const session = await tx.userSession.findFirst({
+        where: { id: sessionId, userId: actor.userId, revokedAt: null },
+        select: { id: true, startedAt: true, lastActiveAt: true, mfaAt: true, client: true },
+      });
+      if (!session) throw ApiError.invalidToken('This session was signed out');
+      const verdict = this.sessions.verdict(session, gate);
+      if (verdict !== 'active') throw ApiError.sessionExpired(verdict);
+
+      const user = await tx.user.findFirst({
+        where: { id: actor.userId, deletedAt: null },
+        select: { id: true, role: true, roleId: true, status: true },
+      });
+      if (!user || user.status !== 'active') throw ApiError.invalidToken('User is not active');
+
+      const projectIds = await this.loadProjectIds(tx, user.id);
+      const via: SessionVia | null = actor.via === 'sso' ? 'sso' : null;
+      const issued = this.tokens.signRefreshToken({
+        userId: user.id,
+        tenantId: actor.tenantId,
+        identity: actor.identity ?? null,
+        via,
+        sessionId,
+      });
+      const created = await tx.refreshToken.create({
+        data: {
+          tenantId: actor.tenantId,
+          userId: user.id,
+          tokenHash: issued.tokenHash,
+          expiresAt: issued.expiresAt,
+          sessionId,
+        },
+        select: { id: true },
+      });
+      await tx.refreshToken.updateMany({
+        where: { sessionId, revokedAt: null, id: { not: created.id } },
+        data: { revokedAt: new Date(), replacedById: created.id },
+      });
+
+      const ttl = this.tokens.accessTtlUntil(
+        securityAbsoluteDeadline(session.startedAt, gate?.absoluteLifetimeHours ?? null),
+      );
+      return {
+        access_token: this.tokens.signAccessToken({
+          userId: user.id,
+          tenantId: actor.tenantId,
+          role: user.role,
+          roleId: user.roleId,
+          projectIds,
+          identity: actor.identity ?? null,
+          via,
+          sessionId,
+          mfa: session.mfaAt !== null,
+          app: session.client === 'app',
+          ttlSeconds: ttl,
+        }),
+        refresh_token: issued.token,
+        expires_in: ttl,
+      };
     });
   }
 
@@ -361,8 +579,39 @@ export class AuthService {
     activatePending?: boolean;
     /** The verified identity behind this session (`identityClaim`), for company switching. */
     identity?: string | null;
+    /** `sso` for a session that began at the company's identity provider. */
+    via?: SessionVia | null;
+    /**
+     * A second factor already proved at sign-in (Firebase's own record of one), or `null` for
+     * "none, whatever the method". Left out, a sign-in through the company's identity provider is
+     * judged here by its "trust the provider" setting.
+     */
+    mfaMethod?: MfaMethod | null;
+    /** The session began in the mobile app. Defaults to "sent a device id", which the app does. */
+    app?: boolean;
   }): Promise<TokenPair> {
-    return this.tenantDb.transaction(input.tenantId, async (tx) => {
+    const gate = await this.securityGate(input.tenantId);
+    // The address this sign-in came from, as the audit log records it (`clientIpOf`).
+    const ip = currentAuditActor().ip;
+    const app = input.app ?? Boolean(input.deviceId);
+    const method: SignInMethod =
+      input.via === 'sso' ? 'sso' : (parseIdentityClaim(input.identity ?? null)?.kind ?? 'phone');
+    /*
+     * HOW A SIGN-IN PROVES A SECOND FACTOR, BY METHOD:
+     *   phone OTP        never on its own — possession of the SIM is one factor. The person shows
+     *                    an authenticator code after signing in.
+     *   Firebase email   only when Firebase checked an authenticator itself (`mfaMethod: firebase`).
+     *   single sign-on   when the company trusts its identity provider for two-factor (the default):
+     *                    the provider enforces its own MFA, and the company chose to rely on it.
+     */
+    const mfaMethod: MfaMethod | null =
+      input.mfaMethod !== undefined
+        ? input.mfaMethod
+        : input.via === 'sso' && (gate?.trustIdpMfa ?? true)
+          ? 'identity_provider'
+          : null;
+
+    const outcome = await this.tenantDb.transaction(input.tenantId, async (tx) => {
       const user = await tx.user.findFirst({
         where: { id: input.userId, deletedAt: null },
         select: { id: true, role: true, roleId: true, status: true },
@@ -370,6 +619,11 @@ export class AuthService {
       if (!user) throw ApiError.invalidToken('User no longer exists');
 
       if (user.status === 'disabled') throw ApiError.forbidden('This user has been disabled');
+
+      // The allow-list is checked before anything is written: a refused sign-in must not activate
+      // an invitation or move "last signed in".
+      if (gate && ipRefused(gate, user.role, app, ip)) return { kind: 'refused' as const };
+
       if (user.status === 'pending') {
         if (!input.activatePending) throw ApiError.userPending();
         await tx.user.update({ where: { id: user.id }, data: { status: 'active' } });
@@ -377,11 +631,24 @@ export class AuthService {
 
       await tx.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
 
+      const session = await this.sessions.open(tx, {
+        tenantId: input.tenantId,
+        userId: user.id,
+        method,
+        deviceId: input.deviceId,
+        userAgent: input.userAgent,
+        ip,
+        app,
+        mfaMethod,
+      });
+
       const projectIds = await this.loadProjectIds(tx, user.id);
       const issued = this.tokens.signRefreshToken({
         userId: user.id,
         tenantId: input.tenantId,
         identity: input.identity ?? null,
+        via: input.via ?? null,
+        sessionId: session.id,
       });
       await tx.refreshToken.create({
         data: {
@@ -391,21 +658,54 @@ export class AuthService {
           expiresAt: issued.expiresAt,
           deviceId: input.deviceId,
           userAgent: input.userAgent,
+          sessionId: session.id,
         },
       });
 
+      const ttl = this.tokens.accessTtlUntil(
+        securityAbsoluteDeadline(session.startedAt, gate?.absoluteLifetimeHours ?? null),
+      );
       return {
-        access_token: this.tokens.signAccessToken({
-          userId: user.id,
-          tenantId: input.tenantId,
-          role: user.role,
-          roleId: user.roleId,
-          projectIds,
-          identity: input.identity ?? null,
-        }),
-        refresh_token: issued.token,
-        expires_in: this.tokens.accessTokenTtlSeconds,
+        kind: 'session' as const,
+        tokens: {
+          access_token: this.tokens.signAccessToken({
+            userId: user.id,
+            tenantId: input.tenantId,
+            role: user.role,
+            roleId: user.roleId,
+            projectIds,
+            identity: input.identity ?? null,
+            via: input.via ?? null,
+            sessionId: session.id,
+            mfa: mfaMethod !== null,
+            app,
+            ttlSeconds: ttl,
+          }),
+          refresh_token: issued.token,
+          expires_in: ttl,
+        },
       };
+    });
+
+    if (outcome.kind === 'refused') {
+      await this.recordSignInRefusal(input.tenantId, input.userId, method, ip);
+      throw ApiError.ipNotAllowed(ip);
+    }
+    return outcome.tokens;
+  }
+
+  /** The company's sign-in rules, from the same cache the guards read; null when it has none. */
+  private async securityGate(tenantId: string): Promise<TenantSecurityGate | null> {
+    return (await this.tenantCache.get(tenantId))?.security ?? null;
+  }
+
+  private async recordSignInRefusal(tenantId: string, userId: string, method: string, ip: string): Promise<void> {
+    await this.securityAudit.record(tenantId, {
+      actorId: userId,
+      action: 'security.sign_in_refused',
+      entity: 'users',
+      entityId: userId,
+      after: { reason: 'ip_not_allowed', method, ip },
     });
   }
 
@@ -424,16 +724,62 @@ export class AuthService {
    */
   private async liveIdentities(identities: IdentityRow[]): Promise<IdentityRow[]> {
     const live: IdentityRow[] = [];
+    // When a company is waiting out its deletion grace period, only its owner may still come in (to
+    // cancel it); everybody else is told when it goes rather than "suspended".
+    let pendingDeletion: Date | null | undefined;
     for (const identity of identities) {
       const tenant = await this.tenantDb.clientFor(identity.tenantId).tenant.findUnique({
         where: { id: identity.tenantId },
         select: { status: true },
       });
-      if (tenant?.status === 'active') live.push(identity);
+      if (tenant?.status === 'active') {
+        live.push(identity);
+      } else if (tenant?.status === 'pending_deletion') {
+        const { isOwner, purgeAfter } = await this.tenantDb.transaction(identity.tenantId, async (tx) => {
+          const [user, request] = await Promise.all([
+            tx.user.findFirst({
+              where: { id: identity.userId, deletedAt: null },
+              select: { role: true, status: true },
+            }),
+            tx.companyDeletionRequest.findFirst({
+              where: { status: 'pending' },
+              select: { purgeAfter: true },
+            }),
+          ]);
+          return {
+            isOwner: user?.role === 'owner' && user.status === 'active',
+            purgeAfter: request?.purgeAfter ?? null,
+          };
+        });
+        if (isOwner) live.push(identity);
+        else if (pendingDeletion === undefined) pendingDeletion = purgeAfter;
+      }
     }
 
-    if (live.length === 0) throw ApiError.tenantSuspended();
+    if (live.length === 0) {
+      if (pendingDeletion !== undefined) throw ApiError.tenantPendingDeletion(pendingDeletion);
+      throw ApiError.tenantSuspended();
+    }
     return live;
+  }
+
+  /**
+   * Drops the companies that make this person use single sign-on (`SsoPolicyService`). With
+   * nothing left, the refusal says so — they belong somewhere, just not by this way in.
+   */
+  private async permittedIdentities(
+    identities: IdentityRow[],
+    method: SignInMethod,
+  ): Promise<IdentityRow[]> {
+    const permitted: IdentityRow[] = [];
+    for (const identity of identities) {
+      const allowed = await this.tenantDb.transaction(identity.tenantId, (tx) =>
+        this.ssoPolicy.permits(tx, identity.userId, method),
+      );
+      if (allowed) permitted.push(identity);
+    }
+    if (permitted.length === 0) throw ApiError.ssoRequired();
+    return permitted;
   }
 
   private async describeTenants(identities: IdentityRow[]): Promise<TenantChoice[]> {
@@ -463,4 +809,14 @@ export class AuthService {
     });
     return rows.map((row) => row.projectId);
   }
+}
+
+/** Does the company's IP allow-list keep this person out from this address? */
+function ipRefused(gate: TenantSecurityGate, role: UserRole, app: boolean, ip: string): boolean {
+  return (
+    securityIpApplies(
+      { mode: gate.ipMode, exemptOwners: gate.ipExemptOwners, exemptRoles: gate.ipExemptRoles },
+      { role, app },
+    ) && !ipAllowed(ip, gate.ipCidrs)
+  );
 }

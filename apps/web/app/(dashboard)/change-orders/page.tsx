@@ -1,4 +1,4 @@
-import { Download, FilePlus2 } from 'lucide-react';
+import { FilePlus2 } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import { getFormat } from '@/lib/format-server';
@@ -7,7 +7,7 @@ import type { Page, ProjectSummary } from '@/lib/api-types';
 import type { ChangeOrderRegister, ChangeOrderSuggestion } from '@/lib/change-order-types';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
-import { Button } from '@/components/ui/button';
+import { ExportMenu } from '@/components/export-menu';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ChangeOrderDialog } from './change-order-dialog';
 import { ChangeOrdersTable } from './change-orders-table';
@@ -48,14 +48,7 @@ export default async function ChangeOrdersPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {items.length > 0 && (
-            <Button asChild variant="secondary" size="sm">
-              <a href="/change-orders/export" download>
-                <Download className="size-4" />
-                {t('Export CSV')}
-              </a>
-            </Button>
-          )}
+          {items.length > 0 && <ExportMenu kind="change_orders" csvHref="/change-orders/export" />}
           {canManage && (
             <ChangeOrderDialog sites={(sites?.items ?? []).map((site) => ({ id: site.id, name: site.name }))} />
           )}

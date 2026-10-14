@@ -31,7 +31,9 @@ export type ListTenantsQuery = z.infer<typeof listTenantsQuerySchema>;
 export const updateTenantPlatformSchema = z
   .object({
     plan: planCodeSchema.optional(),
-    status: z.enum(TENANT_STATUSES).optional(),
+    // Never `pending_deletion`: a deletion is requested by the owner and expedited or cancelled
+    // through its own console actions, which keep the request, the sign-outs and the audit in step.
+    status: z.enum(TENANT_STATUSES).exclude(['pending_deletion']).optional(),
     enabled_modules: z.array(z.enum(MODULES)).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'nothing to update' });

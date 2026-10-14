@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Download, HelpCircle } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 import { RFI_DISCIPLINES, RFI_DISCIPLINE_LABELS, RFI_STATUSES, RFI_STATUS_LABELS } from '@sitebook/shared';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
@@ -8,6 +8,7 @@ import type { Page, ProjectSummary, SiteDocument } from '@/lib/api-types';
 import { rfiDocuments } from '@/lib/rfi-form-data';
 import type { RfiSettings, RfiStats, RfiSummary } from '@/lib/rfi-types';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { StatTile } from '@/components/stat-tile';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
@@ -131,12 +132,9 @@ export default async function RfisPage({
         <button type="submit" className="h-9 rounded-btn border border-line-strong px-3 text-[13px] font-medium hover:bg-raised">
           {t('Filter')}
         </button>
-        <a
-          href={`/rfis/export?kind=rfis&${query.toString()}`}
-          className="ms-auto inline-flex items-center gap-1 text-[12.5px] text-accent hover:underline"
-        >
-          <Download className="size-3.5" /> {t('Export CSV')}
-        </a>
+        <div className="ms-auto">
+          <ExportMenu kind="rfis" filters={Object.fromEntries(query)} csvHref={`/rfis/export?kind=rfis&${query.toString()}`} />
+        </div>
       </form>
 
       {liveSites.length === 0 && log.items.length === 0 ? (

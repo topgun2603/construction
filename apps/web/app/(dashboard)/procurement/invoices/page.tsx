@@ -5,6 +5,7 @@ import type { PurchaseInvoice } from '@/lib/procurement-types';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { getT } from '@/lib/i18n-server';
 import { getFormat } from '@/lib/format-server';
 import { FLAG_LABEL, INVOICE_STATUS } from '../status';
@@ -22,6 +23,9 @@ export default async function PurchaseInvoicesPage() {
 
   return (
     <FadeIn className="flex flex-col gap-5">
+      <div className="flex justify-end">
+        <ExportMenu kind="purchase_invoices" />
+      </div>
       {invoices.length === 0 ? (
         <EmptyState
           icon={<FileText />}

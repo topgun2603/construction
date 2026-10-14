@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { UserRole } from '@sitebook/shared';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { FcmService } from '../../integrations/fcm.service';
+import { NOTIFICATION_EMAIL_RELAY, type NotificationEmailRelay } from './notification-email-relay';
 
 export interface NotifyInput {
   tenantId: string;
@@ -41,9 +42,20 @@ export class NotificationsService {
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly fcm: FcmService,
+    @Optional() @Inject(NOTIFICATION_EMAIL_RELAY) private readonly emailRelay?: NotificationEmailRelay,
   ) {}
 
   async notify(input: NotifyInput): Promise<NotifyResult> {
+    const result = await this.deliver(input);
+    // After the commit, and outside it: the relay decides which notices are worth an email (and
+    // whether the company has a mailbox connected) and never throws.
+    if (this.emailRelay && result.userIds.length > 0) {
+      await this.emailRelay.relay({ ...input, userIds: result.userIds, payload: input.payload });
+    }
+    return { recipients: result.recipients, pushed: result.pushed, prunedTokens: result.prunedTokens };
+  }
+
+  private async deliver(input: NotifyInput): Promise<NotifyResult & { userIds: string[] }> {
     return this.tenantDb.transaction(input.tenantId, async (tx) => {
       const targeted = new Set(input.userIds ?? []);
 
@@ -65,7 +77,7 @@ export class NotificationsService {
 
       if (input.exceptUserId) targeted.delete(input.exceptUserId);
       const recipients = [...targeted];
-      if (recipients.length === 0) return { recipients: 0, pushed: 0, prunedTokens: 0 };
+      if (recipients.length === 0) return { recipients: 0, pushed: 0, prunedTokens: 0, userIds: [] };
 
       await tx.notification.createMany({
         data: recipients.map((userId) => ({
@@ -103,7 +115,7 @@ export class NotificationsService {
         this.logger.log({ pruned }, 'Pruned dead FCM tokens');
       }
 
-      return { recipients: recipients.length, pushed: push.sent, prunedTokens: pruned };
+      return { recipients: recipients.length, pushed: push.sent, prunedTokens: pruned, userIds: recipients };
     });
   }
 

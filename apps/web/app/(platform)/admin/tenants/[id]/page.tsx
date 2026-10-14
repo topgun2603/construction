@@ -10,6 +10,7 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { DangerZone } from './danger-zone';
 import { TenantControls } from './tenant-controls';
+import { TenantAiCard, type PlatformTenantAi } from './ai-card';
 import { getT } from '@/lib/i18n-server';
 
 const { longDate, money, shortDate } = indiaFormat;
@@ -32,9 +33,11 @@ const STATUS_TONE: Record<string, Tone> = {
 export default async function PlatformTenantPage({ params }: { params: Promise<{ id: string }> }) {
   const t = await getT();
   const { id } = await params;
-  const [detail, catalogue] = await Promise.all([
+  const [detail, catalogue, ai] = await Promise.all([
     platformFetch<PlatformTenantDetail>(`/tenants/${id}`),
     platformFetch<{ items: PlanView[] }>('/plans'),
+    // Optional to the page, like the group card: if it cannot be read, the card is simply absent.
+    platformFetch<PlatformTenantAi>(`/tenants/${id}/ai`).catch(() => null),
   ]);
   const { tenant, usage, team, projects, audit } = detail;
 
@@ -116,6 +119,8 @@ export default async function PlatformTenantPage({ params }: { params: Promise<{
           </ul>
         </Card>
       )}
+
+      {ai && <TenantAiCard ai={ai} />}
 
       <TenantControls
         tenantId={tenant.id}

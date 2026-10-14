@@ -18,6 +18,7 @@ import {
 import { Input, Textarea } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { useLanguage } from '@/components/language-provider';
+import { AiOffNote } from '@/components/ai-features';
 import { quickSafetyObservation } from '@/lib/safety-actions';
 import { uploadSafetyPhoto } from './photo-upload';
 import { SitePicker } from './site-picker';
@@ -118,6 +119,7 @@ export function QuickObservationDialog({
               placeholder={t('Worker on the slab edge without a harness')}
             />
           </Field>
+          <AiOffNote feature="suggestions" manual={t('The type and severity are suggested from keywords instead.')} />
           <Field label={t('Where')} htmlFor="obs-location" optional>
             <Input id="obs-location" name="location" maxLength={200} placeholder={t('Block A, level 3')} />
           </Field>

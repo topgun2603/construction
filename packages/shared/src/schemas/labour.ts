@@ -163,7 +163,8 @@ export type BulkAttendanceInput = z.infer<typeof bulkAttendanceSchema>;
 
 export const attendanceQuerySchema = z.object({
   project_id: uuidSchema,
-  date: isoDateSchema,
+  /** Left out, the roll call is for today at the site — on its own clock, not the company's. */
+  date: isoDateSchema.optional(),
 });
 export type AttendanceQuery = z.infer<typeof attendanceQuerySchema>;
 

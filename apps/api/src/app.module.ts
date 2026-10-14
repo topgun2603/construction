@@ -46,6 +46,17 @@ import { PortalModule } from './modules/portal/portal.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { SafetyModule } from './modules/safety/safety.module';
 import { EquipmentModule } from './modules/equipment/equipment.module';
+import { SsoModule } from './modules/sso/sso.module';
+import { ScimModule } from './modules/scim/scim.module';
+import { SecurityModule } from './modules/security/security.module';
+import { AiControlsModule } from './modules/ai/ai-controls.module';
+import { M365Module } from './modules/m365/m365.module';
+import { MeetingsModule } from './modules/meetings/meetings.module';
+import { PublicApiModule } from './modules/public-api/public-api.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { AccountingModule } from './modules/accounting/accounting.module';
+import { DataPortabilityModule } from './modules/data-portability/data-portability.module';
+import { SecurityPolicyGuard } from './modules/security/security-policy.guard';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -58,6 +69,7 @@ import { UsersModule } from './modules/users/users.module';
 import { WagePeriodsModule } from './modules/wage-periods/wage-periods.module';
 import { WorkerPortalModule } from './modules/worker-portal/worker-portal.module';
 import { WorkersModule } from './modules/workers/workers.module';
+import { ExcelModule } from './modules/excel/excel.module';
 
 @Module({
   imports: [
@@ -109,6 +121,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     MaterialsModule,
     WorkerPortalModule,
     WorkersModule,
+    ExcelModule,
     AttendanceModule,
     WagePeriodsModule,
     LabourPaymentsModule,
@@ -133,6 +146,17 @@ import { WorkersModule } from './modules/workers/workers.module';
     CompanyGroupsModule,
     RfisModule,
     EquipmentModule,
+    SsoModule,
+    ScimModule,
+    SecurityModule,
+    AiControlsModule,
+    M365Module,
+    MeetingsModule,
+    // The public REST API and signed webhooks. Webhooks register their own queue, like JobsModule.
+    PublicApiModule,
+    WebhooksModule.register(),
+    AccountingModule,
+    DataPortabilityModule,
     AuditModule,
     ReportsModule,
     StockModule,
@@ -142,9 +166,11 @@ import { WorkersModule } from './modules/workers/workers.module';
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     // Guard order matters and follows the request's logical narrowing:
-    // rate limit → who are you → is the module on your plan → is your role allowed.
+    // rate limit → who are you → does your company let this session in (IP allow-list,
+    // required two-factor) → is the module on your plan → is your role allowed.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: SecurityPolicyGuard },
     { provide: APP_GUARD, useClass: PlanGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },

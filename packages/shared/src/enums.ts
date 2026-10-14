@@ -19,7 +19,9 @@ export type Plan = string;
 
 export const PLAN_SEED_CODES = ['three_months', 'six_months', 'one_year', 'lifetime'] as const;
 
-export const TENANT_STATUSES = ['active', 'suspended', 'cancelled'] as const;
+// `pending_deletion`: the owner asked for the company to be deleted and the grace period is running
+// (see data-portability.ts). Only the deletion request sets or clears it, never a status edit.
+export const TENANT_STATUSES = ['active', 'suspended', 'cancelled', 'pending_deletion'] as const;
 export type TenantStatus = (typeof TENANT_STATUSES)[number];
 
 export const USER_ROLES = [

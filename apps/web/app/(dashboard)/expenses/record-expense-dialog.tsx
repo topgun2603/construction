@@ -31,6 +31,7 @@ import { amountToMinorString, minorToAmountInput } from '@/lib/money-input';
 import type { ProjectSummary } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
 import { useFormat } from '@/components/format-provider';
+import { AiOffNote, useAiBlocked } from '@/components/ai-features';
 
 export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }) {
   const { t } = useLanguage();
@@ -41,6 +42,7 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
   const [category, setCategory] = useState<string>('materials');
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const readingOff = useAiBlocked('reading');
 
   /*
    * The site's cost codes, read when the dialog opens or the site changes — a code belongs to one
@@ -108,6 +110,8 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
         return;
       }
       setBillKey(presigned.data.s3_key);
+      // Reading switched off for the company: the photo is still filed as evidence, nothing is read.
+      if (readingOff) return;
 
       const read = await scanBill(presigned.data.s3_key);
       if (!read.ok || !read.data) {
@@ -242,7 +246,9 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
               <span className="text-[12.5px] text-ink-muted">
                 {scanned
                   ? 'Read from the photo — check it before recording.'
-                  : 'Optional. We read the total, date and supplier off it.'}
+                  : readingOff
+                    ? t('Optional. Attached to the expense as evidence.')
+                    : 'Optional. We read the total, date and supplier off it.'}
               </span>
             </div>
             <Button
@@ -253,7 +259,7 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
               onClick={() => fileInput.current?.click()}
             >
               {scanning ? <Loader2 className="size-4 animate-spin" /> : <ScanLine className="size-4" />}
-              {scanning ? 'Reading…' : billKey ? 'Use another photo' : 'Scan a bill'}
+              {scanning ? 'Reading…' : billKey ? 'Use another photo' : readingOff ? t('Attach a photo') : 'Scan a bill'}
             </Button>
             <input
               ref={fileInput}
@@ -266,6 +272,8 @@ export function RecordExpenseDialog({ projects }: { projects: ProjectSummary[] }
               }}
             />
           </div>
+
+          <AiOffNote feature="reading" manual={t('Type the bill in below.')} />
 
           {scanned && unread.length > 0 && (
             // Saying what it could not read is the honest half of this feature. A form that looks

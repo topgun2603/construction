@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import OpenAI from 'openai';
 import { languageName, type TranslateInput, type TranslateResult } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../../common/errors/api-error';
+import { AiGateway } from './ai-gateway.service';
 
 /**
  * Translation, behind one method.
@@ -24,7 +24,8 @@ import { ApiError } from '../../common/errors/api-error';
 export class TranslateService {
   private readonly logger = new Logger(TranslateService.name);
   private readonly config = env();
-  private client?: OpenAI;
+
+  constructor(private readonly gateway: AiGateway) {}
 
   /**
    * Repeats are free.
@@ -37,20 +38,16 @@ export class TranslateService {
   private readonly recent = new Map<string, TranslateResult>();
   private static readonly CACHE_LIMIT = 500;
 
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
-
-  async translate(input: TranslateInput): Promise<TranslateResult> {
-    if (!this.enabled) {
-      throw ApiError.conflict('Translation is not configured on this deployment');
-    }
+  async translate(tenantId: string, input: TranslateInput): Promise<TranslateResult> {
+    // Checked before the cache, not after: a company that switched translation off gets the
+    // refusal every time, never an answer some other company's request left in memory.
+    await this.gateway.assertEnabled(tenantId, 'translation', 'Translation is not configured on this deployment');
 
     const key = cacheKey(input);
     const hit = this.recent.get(key);
     if (hit) return hit;
 
-    const result = await this.viaModel(input);
+    const result = await this.viaModel(tenantId, input);
 
     // Oldest out first. A Map iterates in insertion order, which is the only reason this is five
     // lines rather than an LRU library.
@@ -69,9 +66,10 @@ export class TranslateService {
    * explanation of what it did. A chat model's instinct here is to be helpful, and "Here is the
    * Tamil translation:" pasted into a site note is worse than no translation.
    */
-  private async viaModel(input: TranslateInput): Promise<TranslateResult> {
+  private async viaModel(tenantId: string, input: TranslateInput): Promise<TranslateResult> {
+    const client = await this.gateway.client(tenantId, 'translation');
     try {
-      const response = await this.openai().chat.completions.create({
+      const response = await client.chat.completions.create({
         model: this.config.OPENAI_ASK_MODEL,
         temperature: 0,
         max_tokens: 800,
@@ -102,10 +100,6 @@ ${input.to === 'ta' ? TAMIL_GLOSSARY : ''}`,
     }
   }
 
-  private openai(): OpenAI {
-    this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-    return this.client;
-  }
 }
 
 /**

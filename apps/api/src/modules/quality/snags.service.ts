@@ -30,6 +30,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { SnagReader } from '../ai/snag-reader.service';
 import { VoiceReader } from '../ai/voice-reader.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
@@ -164,6 +165,7 @@ export class SnagsService {
     private readonly notifications: NotificationsService,
     private readonly voice: VoiceReader,
     private readonly reader: SnagReader,
+    private readonly gateway: AiGateway,
   ) {}
 
   // --- reading -----------------------------------------------------------------------------------
@@ -290,12 +292,14 @@ export class SnagsService {
 
     let transcript: string | null = null;
     let keepVoice: string | null = input.voice_s3_key ?? null;
-    if (input.voice_s3_key && this.voice.enabled) {
+    // Voice off for this company (or no key): the recording is kept on the snag for somebody to
+    // listen to, exactly as when transcription is not set up — quick capture never fails over it.
+    if (input.voice_s3_key && (await this.gateway.isOn(actor.tenantId, 'voice'))) {
       const audio = await this.uploads.readObject(actor, input.voice_s3_key, MAX_UPLOAD_BYTES.audio);
       if (!audio.contentType.startsWith('audio/')) {
         throw ApiError.validationFailed({ voice_s3_key: 'not a recording' }, 'That file is not a recording');
       }
-      transcript = (await this.voice.transcribe(audio.body, audio.contentType)).text;
+      transcript = (await this.voice.transcribe(actor.tenantId, audio.body, audio.contentType)).text;
       keepVoice = null;
       // Best effort, as for a spoken report: the transcript is what anybody would want.
       void this.uploads.deleteObject(actor, input.voice_s3_key).catch(() => undefined);
@@ -305,9 +309,10 @@ export class SnagsService {
     const guess = suggestSnagFromNote(words);
     let suggestion = { ...guess, description: words || null };
     let aiSuggested = false;
-    if (words && this.reader.enabled) {
+    // Suggestions off: the keyword rules' guess above stands, as it always did without a model.
+    if (words && (await this.gateway.isOn(actor.tenantId, 'suggestions'))) {
       try {
-        const read = await this.reader.read(words, await this.knownTrades(actor));
+        const read = await this.reader.read(actor.tenantId, words, await this.knownTrades(actor));
         suggestion = { ...read, description: read.description ?? (words || null) };
         aiSuggested = true;
       } catch (error) {

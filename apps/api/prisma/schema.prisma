@@ -68,6 +68,9 @@ enum TenantStatus {
   suspended
   cancelled
 
+  /// The owner asked for the company to be deleted; the grace period is running.
+  pending_deletion
+
   @@map("tenant_status")
 }
 
@@ -235,6 +238,9 @@ model Tenant {
   /// bank or exchange house that pays the salaries. Both appear in every salary file (SIF).
   wpsEmployerId      String?      @map("wps_employer_id")
   wpsBankCode        String?      @map("wps_bank_code")
+  /// Saudi Wage Protection (Mudad): the MHRSD establishment number — labour office id, a dash,
+  /// then the sequence ("1-123456") — printed on every payroll file.
+  mudadEstablishment String?      @map("mudad_establishment_id")
   /// Procurement's three-way match tolerance, in basis points (200 = 2%).
   matchToleranceBp   Int          @default(200) @map("invoice_match_tolerance_bp")
   status             TenantStatus @default(active)
@@ -379,6 +385,62 @@ model Tenant {
   equipmentDocuments    EquipmentDocument[]
   equipmentHireBookings EquipmentHireBooking[]
 
+  // Single sign-on and provisioning
+  ssoConnection      SsoConnection?
+  ssoDomains         SsoDomain[]
+  ssoDomainDirectory SsoDomainDirectory[]
+  ssoLoginRequests   SsoLoginRequest[]
+  scimTokens         ScimToken[]
+  scimTokenDirectory ScimTokenDirectory[]
+  scimUsers          ScimUser[]
+  scimGroups         ScimGroup[]
+  scimGroupMembers   ScimGroupMember[]
+  scimRoleMappings   ScimRoleMapping[]
+
+  // Two-factor, session timeouts and IP allow-lists
+  securitySettings TenantSecuritySettings?
+  userSessions     UserSession[]
+  mfaFactors       MfaFactor[]
+  mfaRecoveryCodes MfaRecoveryCode[]
+
+  // Company AI controls
+  aiSettings   AiSettings?
+  aiUsageDaily AiUsageDaily[]
+
+  // Plans paid by bank transfer
+  planBankTransferInvoices PlanBankTransferInvoice[]
+
+  // Microsoft 365 email and calendar, and site meetings
+  m365Connection     IntegrationM365Connection?
+  m365AuthRequests   IntegrationM365AuthRequest[]
+  m365CalendarEvents IntegrationM365CalendarEvent[]
+  emailDeliveries    EmailDelivery[]
+  meetings           Meeting[]
+  meetingAttendees   MeetingAttendee[]
+  meetingActionItems MeetingActionItem[]
+
+  // Public REST API and webhooks
+  apiKeys            ApiKey[]
+  apiKeyDirectory    ApiKeyDirectory[]
+  apiIdempotencyKeys ApiIdempotencyKey[]
+  webhookEndpoints   WebhookEndpoint[]
+  outboxEvents       OutboxEvent[]
+  webhookDeliveries  WebhookDelivery[]
+  webhookAttempts    WebhookDeliveryAttempt[]
+
+  // Accounting exports
+  accountingSettings      AccountingSettings?
+  accountingAccountMaps   AccountingAccountMap[]
+  accountingExportBatches AccountingExportBatch[]
+  accountingExportItems   AccountingExportItem[]
+  accountingExportFiles   AccountingExportFile[]
+
+  // Data export and deletion
+  dataExports             DataExport[]
+  companyDeletionRequests CompanyDeletionRequest[]
+  companyDeletionSchedule CompanyDeletionSchedule?
+  legalAcceptances        LegalAcceptance[]
+
   @@map("tenants")
 }
 
@@ -406,6 +468,9 @@ model Role {
   users  User[]
 
   purchaseApprovalLimits PurchaseApprovalLimit[]
+
+  ssoJitConnections SsoConnection[]
+  scimRoleMappings  ScimRoleMapping[]
 
   @@unique([tenantId, name], map: "roles_tenant_id_name_key")
   @@index([tenantId])
@@ -478,6 +543,15 @@ model User {
   // Company groups
   companyGroupAdmin        CompanyGroupAdmin[]
 
+  // Single sign-on and provisioning
+  scimUser         ScimUser?
+  scimGroupMembers ScimGroupMember[]
+
+  // Two-factor and sessions
+  sessions         UserSession[]
+  mfaFactor        MfaFactor?
+  mfaRecoveryCodes MfaRecoveryCode[]
+
   /// Phone is unique within a tenant, not globally â€” the same person can be a
   /// supervisor at one builder and an owner at another.
   @@unique([tenantId, phone], map: "users_tenant_id_phone_key")
@@ -499,12 +573,17 @@ model RefreshToken {
   revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
   /// Set when this token was rotated, so a replayed token reveals the whole chain.
   replacedById String?   @map("replaced_by_id") @db.Uuid
+  /// The sign-in this token belongs to. Every rotation stays in the same session; null only on
+  /// tokens issued before sessions existed, which are given one at their next refresh.
+  sessionId    String?   @map("session_id") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session UserSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
+  @@index([sessionId])
   @@map("refresh_tokens")
 }
 
@@ -527,6 +606,9 @@ model Project {
   /// plus approved change orders, worked out rather than stored (see `ChangeOrderSiteRevision`).
   contractValue BigInt?       @map("contract_value")
   status        ProjectStatus @default(planning)
+  /// IANA zone the site keeps, when it is not the company's: a Mumbai company's Dubai site rolls
+  /// over to "tomorrow" at Dubai midnight. Null means the company's zone (`siteTimeZone`).
+  timeZone      String?       @map("time_zone")
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
@@ -590,6 +672,9 @@ model Project {
   equipmentFuel         EquipmentFuel[]
   equipmentMaintenance  EquipmentMaintenance[]
   equipmentHireBookings EquipmentHireBooking[]
+
+  // Site meetings
+  meetings Meeting[]
 
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
@@ -4796,4 +4881,989 @@ model EquipmentHireBooking {
   @@unique([equipmentId, projectId, month])
   @@index([tenantId, vendorId, month])
   @@map("equipment_hire_bookings")
+}
+
+// ---------------------------------------------------------------------------
+// Single sign-on and SCIM provisioning (roadmap Phase 3, item 1)
+// ---------------------------------------------------------------------------
+
+/// A company's single sign-on connection: OpenID Connect or SAML 2.0 to its own identity provider.
+/// At most one per company. Owner-only to change — whoever controls this can sign in as anybody on
+/// the company's verified domains.
+model SsoConnection {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String   @unique @map("tenant_id") @db.Uuid
+  /// oidc | saml
+  protocol               String
+  /// entra | google | okta | other — which help text and claim defaults apply.
+  preset                 String   @default("other")
+  enabled                Boolean  @default(false)
+  oidcIssuer             String?  @map("oidc_issuer")
+  oidcClientId           String?  @map("oidc_client_id")
+  /// AES-256-GCM (FieldCipher) under SSO_ENCRYPTION_KEY. Named `_cipher` so the audit log redacts it.
+  oidcClientSecretCipher String?  @map("oidc_client_secret_cipher")
+  oidcScopes             String   @default("openid email profile") @map("oidc_scopes")
+  samlIdpEntityId        String?  @map("saml_idp_entity_id")
+  samlIdpSsoUrl          String?  @map("saml_idp_sso_url")
+  /// The IdP's public signing certificate (PEM or bare base64). Public by nature, so not encrypted.
+  samlIdpCertificate     String?  @map("saml_idp_certificate")
+  samlIdpMetadataUrl     String?  @map("saml_idp_metadata_url")
+  /// Create a person at first sign-in when nobody in the company has their address.
+  jitEnabled             Boolean  @default(false) @map("jit_enabled")
+  /// The role they get. Never an owner role; the service refuses one.
+  jitRoleId              String?  @map("jit_role_id") @db.Uuid
+  /// People on a verified domain must use SSO; owners keep phone sign-in as the break-glass path.
+  enforceSso             Boolean  @default(false) @map("enforce_sso")
+  updatedByUserId        String?  @map("updated_by_user_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  jitRole       Role?             @relation(fields: [jitRoleId], references: [id], onDelete: SetNull)
+  loginRequests SsoLoginRequest[]
+
+  @@map("sso_connections")
+}
+
+/// An email domain a company has claimed, and — once its DNS carries the TXT record — proved.
+/// A domain can be *verified* by one company only; that is a partial unique index in the migration
+/// (`WHERE verified_at IS NOT NULL`), which Prisma cannot express.
+model SsoDomain {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  domain            String
+  /// What the TXT record must say. Named `_token` so the audit log redacts it.
+  verificationToken String    @map("verification_token")
+  verifiedAt        DateTime? @map("verified_at") @db.Timestamptz(6)
+  lastCheckedAt     DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, domain])
+  @@map("sso_domains")
+}
+
+/// Verified domain → company, for "Sign in with SSO" before any company is known. No RLS, like
+/// `auth_identities`, and like it written only by a trigger (on `sso_domains`) — never by the app.
+model SsoDomainDirectory {
+  domain   String @id
+  tenantId String @map("tenant_id") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("sso_domain_directory")
+}
+
+/// One sign-in in flight: what the callback must match (OIDC nonce and PKCE verifier, SAML request
+/// id) and, once the provider has answered, who it was. Single use; a few minutes long.
+model SsoLoginRequest {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  connectionId       String    @map("connection_id") @db.Uuid
+  protocol           String
+  /// started → callback (provider answered, being checked) → authenticated → completed.
+  status             String    @default("started")
+  nonce              String?
+  /// The PKCE code verifier. Named `_secret` so nothing ever logs it.
+  pkceVerifierSecret String?   @map("pkce_verifier_secret")
+  samlRequestId      String?   @map("saml_request_id")
+  /// SHA-256 of the browser binding sent at the start; the finish must present the same value.
+  bindingHash        String    @map("binding_hash")
+  email              String?
+  userId             String?   @map("user_id") @db.Uuid
+  expiresAt          DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection SsoConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("sso_login_requests")
+}
+
+/// A SCIM bearer token. Only its SHA-256 is kept; the token itself is shown once, when made.
+model ScimToken {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  /// The last four characters, to tell tokens apart in settings.
+  tokenHint       String    @map("token_hint")
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("scim_tokens")
+}
+
+/// Live SCIM token hash → company, for authenticating a SCIM request before any company is known.
+/// No RLS; written only by the trigger on `scim_tokens`.
+model ScimTokenDirectory {
+  tokenHash String @id @map("token_hash")
+  tenantId  String @map("tenant_id") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("scim_token_directory")
+}
+
+/// A team member the identity provider manages, with the provider's own id for them.
+model ScimUser {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  userId     String   @unique @map("user_id") @db.Uuid
+  externalId String?  @map("external_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, externalId])
+  @@map("scim_users")
+}
+
+/// A group the identity provider pushed. Only used to map people to roles.
+model ScimGroup {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  displayName String   @map("display_name")
+  externalId  String?  @map("external_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members ScimGroupMember[]
+
+  @@unique([tenantId, displayName])
+  @@map("scim_groups")
+}
+
+model ScimGroupMember {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  groupId   String   @map("group_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group  ScimGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([tenantId, userId])
+  @@map("scim_group_members")
+}
+
+/// People in the provider group called `groupName` get `roleId`. Never an owner role.
+model ScimRoleMapping {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  groupName String   @map("group_name")
+  roleId    String   @map("role_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, groupName])
+  @@map("scim_role_mappings")
+}
+
+// ---------------------------------------------------------------------------
+// Two-factor, session timeouts and IP allow-lists (roadmap Phase 3, item 2)
+// ---------------------------------------------------------------------------
+
+/// A company's sign-in rules. One row per company, created the first time an owner saves any of
+/// them; no row means every rule is off, which is how every company starts.
+model TenantSecuritySettings {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String   @unique @map("tenant_id") @db.Uuid
+  /// off | admins | everyone — see SECURITY_MFA_POLICIES.
+  mfaPolicy             String   @default("off") @map("mfa_policy")
+  /// A sign-in through the company's own identity provider counts as two-factor.
+  trustIdpMfa           Boolean  @default(true) @map("trust_idp_mfa")
+  /// Minutes without activity before a session ends; null for never.
+  idleTimeoutMinutes    Int?     @map("idle_timeout_minutes")
+  /// Hours from sign-in before a session ends whatever happens; null for the refresh token's own.
+  absoluteLifetimeHours Int?     @map("absolute_lifetime_hours")
+  /// off | web | everyone — see SECURITY_IP_MODES.
+  ipMode                String   @default("off") @map("ip_mode")
+  /// `[{ cidr, label }]`, canonical CIDR text.
+  ipRules               Json     @default("[]") @map("ip_rules")
+  ipExemptOwners        Boolean  @default(true) @map("ip_exempt_owners")
+  /// Base roles the allow-list never checks.
+  ipExemptRoles         String[] @default([]) @map("ip_exempt_roles")
+  updatedByUserId       String?  @map("updated_by_user_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_security_settings")
+}
+
+/// One sign-in. Every refresh-token rotation after it belongs to it. What the account page lists
+/// as "where you are signed in", what idle and absolute timeouts are measured on, and where a
+/// verified second factor is recorded for the rest of the session.
+model UserSession {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  /// phone | email | sso — how the first factor was proved.
+  method        String
+  /// web | app — `app` when the sign-in sent a device id, as the mobile app does.
+  client        String    @default("web")
+  deviceId      String?   @map("device_id")
+  userAgent     String?   @map("user_agent")
+  /// Where the sign-in came from, and the latest address seen.
+  ip            String?
+  lastIp        String?   @map("last_ip")
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  lastActiveAt  DateTime  @default(now()) @map("last_active_at") @db.Timestamptz(6)
+  /// When a second factor was shown for this session; null until then.
+  mfaAt         DateTime? @map("mfa_at") @db.Timestamptz(6)
+  /// totp | recovery_code | firebase | identity_provider
+  mfaMethod     String?   @map("mfa_method")
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+  /// sign_out | sign_out_everywhere | revoked | revoked_by_admin | idle_timeout | absolute_timeout | mfa_reset | replayed
+  revokedReason String?   @map("revoked_reason")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([tenantId, userId, revokedAt])
+  @@map("user_sessions")
+}
+
+/// A person's authenticator app. One per person per company: somebody in two companies is two
+/// users and enrols in each, because a company's rule should be met by its own enrolment.
+model MfaFactor {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  userId         String    @unique @map("user_id") @db.Uuid
+  /// The base32 TOTP secret, AES-256-GCM (FieldCipher) under MFA_ENCRYPTION_KEY. Named `_cipher`
+  /// so the audit log redacts it.
+  secretCipher   String    @map("secret_cipher")
+  /// Null while the QR code has been shown but no code typed back; only a confirmed factor counts.
+  confirmedAt    DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  /// The last time step accepted, so a code cannot be used twice.
+  lastUsedStep   BigInt?   @map("last_used_step")
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("mfa_factors")
+}
+
+/// Single-use recovery codes, for a lost phone. Only a SHA-256 hash is stored; the codes are shown
+/// once, when they are made.
+model MfaRecoveryCode {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([tenantId])
+  @@map("mfa_recovery_codes")
+}
+
+// ---------------------------------------------------------------------------
+// Company AI controls (roadmap Phase 3, "AI data controls")
+// ---------------------------------------------------------------------------
+
+/// What a company allows its model calls to do. No row means everything on and the default region —
+/// so every company that existed before this table behaves exactly as it did.
+///
+/// A table of its own rather than more columns on `tenant_security_settings`: that row decides who
+/// can get in, this one decides what leaves the building, and they are changed for different
+/// reasons — an audit entry for one should not read as a change to the other.
+model AiSettings {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @unique @map("tenant_id") @db.Uuid
+  /// The master switch. Off refuses every feature whatever `disabledFeatures` says.
+  enabled          Boolean  @default(true)
+  /// Features switched off one by one (see AI_FEATURES). Stored as the ones that are off, so a
+  /// feature added later starts on for everybody, as a new feature should.
+  disabledFeatures String[] @default([]) @map("disabled_features")
+  /// default | eu | us — see AI_REGIONS.
+  region           String   @default("default")
+  updatedByUserId  String?  @map("updated_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("ai_settings")
+}
+
+/// How many model calls a company made, per feature per day. A counter, not a log: no prompt, no
+/// answer and no user is kept, only the number — which is what a cost question, or "did anything
+/// go out while it was switched off?", needs.
+model AiUsageDaily {
+  tenantId String   @map("tenant_id") @db.Uuid
+  /// The UTC calendar day.
+  day      DateTime @db.Date
+  /// One of AI_FEATURES.
+  feature  String
+  calls    Int      @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, day, feature])
+  @@map("ai_usage_daily")
+}
+
+/// A plan bought by bank transfer rather than by card (roadmap: Bangladesh and Nepal, where paying
+/// abroad by card is hard). The owner asks for an invoice; the platform team issues it, waits for
+/// the money, and marks it paid from the console — which is what applies the plan. No payment
+/// provider is involved, so nothing here is set from a webhook or from the browser.
+model PlanBankTransferInvoice {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  /// "BT-20261006-7F3A9C"-style, unique across the platform so it can be quoted on a transfer.
+  number           String    @unique
+  /// The plan code asked for. Not a foreign key, like `tenants.plan`.
+  plan             String
+  /// The currency and amount quoted — the catalogue's, copied so a later price change cannot
+  /// rewrite what the customer was asked to pay.
+  currency         String    @db.Char(3)
+  amount           BigInt
+  /// pending | paid | cancelled
+  status           String    @default("pending")
+  requestedBy      String?   @map("requested_by") @db.Uuid
+  note             String?
+  /// The bank's own reference for the transfer, typed by the operator who marked it paid.
+  paymentReference String?   @map("payment_reference")
+  /// The console operator (a phone number) who marked it paid or cancelled it.
+  settledBy        String?   @map("settled_by")
+  paidAt           DateTime? @map("paid_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("plan_bank_transfer_invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Microsoft 365 email and calendar, and site meetings (roadmap Phase 3, "Calendar and email")
+// ---------------------------------------------------------------------------
+
+/// The company's connected Microsoft 365 mailbox: what the product sends email as and writes calendar
+/// events to, through Microsoft Graph with delegated permissions. At most one per company.
+///
+/// Tokens are AES-256-GCM (FieldCipher) under M365_ENCRYPTION_KEY and named `_cipher` so the audit
+/// log redacts them. The access token is kept too, so every process shares one rather than each
+/// refreshing its own; the audit trigger skips it, as it changes every hour.
+model IntegrationM365Connection {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String    @unique @map("tenant_id") @db.Uuid
+  /// connected | needs_reconnect — see M365_CONNECTION_STATUSES.
+  status                String    @default("connected")
+  /// The mailbox signed in at connect: what every email is sent from.
+  mailboxEmail          String    @map("mailbox_email")
+  mailboxName           String?   @map("mailbox_name")
+  /// Graph's id for that user, so a reconnect as somebody else is noticed.
+  msUserId              String?   @map("ms_user_id")
+  /// The scopes Microsoft actually granted, space separated.
+  scopes                String
+  refreshTokenCipher    String    @map("refresh_token_cipher")
+  /// When the stored refresh token was last replaced. Microsoft issues a new one on every refresh;
+  /// it is stored at most daily, so the audit log is not a list of hourly token swaps.
+  refreshTokenRotatedAt DateTime  @default(now()) @map("refresh_token_rotated_at") @db.Timestamptz(6)
+  accessTokenCipher     String?   @map("access_token_cipher")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  /// Put milestones and RFI due dates in the mailbox's calendar.
+  calendarSync          Boolean   @default(false) @map("calendar_sync")
+  calendarSyncedAt      DateTime? @map("calendar_synced_at") @db.Timestamptz(6)
+  /// Why it stopped working, in Microsoft's words, when it did.
+  lastError             String?   @map("last_error")
+  lastUsedAt            DateTime? @map("last_used_at") @db.Timestamptz(6)
+  connectedByUserId     String?   @map("connected_by_user_id") @db.Uuid
+  connectedAt           DateTime  @default(now()) @map("connected_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("integration_m365_connections")
+}
+
+/// One "Connect Microsoft 365" in flight: the state the callback must present (only its SHA-256)
+/// and the PKCE verifier. Belongs to the person who started it; single use; ten minutes long.
+model IntegrationM365AuthRequest {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  stateHash          String    @unique @map("state_hash")
+  /// The PKCE code verifier, encrypted. Named `_cipher` so nothing ever logs it.
+  pkceVerifierCipher String    @map("pkce_verifier_cipher")
+  expiresAt          DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt             DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("integration_m365_auth_requests")
+}
+
+/// A calendar event the sync made, so the next sync updates it rather than adding another.
+/// `fingerprint` is a hash of what the event says; unchanged, the sync does not call Graph at all.
+model IntegrationM365CalendarEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  /// milestone | rfi_due — see M365_CALENDAR_SOURCES.
+  sourceType   String   @map("source_type")
+  sourceId     String   @map("source_id") @db.Uuid
+  graphEventId String   @map("graph_event_id")
+  fingerprint  String
+  syncedAt     DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sourceType, sourceId])
+  @@map("integration_m365_calendar_events")
+}
+
+/// Every email the product sent (or tried to) through the connected mailbox: to whom, about what,
+/// and what Microsoft said. Graph's sendMail returns no message id, so `providerRequestId` is the
+/// `request-id` Microsoft gave the call — what their support asks for — and our own id travels in an
+/// `X-Buildr-Delivery-Id` header on the message.
+model EmailDelivery {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  /// One of M365_EMAIL_KINDS.
+  kind              String
+  /// rfi | submittal | change_order | meeting — the record it was about, when there is one.
+  entityType        String?   @map("entity_type")
+  entityId          String?   @map("entity_id") @db.Uuid
+  projectId         String?   @map("project_id") @db.Uuid
+  fromEmail         String    @map("from_email")
+  toEmails          String[]  @map("to_emails")
+  ccEmails          String[]  @default([]) @map("cc_emails")
+  subject           String
+  /// sent | failed
+  status            String
+  providerRequestId String?   @map("provider_request_id")
+  error             String?
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(6)
+  sentByUserId      String?   @map("sent_by_user_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, createdAt])
+  @@map("email_deliveries")
+}
+
+/// A site meeting: when, who, the agenda, and afterwards the minutes and action items.
+model Meeting {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  projectId       String    @map("project_id") @db.Uuid
+  title           String
+  startsAt        DateTime  @map("starts_at") @db.Timestamptz(6)
+  endsAt          DateTime  @map("ends_at") @db.Timestamptz(6)
+  location        String?
+  agenda          String?
+  minutes         String?
+  /// scheduled | held | cancelled — see MEETING_STATUSES.
+  status          String    @default("scheduled")
+  /// The Outlook event the invite created, so a second "Send invite" updates it.
+  graphEventId    String?   @map("graph_event_id")
+  inviteSentAt    DateTime? @map("invite_sent_at") @db.Timestamptz(6)
+  minutesSentAt   DateTime? @map("minutes_sent_at") @db.Timestamptz(6)
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  attendees   MeetingAttendee[]
+  actionItems MeetingActionItem[]
+
+  @@index([tenantId, projectId, startsAt])
+  @@map("meetings")
+}
+
+/// Somebody asked to the meeting: a team member (`userId`, their address read at send time) or an
+/// outside address (the architect, the client's engineer).
+model MeetingAttendee {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  meetingId String   @map("meeting_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  email     String?
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@map("meeting_attendees")
+}
+
+/// Something agreed at the meeting, with who does it and by when.
+model MeetingActionItem {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  meetingId   String    @map("meeting_id") @db.Uuid
+  description String
+  ownerUserId String?   @map("owner_user_id") @db.Uuid
+  ownerName   String?   @map("owner_name")
+  dueOn       DateTime? @map("due_on") @db.Date
+  /// open | done
+  status      String    @default("open")
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([tenantId, ownerUserId, status])
+  @@map("meeting_action_items")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Public REST API and webhooks (roadmap Phase 3)
+// ---------------------------------------------------------------------------------------------
+
+/// A company's key for the public API (`/public/v1`). Acts as a service principal of the company
+/// with exactly its scopes — never as the person who made it. Only an HMAC of the key is stored;
+/// the key itself is shown once, when it is made.
+model ApiKey {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  name            String
+  /// HMAC-SHA256 of the whole key under the server's pepper — see ApiKeyHasher.
+  keyHash         String    @unique @map("key_hash")
+  /// The last four characters, so a list can say which key is which without showing it.
+  keyLast4        String    @map("key_last4")
+  /// PUBLIC_API_SCOPES, e.g. `expenses:read`.
+  scopes          String[]  @default([])
+  /// Optional per-key allow-list (CIDR). Empty: any address the company's own allow-list admits.
+  allowedCidrs    String[]  @default([]) @map("allowed_cidrs")
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  /// The owner who made it. Also the person a write names when a table insists on one (an
+  /// expense's submitter), unless the request names somebody else in the company.
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(6)
+  lastUsedIp      String?   @map("last_used_ip")
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId String?   @map("revoked_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  idempotencyKeys ApiIdempotencyKey[]
+
+  @@index([tenantId, createdAt])
+  @@map("api_keys")
+}
+
+/// Live API key hash → company, for authenticating a public API request before any company is
+/// known. No RLS; written only by the trigger on `api_keys` (the `scim_token_directory` pattern).
+model ApiKeyDirectory {
+  keyHash  String @id @map("key_hash")
+  tenantId String @map("tenant_id") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("api_key_directory")
+}
+
+/// One `Idempotency-Key` a key sent on a POST, with the answer it got, so a retry gets the same
+/// answer instead of a second record. Kept a day.
+model ApiIdempotencyKey {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  apiKeyId       String   @map("api_key_id") @db.Uuid
+  key            String
+  /// SHA-256 of method, path and body: the same key with a different request is refused.
+  requestHash    String   @map("request_hash")
+  /// Null while the first request is still running.
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body") @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, key])
+  @@index([tenantId, createdAt])
+  @@map("api_idempotency_keys")
+}
+
+/// Where a company wants to be told when something happens (an https URL and the events it wants).
+model WebhookEndpoint {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  url                 String
+  description         String?
+  /// WEBHOOK_EVENT_TYPES this endpoint receives.
+  events              String[]  @default([])
+  /// The signing secret, encrypted (FieldCipher). Shown once when made; needed to sign every send.
+  secretCipher        String    @map("secret_cipher")
+  secretLast4         String    @map("secret_last4")
+  /// active | disabled
+  status              String    @default("active")
+  /// Why it was switched off: `failing` (automatic) or `owner`.
+  disabledReason      String?   @map("disabled_reason")
+  disabledAt          DateTime? @map("disabled_at") @db.Timestamptz(6)
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  lastSuccessAt       DateTime? @map("last_success_at") @db.Timestamptz(6)
+  lastFailureAt       DateTime? @map("last_failure_at") @db.Timestamptz(6)
+  createdByUserId     String    @map("created_by_user_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId, status])
+  @@map("webhook_endpoints")
+}
+
+/// Something that happened, written in the same transaction as the change itself (the outbox), so
+/// an event is never sent for a change that rolled back and never lost for one that committed.
+model OutboxEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  /// WEBHOOK_EVENT_TYPES, or `webhook.ping`.
+  type      String
+  payload   Json     @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId, createdAt])
+  @@map("outbox_events")
+}
+
+/// One event on its way to one endpoint, with its retry state.
+model WebhookDelivery {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  endpointId     String    @map("endpoint_id") @db.Uuid
+  eventId        String    @map("event_id") @db.Uuid
+  /// pending | sending | succeeded | failed (gave up)
+  status         String    @default("pending")
+  attemptCount   Int       @default(0) @map("attempt_count")
+  maxAttempts    Int       @default(8) @map("max_attempts")
+  nextAttemptAt  DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  /// A worker holds the delivery until then; a crashed one's claim simply runs out.
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(6)
+  lastStatusCode Int?      @map("last_status_code")
+  lastError      String?   @map("last_error")
+  lastLatencyMs  Int?      @map("last_latency_ms")
+  deliveredAt    DateTime? @map("delivered_at") @db.Timestamptz(6)
+  /// Set on a manual resend: the delivery it repeats.
+  resendOfId     String?   @map("resend_of_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  endpoint WebhookEndpoint          @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event    OutboxEvent              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  attempts WebhookDeliveryAttempt[]
+
+  @@index([tenantId, status, nextAttemptAt])
+  @@index([endpointId, createdAt])
+  @@index([eventId])
+  @@map("webhook_deliveries")
+}
+
+/// Each try at a delivery: what came back and how long it took — the delivery log.
+model WebhookDeliveryAttempt {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  deliveryId      String   @map("delivery_id") @db.Uuid
+  attempt         Int
+  /// Null when no answer came back at all (refused, timed out, blocked address).
+  statusCode      Int?     @map("status_code")
+  ok              Boolean
+  latencyMs       Int      @map("latency_ms")
+  error           String?
+  /// The first kilobyte of the answer, for working out why it failed.
+  responseSnippet String?  @map("response_snippet")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  delivery WebhookDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId, attempt])
+  @@index([tenantId, createdAt])
+  @@map("webhook_delivery_attempts")
+}
+
+// ---------------------------------------------------------------------------
+// Accounting exports (roadmap Phase 3: Tally, QuickBooks, Xero, SAP Business One, NetSuite)
+// ---------------------------------------------------------------------------
+//
+// Export files only, no live connection yet. Which system a company keeps its books in, which of
+// its ledger accounts each kind of money posts to, and a record of every export — so the same
+// transaction is not handed to the accountant twice. The vouchers themselves are worked out from
+// the transactions at export time (`accountingBuildVouchers` in @sitebook/shared), never stored.
+
+/// The company's accounting system and the few details its files need. At most one per company.
+model AccountingSettings {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String   @unique @map("tenant_id") @db.Uuid
+  /// One of ACCOUNTING_SYSTEMS.
+  system                String   @default("tally")
+  /// Two-digit GST state code of the company's own registration: IGST or CGST + SGST.
+  gstHomeState          String?  @map("gst_home_state")
+  /// Tally: the company name the import file addresses.
+  tallyCompany          String?  @map("tally_company")
+  /// QuickBooks Online: the site goes in as a `class` or a `location`.
+  qboSiteDimension      String   @default("class") @map("qbo_site_dimension")
+  /// Xero: the tracking category whose options are the sites.
+  xeroTrackingName      String?  @map("xero_tracking_name")
+  netsuiteSubsidiary    String?  @map("netsuite_subsidiary")
+  /// NetSuite: `department`, `class` or `location`.
+  netsuiteSiteDimension String   @default("department") @map("netsuite_site_dimension")
+  updatedByUserId       String?  @map("updated_by_user_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("accounting_settings")
+}
+
+/// One mapping row: a SiteBook key (`expense:fuel`, `wages_payable`, `input_cgst`, `site:<id>`, …)
+/// to an account — or for `tax_code:` keys a tax code — in one system. Kept per system, so a company
+/// moving from Tally to Xero does not lose its Tally ledger names.
+model AccountingAccountMap {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  system          String
+  key             String
+  /// Account number or tax code; empty where the system goes by name.
+  code            String   @default("")
+  name            String
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, system, key])
+  @@map("accounting_account_maps")
+}
+
+/// One export: the period, the system, what it carried and who made it. Numbered per company.
+model AccountingExportBatch {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  number          Int
+  system          String
+  periodFrom      DateTime @map("period_from") @db.Date
+  periodTo        DateTime @map("period_to") @db.Date
+  /// The sites asked for; empty means every site.
+  projectIds      String[] @default([]) @map("project_ids") @db.Uuid
+  /// Which of ACCOUNTING_CATEGORIES it covered.
+  include         String[] @default([])
+  includeExported Boolean  @default(false) @map("include_exported")
+  voucherCount    Int      @default(0) @map("voucher_count")
+  /// Vouchers per category, and debit and credit totals in minor units (as strings).
+  summary         Json     @default("{}") @db.JsonB
+  /// People are bare ids, as in subcontracts: the audit log names whoever made it.
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  AccountingExportItem[]
+  files  AccountingExportFile[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, createdAt])
+  @@map("accounting_export_batches")
+}
+
+/// Which transaction went out in which batch. The next export leaves out anything listed here unless
+/// "include previously exported" is ticked, and the preview marks each row with its last batch.
+model AccountingExportItem {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  batchId    String   @map("batch_id") @db.Uuid
+  /// One of ACCOUNTING_SOURCE_TYPES; `sourceId` is that row's id. Not a foreign key: the row may be
+  /// deleted later, and the record that it was exported must outlive it.
+  sourceType String   @map("source_type")
+  sourceId   String   @map("source_id") @db.Uuid
+  externalId String   @map("external_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batch  AccountingExportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, sourceType, sourceId])
+  @@index([tenantId, sourceType, sourceId])
+  @@map("accounting_export_items")
+}
+
+/// The files a batch produced, kept as written so a re-download is the same file the accountant
+/// imported — not a fresh render of transactions that may have changed since.
+model AccountingExportFile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  name        String
+  contentType String   @map("content_type")
+  content     String
+  sizeBytes   Int      @map("size_bytes")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batch  AccountingExportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([tenantId])
+  @@map("accounting_export_files")
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Data export and deletion per company (roadmap Phase 3, compliance)
+// ---------------------------------------------------------------------------------------------------
+
+/// A full export of one company: every tenant table, a workbook of the main registers and every
+/// uploaded file, zipped into storage by the background worker. People are plain uuids rather than
+/// foreign keys, like the audit log, so the row outlives the person who asked.
+model DataExport {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  requestedByUserId String    @map("requested_by_user_id") @db.Uuid
+  /// queued | running | ready | failed | expired — see DATA_EXPORT_STATUSES.
+  status            String    @default("queued")
+  /// Where the ZIP is, always under the company's own prefix. Null until ready and after expiry.
+  s3Key             String?   @map("s3_key")
+  sizeBytes         BigInt?   @map("size_bytes")
+  /// The manifest written into the ZIP: rows per table, files, schema version.
+  manifest          Json?
+  error             String?
+  startedAt         DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt        DateTime? @map("finished_at") @db.Timestamptz(6)
+  /// When the download link stops working and the file is removed.
+  expiresAt         DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("data_exports")
+}
+
+/// An owner's request to delete the company, and its fate. One `pending` per company at a time is a
+/// partial unique index in the migration SQL (Prisma cannot express it). A request that runs to
+/// completion goes with the company; `deletion_certificates` is what is left.
+model CompanyDeletionRequest {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  requestedByUserId String    @map("requested_by_user_id") @db.Uuid
+  requestedAt       DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  /// When the deletion becomes permanent: thirty days after the request, or sooner if an operator
+  /// expedites it.
+  purgeAfter        DateTime  @map("purge_after") @db.Timestamptz(6)
+  /// pending | cancelled — see DELETION_REQUEST_STATUSES.
+  status            String    @default("pending")
+  cancelledAt       DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelledByUserId String?   @map("cancelled_by_user_id") @db.Uuid
+  /// `cancelled` or `expedited` when an operator acted from the console (their phone is in the
+  /// platform audit log, not here).
+  platformAction    String?   @map("platform_action")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("company_deletion_requests")
+}
+
+/// Which companies are waiting to be deleted, and from when: a trigger-maintained mirror of the
+/// pending requests with no RLS, so the background sweep can find them without a connection that
+/// reads across companies (the same pattern as `sso_domain_directory`).
+model CompanyDeletionSchedule {
+  tenantId   String   @id @map("tenant_id") @db.Uuid
+  purgeAfter DateTime @map("purge_after") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([purgeAfter])
+  @@map("company_deletion_schedule")
+}
+
+/// Proof that a company was deleted, kept after it is gone. Platform-level and deliberately free of
+/// personal data: the company's id, a hash of its name (to answer "was X deleted?" when asked with
+/// the name, without storing it), when, how many rows each table lost, and who asked by user id.
+/// No foreign key and no `tenant_id` column — it must outlive the tenant and never be swept up by
+/// anything that deletes "everything with this tenant id".
+model DeletionCertificate {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  /// SHA-256 of the company name, trimmed and lower-cased.
+  nameHash          String    @map("name_hash")
+  requestedByUserId String?   @map("requested_by_user_id") @db.Uuid
+  requestedAt       DateTime? @map("requested_at") @db.Timestamptz(6)
+  /// grace_period | platform — whether the thirty days ran out or an operator expedited it.
+  trigger           String    @default("grace_period")
+  deletedAt         DateTime  @map("deleted_at") @db.Timestamptz(6)
+  /// `{ table: rows }` for every tenant table that had rows.
+  tableCounts       Json      @map("table_counts")
+  objectCount       Int       @default(0) @map("object_count")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId])
+  @@map("deletion_certificates")
+}
+
+/// Which version of a legal document (the data processing agreement) a company accepted, by whom
+/// and when. The text itself lives wherever `DPA_URL` points; only the version string is stored.
+model LegalAcceptance {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  /// dpa — see DATA_EXPORT_LEGAL_DOCUMENTS.
+  document         String   @default("dpa")
+  version          String
+  acceptedByUserId String   @map("accepted_by_user_id") @db.Uuid
+  /// The name as it was when they accepted, so the record still reads after the person leaves.
+  acceptedByName   String   @map("accepted_by_name")
+  acceptedAt       DateTime @default(now()) @map("accepted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, document, version])
+  @@map("legal_acceptances")
 }

@@ -5,8 +5,8 @@ import type { AuthenticatedRequest } from '../auth/request-user';
 import { RoleCache } from '../auth/role-cache.service';
 import { TenantCache } from '../auth/tenant-cache.service';
 import { TokenService } from '../auth/token.service';
-import { IS_PUBLIC_KEY, SESSION_ONLY_KEY } from '../decorators';
-import { planStanding } from '@sitebook/shared';
+import { ALLOW_DURING_DELETION_KEY, IS_PUBLIC_KEY, SESSION_ONLY_KEY } from '../decorators';
+import { planStanding, publicApiLooksLikeKey } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../errors/api-error';
 
@@ -50,6 +50,11 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request & AuthenticatedRequest>();
     const token = bearerToken(request.headers.authorization);
     if (!token) throw ApiError.unauthenticated();
+    // An API key would fail the JWT check anyway; saying why saves an integrator an afternoon, and
+    // keeps the rule explicit: keys reach `/public/v1` and nothing else.
+    if (publicApiLooksLikeKey(token)) {
+      throw ApiError.invalidToken('API keys work only on the public API, under /public/v1');
+    }
 
     const claims = this.tokens.verifyAccessToken(token);
 
@@ -57,7 +62,18 @@ export class JwtAuthGuard implements CanActivate {
     // A deleted tenant's tokens stay cryptographically valid until they expire, so
     // the absence of the row has to be treated as a failed login, not a 404.
     if (!tenant) throw ApiError.invalidToken('Tenant no longer exists');
-    if (tenant.status !== 'active') throw ApiError.tenantSuspended();
+    // A company waiting out its deletion grace period is closed to everybody except its owner, and
+    // to the owner only on the routes that show the date and cancel it — so nothing new is written
+    // into a company that is about to be erased, and nobody mistakes it for a working account.
+    if (tenant.status === 'pending_deletion') {
+      const allowed = this.reflector.getAllAndOverride<boolean>(ALLOW_DURING_DELETION_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (!allowed || claims.role !== 'owner') throw ApiError.tenantPendingDeletion();
+    } else if (tenant.status !== 'active') {
+      throw ApiError.tenantSuspended();
+    }
 
     /*
      * An expired term makes the account read-only, not dead.
@@ -110,7 +126,12 @@ export class JwtAuthGuard implements CanActivate {
       taxRegime: tenant.taxRegime,
       country: tenant.country,
       identity: claims.idn ?? null,
+      via: claims.via === 'sso' ? 'sso' : null,
+      sessionId: claims.sid ?? null,
+      mfa: claims.mfa === true,
+      app: claims.app === true,
     };
+    request.securityGate = tenant.security;
 
     return true;
   }

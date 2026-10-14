@@ -16,6 +16,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { selectTenantLocale, tenantLocaleView } from '../../common/tenant-locale';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { FILE_SELECT, externalUploadPrefix, fileView, isoDay, siteManagers, type ResolvedFile } from './rfi-common';
 import { recordSubmittalReview } from './submittal-records';
@@ -51,6 +52,7 @@ export class RfiLinksService {
     private readonly uploads: UploadsService,
     private readonly notifications: NotificationsService,
     private readonly submittals: SubmittalsService,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   async view(token: string) {
@@ -191,6 +193,7 @@ export class RfiLinksService {
       }
       if (rfi.status === 'open') {
         await tx.rfi.update({ where: { id: rfi.id }, data: { status: 'answered', answeredAt: new Date() } });
+        await this.webhooks.rfiAnswered(tx, claims.tenantId, rfi.id);
       }
       const recipients = new Set([
         rfi.raisedBy,

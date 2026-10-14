@@ -11,6 +11,7 @@ import { Input, Textarea } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { useFormat } from '@/components/format-provider';
 import { useLanguage } from '@/components/language-provider';
+import { AiOffNote, useAiBlocked } from '@/components/ai-features';
 import { logEquipmentDay, scanEquipmentFuelBill, scanEquipmentMeter } from '@/lib/equipment-actions';
 import { amountToMinorString, minorToAmountInput } from '@/lib/money-input';
 import { CheckRow, ChoiceField } from './fields';
@@ -74,6 +75,7 @@ export function DailyLogForm({
   const [reading, setReading] = useState<'meter' | 'bill' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const readingOff = useAiBlocked('reading');
 
   const meterType = machine?.meter_type ?? 'none';
   const unit = meterType === 'km' ? 'km' : 'h';
@@ -99,6 +101,12 @@ export function DailyLogForm({
       return setError(t(uploaded.error));
     }
     setMeterKey(uploaded.key);
+    // Reading photos switched off for the company: keep the photo as evidence and ask for the dial.
+    if (readingOff) {
+      setReading(null);
+      toast.message(t('Photo saved. Type the reading from the dial.'));
+      return;
+    }
     const scan = await scanEquipmentMeter(uploaded.key);
     setReading(null);
     if (scan.ok && scan.data?.reading) {
@@ -118,6 +126,11 @@ export function DailyLogForm({
       return setError(t(uploaded.error));
     }
     setBillKey(uploaded.key);
+    if (readingOff) {
+      setReading(null);
+      toast.message(t('Slip saved. Type the litres and the amount.'));
+      return;
+    }
     const scan = await scanEquipmentFuelBill(uploaded.key);
     setReading(null);
     if (scan.ok && scan.data) {
@@ -243,6 +256,7 @@ export function DailyLogForm({
               }}
             />
           </label>
+          <AiOffNote feature="reading" manual={t('The photo is kept; type the reading from the dial.')} />
           <div className="grid grid-cols-2 gap-3">
             <Field label={`${t('Opening')} (${unit})`} htmlFor="log-open">
               <Input id="log-open" inputMode="decimal" value={opening} onChange={(event) => setOpening(event.target.value)} dir="ltr" />

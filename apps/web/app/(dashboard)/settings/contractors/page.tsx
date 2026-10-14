@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
+import { ImportWizard } from '@/components/import-wizard';
 import { DeleteRowButton } from '@/components/delete-row-button';
 import { deleteContractor } from '@/lib/actions';
 import { titleCase } from '@/lib/format';
@@ -25,7 +27,11 @@ export default async function ContractorsPage() {
             'Each contractor gets their own wage period. Workers with no contractor are paid as direct labour, which is its own group.',
           )}
         </p>
-        <AddContractorDialog />
+        <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+          <ExportMenu kind="contractors" />
+          <ImportWizard kind="contractors" />
+          <AddContractorDialog />
+        </div>
       </div>
 
       {contractors.items.length === 0 ? (

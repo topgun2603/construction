@@ -45,6 +45,9 @@ import { DocumentPicker } from '../../rfis/document-picker';
 import { uploadRfiFiles } from '../../rfis/file-upload';
 import { submittalBadge } from '../../rfis/labels';
 import { ShareLink } from '../../rfis/share-link';
+import { emailSubmittal } from '@/lib/m365-actions';
+import type { M365Delivery } from '@/lib/m365-types';
+import { EmailLog } from '@/components/email-log';
 import { FileList } from '../../rfis/[id]/rfi-view';
 
 /**
@@ -56,11 +59,17 @@ export function SubmittalView({
   documents,
   canManage,
   canReview,
+  m365Connected = false,
+  emails = [],
 }: {
   submittal: SubmittalDetail;
   documents: SiteDocument[];
   canManage: boolean;
   canReview: boolean;
+  /** The company's Microsoft 365 mailbox is connected: offer "Send by email". */
+  m365Connected?: boolean;
+  /** Emails already sent about this submittal. */
+  emails?: M365Delivery[];
 }) {
   const { t } = useLanguage();
   const router = useRouter();
@@ -92,6 +101,8 @@ export function SubmittalView({
             sentAt={current.link_sent_at}
             mint={() => submittalLink(submittal.id)}
             revoke={() => revokeSubmittalLinks(submittal.id)}
+            sendEmail={m365Connected && submittal.reviewer.email ? () => emailSubmittal(submittal.id) : undefined}
+            emailTo={submittal.reviewer.email}
           />
         )}
         {inReview && submittal.reviewer.kind === 'client' && (
@@ -128,6 +139,7 @@ export function SubmittalView({
           />
         )}
       </div>
+      <EmailLog deliveries={emails} />
 
       {canManage && current.status === 'draft' && (
         <DraftFiles submittal={submittal} revision={current} documents={documents} />

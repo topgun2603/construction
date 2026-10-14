@@ -25,6 +25,7 @@ import {
 import { Input, Textarea } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { useLanguage } from '@/components/language-provider';
+import { AiOffNote, useAiBlocked } from '@/components/ai-features';
 import type { SiteDocument } from '@/lib/api-types';
 import { createRfi, draftRfiWithAi } from '@/lib/rfi-actions';
 import type { RfiAiResult } from '@/lib/rfi-types';
@@ -52,6 +53,8 @@ export function RfiDialog({
 }) {
   const { t } = useLanguage();
   const router = useRouter();
+  // "Draft with AI" needs both halves; when one is switched off the dialog says which, once.
+  const suggestionsOff = useAiBlocked('suggestions');
   const [open, setOpen] = useState(false);
   const [siteId, setSiteId] = useState(fixedSiteId ?? sites[0]?.id ?? '');
   const [subject, setSubject] = useState('');
@@ -159,6 +162,12 @@ export function RfiDialog({
               placeholder={t('S-201 shows the slab at +9.150 at grid C/4 but A-110 shows +9.200. Which one governs?')}
             />
           </Field>
+          {!aiEnabled && (
+            <AiOffNote
+              feature={suggestionsOff ? 'suggestions' : 'documents'}
+              manual={t('Write the question yourself; everything else works as usual.')}
+            />
+          )}
           {aiEnabled && (
             <div className="flex flex-col gap-2 rounded-panel border border-line bg-raised p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">

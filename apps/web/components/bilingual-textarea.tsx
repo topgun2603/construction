@@ -6,6 +6,7 @@ import { APP_LANGUAGES, type LanguageCode } from '@sitebook/shared';
 import { translateText } from '@/lib/actions';
 import { Textarea } from '@/components/ui/input';
 import { useLanguage } from '@/components/language-provider';
+import { AiOffNote, useAiBlocked } from '@/components/ai-features';
 
 /**
  * A text field that types in one language and files in another.
@@ -65,14 +66,16 @@ export function BilingualTextarea({
   // Which text the current draft is a translation *of*, so a stale answer that arrives after the
   // next keystroke is discarded rather than shown against text it does not match.
   const asked = useRef('');
+  const translationOff = useAiBlocked('translation');
 
   useEffect(() => {
     const text = value.trim();
     setFailed(false);
 
     // Under this it is a word, and a word has no context to translate from — asking on every
-    // keystroke of "sl" would be noise with a price.
-    if (text.length < 12 || looksTranslated(text, target)) {
+    // keystroke of "sl" would be noise with a price. Nothing is asked at all while the company has
+    // translation switched off; the field is then an ordinary text box.
+    if (translationOff || text.length < 12 || looksTranslated(text, target)) {
       setDraft(null);
       return;
     }
@@ -101,7 +104,7 @@ export function BilingualTextarea({
     }, 900);
 
     return () => clearTimeout(timer);
-  }, [value, target]);
+  }, [value, target, translationOff]);
 
   const targetName = APP_LANGUAGES.find((entry) => entry.code === target);
 
@@ -124,6 +127,10 @@ export function BilingualTextarea({
           {t('Translating')} · {targetName?.native ?? target}
         </p>
       )}
+
+      {/* Only once there is a sentence a translation would have appeared under, so an empty field
+          does not carry a note about a feature nobody was reaching for. */}
+      {translationOff && value.trim().length >= 12 && <AiOffNote feature="translation" />}
 
       {failed && (
         <p className="text-[12px] text-ink-muted">

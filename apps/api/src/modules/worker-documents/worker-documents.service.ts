@@ -14,7 +14,7 @@ import {
 import type { RequestUser } from '../../common/auth/request-user';
 import { FieldCipher, hintOf } from '../../common/crypto/field-cipher';
 import { ApiError } from '../../common/errors/api-error';
-import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { env } from '../../config/env';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -243,6 +243,41 @@ export class WorkerDocumentsService {
   }
 
   // --- helpers ------------------------------------------------------------------------------
+
+  /**
+   * The identity number on each worker's paper of one of `kinds`, in the clear, for a government
+   * payroll file (the Saudi Mudad file reads the Iqama or national ID).
+   *
+   * Per worker, the paper that is still valid and runs longest wins — a renewed Iqama keeps its
+   * number, but a replaced card should not lose to the one it replaced. Workers with none are
+   * simply absent from the map. Null when this deployment has no encryption key, so the caller
+   * can say why rather than report every worker as missing their papers.
+   *
+   * Runs inside the caller's transaction so the read is tenant-scoped; the caller writes the audit
+   * entry, because it knows what the numbers were for.
+   */
+  async identityNumbers(
+    tx: TenantTx,
+    workerIds: string[],
+    kinds: WorkerDocumentKind[],
+  ): Promise<Map<string, string> | null> {
+    if (!this.config.DOCUMENT_ENCRYPTION_KEY) return null;
+    const cipher = this.cipher();
+    const rows = await tx.workerDocument.findMany({
+      where: { workerId: { in: workerIds }, kind: { in: kinds }, deletedAt: null },
+      orderBy: [{ expiresOn: { sort: 'desc', nulls: 'first' } }, { createdAt: 'desc' }],
+      select: { workerId: true, numberCipher: true, expiresOn: true },
+    });
+    // The ordering puts a paper with no expiry first, then the one running longest, so the first
+    // row per worker is the one to use. An expired paper is still the person's number when it is
+    // all there is — the file is about paying them; the overview's paper alerts chase the renewal.
+    const numbers = new Map<string, string>();
+    for (const row of rows) {
+      if (numbers.has(row.workerId)) continue;
+      numbers.set(row.workerId, cipher.decrypt(row.numberCipher).replace(/[\s-]/g, ''));
+    }
+    return numbers;
+  }
 
   private cipher(): FieldCipher {
     if (!this.config.DOCUMENT_ENCRYPTION_KEY) {

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import OpenAI from 'openai';
 import { env } from '../../config/env';
+import { AiGateway } from './ai-gateway.service';
 
 /** What the model made of a sentence the keyword rules flagged. */
 export interface ScopeCreepVerdict {
@@ -23,17 +23,16 @@ export interface ScopeCreepVerdict {
 export class ScopeCreepReader {
   private readonly logger = new Logger(ScopeCreepReader.name);
   private readonly config = env();
-  private client?: OpenAI;
 
-  get enabled(): boolean {
-    return Boolean(this.config.OPENAI_API_KEY);
-  }
+  constructor(private readonly gateway: AiGateway) {}
 
-  async judge(excerpt: string, context: string): Promise<ScopeCreepVerdict> {
-    if (!this.enabled) return { extraWork: 'unknown', summary: null };
+
+  async judge(tenantId: string, excerpt: string, context: string): Promise<ScopeCreepVerdict> {
+    // Off, or no key: `unknown`, and the keyword finding stands as it always did without a model.
+    if (!(await this.gateway.isOn(tenantId, 'suggestions'))) return { extraWork: 'unknown', summary: null };
     try {
-      this.client ??= new OpenAI({ apiKey: this.config.OPENAI_API_KEY });
-      const response = await this.client.chat.completions.create(
+      const client = await this.gateway.client(tenantId, 'suggestions');
+      const response = await client.chat.completions.create(
         {
           model: this.config.OPENAI_ASK_MODEL,
           temperature: 0,

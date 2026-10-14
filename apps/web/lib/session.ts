@@ -2,6 +2,8 @@ import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { apiFetch, ApiRequestError } from './api';
+import type { AiFeatureStates } from '@sitebook/shared';
+import { clientIpHeaders } from './client-ip';
 
 export const ACCESS_COOKIE = 'sb_access';
 export const REFRESH_COOKIE = 'sb_refresh';
@@ -42,6 +44,11 @@ export interface SelfResponse {
   project_ids: string[];
   sees_all_projects: boolean;
   unread_notifications: number;
+  /**
+   * Each AI feature's state for this company: on, turned off by the company or the server, or not
+   * set up here. Optional so an API from before these controls reads as everything on.
+   */
+  ai_features?: AiFeatureStates;
 }
 
 /**
@@ -63,18 +70,33 @@ export const loadSelf = cache(async (): Promise<SelfResponse | null> => {
   const accessToken = await currentAccessToken();
   if (!accessToken) return null;
 
+  let needsSecondFactor = false;
+  let pendingDeletion = false;
   try {
-    return await apiFetch<SelfResponse>('/me', { accessToken });
+    return await apiFetch<SelfResponse>('/me', { accessToken, headers: await clientIpHeaders() });
   } catch (error) {
-    // Any refusal on `/me` means the cookie cannot be used: expired (401), a
-    // suspended tenant (403), or a token whose user has since been deleted (404).
-    // All of them are "sign in again", never a server error — letting one through
-    // turns a stale cookie into a crashed page for every route in the shell.
-    if (error instanceof ApiRequestError && error.status >= 400 && error.status < 500) {
+    // Signed in, but the company requires a second factor this session has not shown. That is not
+    // "signed out": the two-factor screen finishes the sign-in. Redirected after the catch, because
+    // `redirect()` works by throwing.
+    if (error instanceof ApiRequestError && error.code === 'MFA_REQUIRED') {
+      needsSecondFactor = true;
+    } else if (error instanceof ApiRequestError && error.code === 'TENANT_PENDING_DELETION') {
+      // The owner of a company waiting to be deleted: the one screen they can use shows the date
+      // and the cancel button.
+      pendingDeletion = true;
+    } else if (error instanceof ApiRequestError && error.status >= 400 && error.status < 500) {
+      // Any other refusal on `/me` means the cookie cannot be used: expired (401), a
+      // suspended tenant (403), or a token whose user has since been deleted (404).
+      // All of them are "sign in again", never a server error — letting one through
+      // turns a stale cookie into a crashed page for every route in the shell.
       return null;
+    } else {
+      throw error;
     }
-    throw error;
   }
+  if (needsSecondFactor) redirect('/two-factor');
+  if (pendingDeletion) redirect('/deletion-scheduled');
+  return null;
 });
 
 /**

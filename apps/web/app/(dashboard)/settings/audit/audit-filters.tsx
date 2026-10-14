@@ -1,11 +1,12 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Download, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/components/language-provider';
+import { ExportMenu } from '@/components/export-menu';
 import { ENTITY_FILTER_ORDER, entityLabel } from './audit-labels';
 
 export interface AuditFilterValues {
@@ -130,13 +131,14 @@ export function AuditFilters({
         </Button>
       )}
 
-      <Button variant="secondary" size="sm" asChild className="ms-auto">
-        {/* A plain link: the route handler answers with the file, and the browser saves it. */}
-        <a href={`${pathname}/export${exportQuery ? `?${exportQuery}` : ''}`} download>
-          <Download className="size-4" />
-          {t('Export CSV')}
-        </a>
-      </Button>
+      <div className="ms-auto">
+        {/* Plain links: the route handlers answer with the file, and the browser saves it. */}
+        <ExportMenu
+          kind="audit"
+          filters={Object.fromEntries(new URLSearchParams(exportQuery))}
+          csvHref={`${pathname}/export${exportQuery ? `?${exportQuery}` : ''}`}
+        />
+      </div>
     </div>
   );
 }

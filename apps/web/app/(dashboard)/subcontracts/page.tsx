@@ -6,6 +6,7 @@ import { getT } from '@/lib/i18n-server';
 import type { Contractor, Page, ProjectSummary } from '@/lib/api-types';
 import type { SubcontractSummary } from '@/lib/subcontract-types';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { StatTile } from '@/components/stat-tile';
 import { EmptyState } from '@/components/ui/empty-state';
 import { NewSubcontractDialog } from './new-subcontract-dialog';
@@ -49,12 +50,15 @@ export default async function SubcontractsPage() {
             {t('Work let to subcontractors, their running bills, retention and what is owed.')}
           </p>
         </div>
-        {canManage && (
-          <NewSubcontractDialog
-            sites={(sites?.items ?? []).map((site) => ({ id: site.id, name: site.name }))}
-            contractors={contractors?.items ?? []}
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportMenu kind="subcontracts" />
+          {canManage && (
+            <NewSubcontractDialog
+              sites={(sites?.items ?? []).map((site) => ({ id: site.id, name: site.name }))}
+              contractors={contractors?.items ?? []}
+            />
+          )}
+        </div>
       </div>
 
       {showMoney && items.length > 0 && (

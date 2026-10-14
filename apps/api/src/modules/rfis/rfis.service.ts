@@ -32,7 +32,9 @@ import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { DocumentQaService } from '../ai/document-qa.service';
 import { RfiReader } from '../ai/rfi-reader.service';
+import { AiGateway } from '../ai/ai-gateway.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
   FILE_SELECT,
@@ -120,14 +122,23 @@ export class RfisService {
     private readonly notifications: NotificationsService,
     private readonly documentQa: DocumentQaService,
     private readonly reader: RfiReader,
+    private readonly gateway: AiGateway,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   // --- settings ----------------------------------------------------------------------------------
 
   async settings(actor: RequestUser) {
     const values = await this.tenantDb.transaction(actor.tenantId, (tx) => rfiSettingsFor(tx));
-    // Both halves of "draft with AI" need the key; the web hides the button when this is false.
-    return { ...values, ai_enabled: this.reader.enabled && this.documentQa.enabled };
+    // Both halves of "draft with AI" — the documents check and the drafting — have to be allowed.
+    // The web hides the button when this is false, and `ai_state` says why ("turned off for your
+    // company" reads differently from "not set up on this server").
+    const [documents, suggestions] = await Promise.all([
+      this.gateway.state(actor.tenantId, 'documents'),
+      this.gateway.state(actor.tenantId, 'suggestions'),
+    ]);
+    const ai_state = suggestions !== 'on' ? suggestions : documents;
+    return { ...values, ai_enabled: ai_state === 'on', ai_state };
   }
 
   async updateSettings(actor: RequestUser, input: RfiSettingsInput) {
@@ -470,6 +481,7 @@ export class RfisService {
       await this.addFiles(tx, actor, id, response.id, files);
       if (input.official && row.status === 'open') {
         await tx.rfi.update({ where: { id }, data: { status: 'answered', answeredAt: new Date() } });
+        await this.webhooks.rfiAnswered(tx, actor.tenantId, id);
       }
       const recipients = new Set([row.raisedBy, row.assigneeId].filter((who): who is string => Boolean(who)));
       recipients.delete(actor.userId);
@@ -491,6 +503,7 @@ export class RfisService {
       await tx.rfiResponse.update({ where: { id: responseId }, data: { isOfficial: true } });
       if (row.status === 'open') {
         await tx.rfi.update({ where: { id }, data: { status: 'answered', answeredAt: new Date() } });
+        await this.webhooks.rfiAnswered(tx, actor.tenantId, id);
       }
     });
     return this.get(actor, id);
@@ -606,9 +619,9 @@ export class RfisService {
    */
   async draftWithAi(actor: RequestUser, input: RfiDraftAiInput) {
     await this.access.assertAccess(actor, input.project_id);
-    if (!this.reader.enabled || !this.documentQa.enabled) {
-      throw ApiError.conflict('Drafting RFIs with AI is not configured on this deployment');
-    }
+    const notConfigured = 'Drafting RFIs with AI is not configured on this deployment';
+    await this.gateway.assertEnabled(actor.tenantId, 'suggestions', notConfigured);
+    await this.gateway.assertEnabled(actor.tenantId, 'documents', notConfigured);
     let check: Awaited<ReturnType<DocumentQaService['ask']>> | null = null;
     try {
       check = await this.documentQa.ask(actor, { question: input.question.slice(0, 400), project_id: input.project_id });
@@ -616,7 +629,7 @@ export class RfisService {
       // The check is a courtesy; a failure there must not stop the draft.
       this.logger.warn({ err: error }, 'Checking the documents for an RFI failed');
     }
-    const draft = await this.reader.tidy(input.question, input.subject);
+    const draft = await this.reader.tidy(actor.tenantId, input.question, input.subject);
     return { check, draft };
   }
 

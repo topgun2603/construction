@@ -358,8 +358,11 @@ export class SafetyController {
   @Post('observations/suggest')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Suggest type, category and severity from a note; saves nothing' })
-  suggest(@Body(zodBody(suggestSafetyObservationSchema)) body: SuggestSafetyObservationInput) {
-    return this.observations.suggest(body.note);
+  suggest(
+    @CurrentUser() user: RequestUser,
+    @Body(zodBody(suggestSafetyObservationSchema)) body: SuggestSafetyObservationInput,
+  ) {
+    return this.observations.suggest(user.tenantId, body.note);
   }
 
   @RequiresPermission('safety.view')

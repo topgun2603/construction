@@ -7,6 +7,7 @@ import { getFormat } from '@/lib/format-server';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
+import { ExportMenu } from '@/components/export-menu';
 import { AddCampDialog, CampResidentsButton } from './camp-controls';
 
 export const metadata = { title: 'Camps · BUILDR' };
@@ -39,7 +40,10 @@ export default async function CampsPage() {
             {longDate(day.date)}.
           </p>
         </div>
-        {canManage && <AddCampDialog />}
+        <div className="flex items-center gap-2">
+          <ExportMenu kind="camps" filters={{ date: day.date }} />
+          {canManage && <AddCampDialog />}
+        </div>
       </div>
 
       {day.camps.length === 0 ? (

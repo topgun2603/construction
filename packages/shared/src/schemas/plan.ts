@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { planPriceProblem } from '../plan-pricing';
 
 /**
  * A plan's code.
@@ -37,6 +38,14 @@ export const createPlanSchema = z.object({
         .transform((value) => String(value).trim())
         .pipe(z.string().regex(/^\d+$/, 'a price is whole minor units')),
     )
+    // A code the runtime does not know, a zero, or a dinar price the card processor cannot charge
+    // would all be accepted here and refused at checkout, in front of the customer.
+    .superRefine((prices, ctx) => {
+      for (const [currency, minor] of Object.entries(prices)) {
+        const problem = planPriceProblem(currency, minor);
+        if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [currency], message: problem });
+      }
+    })
     .optional(),
   description: z.string().trim().max(300).nullable().optional(),
   /**
@@ -61,3 +70,29 @@ export const updatePlanSchema = createPlanSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0, { message: 'nothing to update' });
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
+
+/**
+ * An owner asking for a plan to be invoiced for bank transfer. Like a checkout, no amount: the
+ * quote is the catalogue's, worked out on the server.
+ */
+export const planBankTransferRequestSchema = z.object({
+  plan: planCodeSchema,
+  /** Anything the platform team should know: the name on the invoice, a purchase order number. */
+  note: z.string().trim().max(500).optional(),
+});
+export type PlanBankTransferRequestInput = z.infer<typeof planBankTransferRequestSchema>;
+
+/** The console settling a request: the money arrived (the plan applies) or it never will. */
+export const planBankTransferSettleSchema = z.object({
+  status: z.enum(['paid', 'cancelled']),
+  /** The bank's reference for the transfer, for the day somebody asks which payment this was. */
+  payment_reference: z.string().trim().min(1).max(120).optional(),
+});
+export type PlanBankTransferSettleInput = z.infer<typeof planBankTransferSettleSchema>;
+
+export const PLAN_BANK_TRANSFER_STATUSES = ['pending', 'paid', 'cancelled'] as const;
+
+export const planBankTransferListQuerySchema = z.object({
+  status: z.enum(PLAN_BANK_TRANSFER_STATUSES).optional(),
+});
+export type PlanBankTransferListQuery = z.infer<typeof planBankTransferListQuerySchema>;

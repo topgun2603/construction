@@ -27,9 +27,9 @@ export class TranslateController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Translate a line of text into another language' })
   run(
-    @CurrentUser() _user: RequestUser,
+    @CurrentUser() user: RequestUser,
     @Body(zodBody(translateSchema)) body: TranslateInput,
   ) {
-    return this.translate.translate(body);
+    return this.translate.translate(user.tenantId, body);
   }
 }
