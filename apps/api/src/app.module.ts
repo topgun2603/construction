@@ -50,6 +50,8 @@ import { SsoModule } from './modules/sso/sso.module';
 import { ScimModule } from './modules/scim/scim.module';
 import { SecurityModule } from './modules/security/security.module';
 import { AiControlsModule } from './modules/ai/ai-controls.module';
+import { PublicApiModule } from './modules/public-api/public-api.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { SecurityPolicyGuard } from './modules/security/security-policy.guard';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { QualityModule } from './modules/quality/quality.module';
@@ -142,6 +144,9 @@ import { WorkersModule } from './modules/workers/workers.module';
     ScimModule,
     SecurityModule,
     AiControlsModule,
+    // The public REST API and signed webhooks. Webhooks register their own queue, like JobsModule.
+    PublicApiModule,
+    WebhooksModule.register(),
     AuditModule,
     ReportsModule,
     StockModule,

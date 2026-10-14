@@ -15,6 +15,7 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { oneDecimal } from '../../common/decimal';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 
 export interface AttendanceRowView {
   id: string;
@@ -36,6 +37,7 @@ export class AttendanceService {
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   /** The roll call as recorded for one site on one day. */
@@ -180,6 +182,8 @@ export class AttendanceService {
           },
         });
       }
+      // One event for the roll call, with its rows, in the same transaction that saved them.
+      await this.webhooks.attendanceRecorded(tx, actor.tenantId, input.project_id, date, workerIds);
 
       return this.forDateInTx(tx, input.project_id, input.attendance_date, false);
     });

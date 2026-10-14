@@ -24,6 +24,8 @@ const TABS: Array<{ href: string; label: string; permission?: string; ownerOnly?
   { href: '/settings/audit', label: 'Audit log', permission: 'audit.view' },
   // Single sign-on today; two-factor, sessions and IP rules join it as sections of the same page.
   { href: '/settings/security', label: 'Security', ownerOnly: true },
+  // API keys and webhooks: company data leaving without anybody signing in, so owners only.
+  { href: '/settings/developers', label: 'Developers', ownerOnly: true },
 ];
 
 export function SettingsTabs({ permissions = [], role }: { permissions?: string[]; role?: string }) {

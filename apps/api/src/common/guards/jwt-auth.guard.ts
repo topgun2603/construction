@@ -6,7 +6,7 @@ import { RoleCache } from '../auth/role-cache.service';
 import { TenantCache } from '../auth/tenant-cache.service';
 import { TokenService } from '../auth/token.service';
 import { IS_PUBLIC_KEY, SESSION_ONLY_KEY } from '../decorators';
-import { planStanding } from '@sitebook/shared';
+import { planStanding, publicApiLooksLikeKey } from '@sitebook/shared';
 import { env } from '../../config/env';
 import { ApiError } from '../errors/api-error';
 
@@ -50,6 +50,11 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request & AuthenticatedRequest>();
     const token = bearerToken(request.headers.authorization);
     if (!token) throw ApiError.unauthenticated();
+    // An API key would fail the JWT check anyway; saying why saves an integrator an afternoon, and
+    // keeps the rule explicit: keys reach `/public/v1` and nothing else.
+    if (publicApiLooksLikeKey(token)) {
+      throw ApiError.invalidToken('API keys work only on the public API, under /public/v1');
+    }
 
     const claims = this.tokens.verifyAccessToken(token);
 

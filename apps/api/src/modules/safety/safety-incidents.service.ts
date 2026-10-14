@@ -23,6 +23,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
   PHOTO_SELECT,
@@ -66,6 +67,7 @@ export class SafetyIncidentsService {
     private readonly notifications: NotificationsService,
     private readonly jobs: JobQueueService,
     private readonly uploads: UploadsService,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   // --- reading -----------------------------------------------------------------------------------
@@ -170,6 +172,7 @@ export class SafetyIncidentsService {
         });
         await this.replacePeople(tx, actor, made.id, input.people ?? []);
         await addPhotos(tx, actor, input.project_id, { incidentId: made.id }, input.photo_keys ?? []);
+        await this.webhooks.safetyIncidentReported(tx, actor.tenantId, made.id);
         return made.id;
       }),
     );

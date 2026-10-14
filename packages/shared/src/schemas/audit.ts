@@ -10,7 +10,8 @@ import { isoDateSchema, uuidSchema } from './common';
 export const AUDIT_ROW_ACTIONS = ['create', 'update', 'delete'] as const;
 export type AuditRowAction = (typeof AUDIT_ROW_ACTIONS)[number];
 
-export const AUDIT_ACTOR_TYPES = ['user', 'system', 'platform'] as const;
+/** `api_key`: a write made through the public API, recorded as the key (its name is shown). */
+export const AUDIT_ACTOR_TYPES = ['user', 'system', 'platform', 'api_key'] as const;
 export type AuditActorType = (typeof AUDIT_ACTOR_TYPES)[number];
 
 export const auditQuerySchema = z

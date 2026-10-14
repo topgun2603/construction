@@ -21,6 +21,7 @@ import { VoiceReader } from '../ai/voice-reader.service';
 import { AiGateway } from '../ai/ai-gateway.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { ScopeCreepService } from '../change-orders/scope-creep.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 
 const SELECT = {
   id: true,
@@ -49,6 +50,7 @@ export class DprService {
     private readonly gateway: AiGateway,
     private readonly uploads: UploadsService,
     private readonly scopeCreep: ScopeCreepService,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   async list(actor: RequestUser, query: ListDprQuery): Promise<Page<ReturnType<typeof toView>>> {
@@ -245,6 +247,7 @@ export class DprService {
         data: { status: 'submitted', submittedAt: new Date(), submittedBy: actor.userId },
         select: SELECT,
       });
+      await this.webhooks.dprSubmitted(tx, actor.tenantId, id);
       return { view: toView(submitted), changed: true };
     });
 
