@@ -19,6 +19,11 @@
 	handle /v1/* {
 		reverse_proxy api:3000
 	}
+	# The public REST API for API keys (and its OpenAPI spec). It sits outside /v1 on purpose, so
+	# session and key traffic never share a route; without this line it falls through to the web.
+	handle /public/* {
+		reverse_proxy api:3000
+	}
 
 	handle {
 		reverse_proxy web:3001
