@@ -43,7 +43,13 @@ export default async function PeopleReportPage({
 
   return (
     <FadeIn className="flex flex-col gap-5">
-      <ReportsNav from={from} to={to} isOwnerOrAccounts showTax={canSeeTaxReport(me)} />
+      <ReportsNav
+        from={from}
+        to={to}
+        isOwnerOrAccounts
+        showTax={canSeeTaxReport(me)}
+        showAccounting={me.permissions.includes('accounting.export')}
+      />
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile

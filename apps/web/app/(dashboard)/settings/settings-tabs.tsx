@@ -21,6 +21,8 @@ const TABS: Array<{ href: string; label: string; permission?: string; ownerOnly?
   // Not permission-gated: tenant roles say nothing about groups. The page itself shows each person
   // only what being the owner or a group admin allows.
   { href: '/settings/group', label: 'Company group' },
+  // Which ledger each kind of money posts to (exports read it; the page itself says who may change it).
+  { href: '/settings/accounting', label: 'Accounting', permission: 'accounting.manage' },
   { href: '/settings/audit', label: 'Audit log', permission: 'audit.view' },
   // Single sign-on today; two-factor, sessions and IP rules join it as sections of the same page.
   { href: '/settings/security', label: 'Security', ownerOnly: true },

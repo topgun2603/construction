@@ -50,6 +50,7 @@ import { SsoModule } from './modules/sso/sso.module';
 import { ScimModule } from './modules/scim/scim.module';
 import { SecurityModule } from './modules/security/security.module';
 import { AiControlsModule } from './modules/ai/ai-controls.module';
+import { AccountingModule } from './modules/accounting/accounting.module';
 import { SecurityPolicyGuard } from './modules/security/security-policy.guard';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { QualityModule } from './modules/quality/quality.module';
@@ -142,6 +143,7 @@ import { WorkersModule } from './modules/workers/workers.module';
     ScimModule,
     SecurityModule,
     AiControlsModule,
+    AccountingModule,
     AuditModule,
     ReportsModule,
     StockModule,

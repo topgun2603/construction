@@ -57,6 +57,7 @@ export default async function ReportsPage({
         to={to}
         isOwnerOrAccounts={['owner', 'accounts'].includes(me.user.role)}
         showTax={canSeeTaxReport(me)}
+        showAccounting={me.permissions.includes('accounting.export')}
         extraParams={{ group_by: groupBy }}
       />
       <ReportFilters groupBy={groupBy} from={from} to={to} />

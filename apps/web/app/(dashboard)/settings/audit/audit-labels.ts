@@ -90,6 +90,9 @@ export const ENTITY_LABELS: Record<string, string> = {
   equipment_maintenance: 'Machine service or repair',
   equipment_documents: 'Machine document',
   equipment_hire_bookings: 'Booked hire invoice',
+  accounting_settings: 'Accounting system',
+  accounting_account_maps: 'Account mapping',
+  accounting_export_batches: 'Export to accounts',
 };
 
 /** The entity filter: the tables people most often go looking through, in the order they think. */
@@ -119,6 +122,9 @@ export const ENTITY_FILTER_ORDER = [
   'quality_inspections',
   'quality_tests',
   'snags',
+  // Which ledger money posts to, and every export to the accounting system.
+  'accounting_account_maps',
+  'accounting_export_batches',
 ];
 
 export function entityLabel(entity: string): string {

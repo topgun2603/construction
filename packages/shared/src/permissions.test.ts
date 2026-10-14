@@ -179,6 +179,8 @@ describe('permission catalogue', () => {
         'projects.view',
         'reports.people',
         'reports.view',
+        'accounting.export',
+        'accounting.manage',
         'stock.view',
         'wages.finalise',
         'wages.generate',
