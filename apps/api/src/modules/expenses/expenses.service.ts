@@ -25,6 +25,7 @@ import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { BillReader } from '../ai/bill-reader.service';
 import { AiGateway } from '../ai/ai-gateway.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 
 /** A photograph of a piece of paper. Anything bigger is not one. */
 const MAX_BILL_BYTES = 8_000_000;
@@ -57,6 +58,7 @@ export class ExpensesService {
     private readonly bills: BillReader,
     private readonly gateway: AiGateway,
     private readonly uploads: UploadsService,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   /**
@@ -194,6 +196,8 @@ export class ExpensesService {
         },
         select: SELECT,
       });
+      // In the same transaction: announced if and only if it was saved.
+      await this.webhooks.expenseCreated(tx, actor.tenantId, expense.id);
 
       return toView(expense);
     });
@@ -300,6 +304,7 @@ export class ExpensesService {
           after: { status: input.status, amount: expense.amount.toString() },
         },
       });
+      if (input.status === 'approved') await this.webhooks.expenseApproved(tx, actor.tenantId, id);
 
       return toView(updated);
     });

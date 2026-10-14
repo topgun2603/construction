@@ -21,27 +21,34 @@ import { clientIpOf } from '../net/client-ip';
  * records the change as the system's.
  */
 interface AuditStore {
-  req: Request & AuthenticatedRequest;
+  /**
+   * `apiKey` is set by the public API's key guard (`/public/v1`): such a request has no user, and
+   * whatever it changes is recorded as the key — see migration 20261010000500_public_api.
+   */
+  req: Request & AuthenticatedRequest & { apiKey?: { id: string } };
 }
 
 const storage = new AsyncLocalStorage<AuditStore>();
 
 export interface AuditActor {
   actorId: string;
+  /** `api_key` for a public API request; empty otherwise (the trigger works the type out). */
+  actorType: string;
   requestId: string;
   ip: string;
   userAgent: string;
 }
 
 /** Empty strings rather than nulls, because that is what `set_config` and the trigger expect. */
-const NO_ACTOR: AuditActor = { actorId: '', requestId: '', ip: '', userAgent: '' };
+const NO_ACTOR: AuditActor = { actorId: '', actorType: '', requestId: '', ip: '', userAgent: '' };
 
 export function currentAuditActor(): AuditActor {
   const req = storage.getStore()?.req;
   if (!req) return NO_ACTOR;
   const requestId = req.headers['x-request-id'];
   return {
-    actorId: req.user?.userId ?? '',
+    actorId: req.apiKey?.id ?? req.user?.userId ?? '',
+    actorType: req.apiKey ? 'api_key' : '',
     requestId: typeof requestId === 'string' ? requestId : '',
     // The same address the IP allow-list checks: `req.ip` under Express's `trust proxy` setting,
     // or the browser's address vouched for by the web server — never a raw, spoofable

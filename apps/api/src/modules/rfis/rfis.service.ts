@@ -34,6 +34,7 @@ import { DocumentQaService } from '../ai/document-qa.service';
 import { RfiReader } from '../ai/rfi-reader.service';
 import { AiGateway } from '../ai/ai-gateway.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
   FILE_SELECT,
@@ -122,6 +123,7 @@ export class RfisService {
     private readonly documentQa: DocumentQaService,
     private readonly reader: RfiReader,
     private readonly gateway: AiGateway,
+    private readonly webhooks: WebhookEvents,
   ) {}
 
   // --- settings ----------------------------------------------------------------------------------
@@ -479,6 +481,7 @@ export class RfisService {
       await this.addFiles(tx, actor, id, response.id, files);
       if (input.official && row.status === 'open') {
         await tx.rfi.update({ where: { id }, data: { status: 'answered', answeredAt: new Date() } });
+        await this.webhooks.rfiAnswered(tx, actor.tenantId, id);
       }
       const recipients = new Set([row.raisedBy, row.assigneeId].filter((who): who is string => Boolean(who)));
       recipients.delete(actor.userId);
@@ -500,6 +503,7 @@ export class RfisService {
       await tx.rfiResponse.update({ where: { id: responseId }, data: { isOfficial: true } });
       if (row.status === 'open') {
         await tx.rfi.update({ where: { id }, data: { status: 'answered', answeredAt: new Date() } });
+        await this.webhooks.rfiAnswered(tx, actor.tenantId, id);
       }
     });
     return this.get(actor, id);

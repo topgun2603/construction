@@ -12,6 +12,7 @@ import type { RequestUser } from '../../common/auth/request-user';
 import { ApiError } from '../../common/errors/api-error';
 import type { TenantTx } from '../../common/prisma/tenant-db.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WebhookEvents } from '../webhooks/webhook-events.service';
 import {
   CHANGE_ORDER_CLIENT_SELECT,
   agreedTotals,
@@ -44,7 +45,10 @@ export interface ChangeOrderDecisionNotice {
 export class ChangeOrderApprovalsService {
   private readonly logger = new Logger(ChangeOrderApprovalsService.name);
 
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly webhooks: WebhookEvents,
+  ) {}
 
   /** Put the change order in front of the client: one pending approval, with the price and days. */
   async sendToClient(tx: TenantTx, actor: RequestUser, row: ChangeOrderRecord): Promise<string> {
@@ -111,6 +115,7 @@ export class ChangeOrderApprovalsService {
         ...(input.status === 'approved' ? { appliedAt: now } : {}),
       },
     });
+    if (input.status === 'approved') await this.webhooks.changeOrderApproved(tx, actor.tenantId, row.id);
     const recipients = new Set(await managersOf(tx, row.projectId));
     recipients.add(row.raisedBy);
     if (row.approvedBy) recipients.add(row.approvedBy);

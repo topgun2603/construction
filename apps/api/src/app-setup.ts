@@ -1,5 +1,5 @@
 import { json, urlencoded, type Express, type Request } from 'express';
-import type { INestApplication, NestApplicationOptions } from '@nestjs/common';
+import { RequestMethod, type INestApplication, type NestApplicationOptions } from '@nestjs/common';
 import { env } from './config/env';
 
 /**
@@ -22,7 +22,11 @@ import { env } from './config/env';
 export const APP_OPTIONS: NestApplicationOptions = { bodyParser: false };
 
 export function configureApp(app: INestApplication): void {
-  app.setGlobalPrefix('v1');
+  /*
+   * The public API carries its own version in its own namespace (`/public/v1/...`), so it can stay
+   * put while the app's internal `/v1` routes change freely underneath the web and mobile clients.
+   */
+  app.setGlobalPrefix('v1', { exclude: [{ path: 'public/(.*)', method: RequestMethod.ALL }] });
 
   /*
    * Which proxy to believe about the client's address (TRUST_PROXY; see env.ts). Off by default, so

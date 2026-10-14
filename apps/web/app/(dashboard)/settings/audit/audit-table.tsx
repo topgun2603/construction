@@ -45,6 +45,15 @@ export function AuditTable({ entries }: { entries: AuditEntry[] }) {
       accessorFn: (entry) => entry.actor?.name ?? entry.actor_type,
       cell: ({ row }) => {
         const entry = row.original;
+        // A write through the public API is the key's, not a person's: say so beside its name.
+        if (entry.actor && entry.actor_type === 'api_key') {
+          return (
+            <span className="flex flex-col whitespace-nowrap">
+              <span className="text-[13.5px] font-medium">{entry.actor.name}</span>
+              <span className="text-[12px] text-ink-muted">{t('API key')}</span>
+            </span>
+          );
+        }
         if (entry.actor) return <span className="text-[13.5px] font-medium">{entry.actor.name}</span>;
         return (
           <span className="text-[13.5px] text-ink-muted">

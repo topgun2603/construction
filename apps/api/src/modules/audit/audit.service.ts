@@ -180,10 +180,12 @@ export class AuditService {
     return this.tenantDb.transaction(actor.tenantId, (tx) =>
       tx.$queryRaw<AuditRow[]>(Prisma.sql`
         SELECT a.id, a.created_at, a.action, a.entity, a.entity_id, a.entity_label,
-               a.actor_type, a.actor_id, u.name AS actor_name, a.changed_fields,
+               a.actor_type, a.actor_id, coalesce(u.name, k.name) AS actor_name, a.changed_fields,
                a.before, a.after, a.request_id, a.ip, a.user_agent
           FROM audit_logs a
           LEFT JOIN users u ON u.id = a.actor_id
+          -- A write made through the public API names the key, by the name the owner gave it.
+          LEFT JOIN api_keys k ON a.actor_type = 'api_key' AND k.id = a.actor_id
          WHERE ${Prisma.join(where, ' AND ')}
          ORDER BY a.created_at DESC, a.id DESC
          LIMIT ${take}

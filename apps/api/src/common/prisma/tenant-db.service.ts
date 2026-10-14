@@ -127,6 +127,7 @@ function setContext(
   return client.$executeRaw`SELECT
     set_config('app.tenant_id', ${tenantId}::text, TRUE),
     set_config('app.actor_id', ${actor.actorId}::text, TRUE),
+    set_config('app.actor_type', ${actor.actorType}::text, TRUE),
     set_config('app.request_id', ${actor.requestId}::text, TRUE),
     set_config('app.client_ip', ${actor.ip}::text, TRUE),
     set_config('app.user_agent', ${actor.userAgent}::text, TRUE)`;

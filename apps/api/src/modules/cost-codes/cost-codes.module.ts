@@ -13,6 +13,7 @@ import { CostReportService } from './cost-report.service';
 @Module({
   controllers: [CostCodesController],
   providers: [CostCodesService, CostReportService, CostCommitmentsService, CostActualsService],
-  exports: [CostCodesService, CostCommitmentsService, CostActualsService],
+  // The cost report too, for the public API's `GET /public/v1/projects/{id}/cost-report`.
+  exports: [CostCodesService, CostCommitmentsService, CostActualsService, CostReportService],
 })
 export class CostCodesModule {}
