@@ -106,6 +106,10 @@ const envSchema = z
     REPORTS_ROLLUP_CRON: z.string().default('0 1 * * *'),
     /** Auto-draft wage periods for contractors whose period just ended. */
     WAGE_PERIOD_DRAFT_CRON: z.string().default('0 2 * * *'),
+    // Cost forecasts per site, on each company's clock: after the night's rollup and drafts.
+    SITE_FORECAST_CRON: z.string().default('0 3 * * *'),
+    // Leak and fraud checks, on each company's clock, after the forecasts.
+    LEAK_CHECK_CRON: z.string().default('30 3 * * *'),
     /**
      * Drops the plan for subscriptions whose paid period and grace window have both passed. Runs after
      * the wage drafts so a tenant losing Pro does so on a quiet database rather than mid-rollup.
@@ -128,6 +132,13 @@ const envSchema = z
      * not a collections strategy.
      */
     BILLING_GRACE_DAYS: z.coerce.number().int().min(0).max(60).default(7),
+    /**
+     * Stripe, for every currency other than rupees (roadmap Phase 0, item 7). Unset, checkout runs
+     * dry the way Razorpay's does. The webhook secret is the endpoint's signing secret (whsec_…)
+     * from the Stripe dashboard, not the API key.
+     */
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
     /**
      * Contact address sent to the geocoder in the User-Agent, as its usage policy requires. Without
@@ -202,6 +213,41 @@ const envSchema = z
      * half-configured deployment shows up as a visibly wrong link rather than a silently dead one.
      */
     WEB_BASE_URL: z.string().url().optional(),
+
+    /**
+     * Key for workers' identity-document numbers (passport, Emirates ID, Iqama): 32 random bytes,
+     * base64. Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+     * Unset, the documents feature answers "not configured" rather than store a number in the clear.
+     * Changing it makes every stored number unreadable, so it is rotated by re-encrypting, never
+     * by replacing.
+     */
+    DOCUMENT_ENCRYPTION_KEY: z
+      .string()
+      .optional()
+      .refine((value) => !value || Buffer.from(value, 'base64').length === 32, {
+        message: 'DOCUMENT_ENCRYPTION_KEY must be 32 bytes, base64-encoded',
+      }),
+    /**
+     * Ask the bucket to encrypt document scans at rest (SSE-S3, AES256). On for AWS S3 and
+     * Tigris; off for local MinIO, which needs a key server configured before it will accept it.
+     */
+    S3_SERVER_SIDE_ENCRYPTION: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    // Workers' documents nearing expiry, on each company's clock: first thing in the morning.
+    DOCUMENT_EXPIRY_CRON: z.string().default('0 8 * * *'),
+    // Cube and lab tests due today, on each company's clock: early enough to get them to the lab.
+    QUALITY_TEST_DUE_CRON: z.string().default('0 7 * * *'),
+    // Permits to work whose time ran out while still open. Every quarter-hour, so the alert lands
+    // within fifteen minutes of the permit lapsing on any company's clock.
+    SAFETY_PERMIT_EXPIRY_CRON: z.string().default('*/15 * * * *'),
+    // RFIs and submittals due soon or overdue, on each company's clock: first thing, before the
+    // morning's calls to the consultants.
+    RFI_REMINDER_CRON: z.string().default('0 8 * * *'),
+    // Machines due for a service and machine papers about to lapse, on each company's clock: early,
+    // so the fitter is booked before the machine starts work.
+    EQUIPMENT_REMINDER_CRON: z.string().default('30 7 * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;
@@ -224,6 +270,13 @@ const envSchema = z
     }
     // Half-configured billing is worse than none: checkout would create subscriptions that no
     // webhook could ever confirm, leaving tenants charged and still on the old plan.
+    if (value.STRIPE_SECRET_KEY && !value.STRIPE_WEBHOOK_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['STRIPE_WEBHOOK_SECRET'],
+        message: 'STRIPE_SECRET_KEY is set, so STRIPE_WEBHOOK_SECRET must be too',
+      });
+    }
     if (value.RAZORPAY_KEY_ID && !value.RAZORPAY_WEBHOOK_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

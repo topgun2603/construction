@@ -9,6 +9,8 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { ChangeOrderApprovalsService } from '../change-orders/change-order-approvals.service';
+import { SubmittalApprovalsService } from '../rfis/submittal-approvals.service';
 
 const APPROVAL_SELECT = {
   id: true,
@@ -44,6 +46,10 @@ export class ApprovalsService {
     private readonly tenantDb: TenantDb,
     private readonly access: ProjectAccess,
     private readonly uploads: UploadsService,
+    /** Applies a change order when its approval is answered; see `ChangeOrderApprovalsService`. */
+    private readonly changeOrders: ChangeOrderApprovalsService,
+    /** Records a submittal's review when its approval is answered; see `SubmittalApprovalsService`. */
+    private readonly submittals: SubmittalApprovalsService,
   ) {}
 
   async list(actor: RequestUser, query: ListApprovalsQuery) {
@@ -66,7 +72,18 @@ export class ApprovalsService {
       take: 200,
     });
 
-    return { items: await Promise.all(rows.map((row) => this.view(actor, row))) };
+    // The change order behind an approval that is one: price, tax and days, never its cost.
+    const changeOrders = await this.tenantDb.transaction(actor.tenantId, (tx) =>
+      this.changeOrders.clientViews(tx, rows.map((row) => row.id)),
+    );
+    return {
+      items: await Promise.all(
+        rows.map(async (row) => ({
+          ...(await this.view(actor, row)),
+          change_order: changeOrders.get(row.id) ?? null,
+        })),
+      ),
+    };
   }
 
   async create(actor: RequestUser, projectId: string, input: CreateApprovalInput) {
@@ -135,16 +152,30 @@ export class ApprovalsService {
       throw ApiError.conflict('That has already been decided');
     }
 
-    const approval = await db.approval.update({
-      where: { id: approvalId },
-      data: {
-        status: input.status,
-        decidedBy: actor.userId,
-        decidedAt: new Date(),
-        decisionNote: input.note ?? null,
-      },
-      select: APPROVAL_SELECT,
+    /*
+     * One transaction with whatever the answer sets off. An approval that is a change order's applies
+     * it — budgets, handover date, contract value — and the client's yes must never be recorded
+     * without that, or the other way round.
+     */
+    const { approval, notice, submittalNotice } = await this.tenantDb.transaction(actor.tenantId, async (tx) => {
+      const decided = await tx.approval.update({
+        where: { id: approvalId },
+        data: {
+          status: input.status,
+          decidedBy: actor.userId,
+          decidedAt: new Date(),
+          decisionNote: input.note ?? null,
+        },
+        select: APPROVAL_SELECT,
+      });
+      return {
+        approval: decided,
+        notice: await this.changeOrders.recordDecision(tx, actor, approvalId, input),
+        submittalNotice: await this.submittals.recordDecision(tx, actor, approvalId, input),
+      };
     });
+    await this.changeOrders.notifyDecision(actor, notice);
+    await this.submittals.notifyDecision(actor, submittalNotice);
 
     return this.view(actor, approval);
   }
@@ -167,6 +198,10 @@ export class ApprovalsService {
     if (approval.status !== 'pending') {
       throw ApiError.conflict('A decided approval is a record and stays on the job');
     }
+    await this.tenantDb.transaction(actor.tenantId, async (tx) => {
+      await this.changeOrders.assertWithdrawable(tx, approvalId);
+      await this.submittals.assertWithdrawable(tx, approvalId);
+    });
 
     await db.approval.update({ where: { id: approvalId }, data: { deletedAt: new Date() } });
   }

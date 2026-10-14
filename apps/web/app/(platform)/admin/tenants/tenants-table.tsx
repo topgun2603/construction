@@ -6,9 +6,12 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { PlatformTenantRow } from '@/lib/platform-session';
 import { DataTable } from '@/components/data-table';
 import { Badge, type Tone } from '@/components/ui/badge';
-import { shortDate, titleCase } from '@/lib/format';
+// The console is the platform's own view, read in Indian format rather than a tenant's.
+import { indiaFormat, titleCase } from '@/lib/format';
 import type { Translator } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
+
+const { shortDate } = indiaFormat;
 
 const STATUS_TONE: Record<string, Tone> = {
   active: 'done',
@@ -57,6 +60,11 @@ const columnsFor = (planNames: Record<string, string>, t: Translator): ColumnDef
             <span className="font-mono"> · +{row.original.owner_phone}</span>
           )}
         </span>
+        {row.original.group_name && (
+          <span className="text-[12px] text-accent">
+            {t('Group')}: {row.original.group_name}
+          </span>
+        )}
       </div>
     ),
   },
@@ -101,7 +109,7 @@ const columnsFor = (planNames: Record<string, string>, t: Translator): ColumnDef
         >
           {date}
           {days <= 30 && (
-            <span className="ml-1 font-sans">({days === 0 ? 'today' : `${days}d`})</span>
+            <span className="ms-1 font-sans">({days === 0 ? 'today' : `${days}d`})</span>
           )}
         </span>
       );

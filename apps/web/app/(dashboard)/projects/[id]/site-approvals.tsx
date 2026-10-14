@@ -29,9 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { relativeTime, titleCase } from '@/lib/format';
+import { titleCase } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
+import { ChangeOrderApprovalDetails } from '../../change-orders/client-change-order';
 
 const STATUS: Record<Approval['status'], { label: string; tone: Tone }> = {
   pending: { label: 'Waiting', tone: 'pending' },
@@ -132,6 +134,7 @@ function Row({
   canRequest: boolean;
 }) {
   const { t } = useLanguage();
+  const { relativeTime } = useFormat();
   const status = STATUS[approval.status];
 
   return (
@@ -150,7 +153,8 @@ function Row({
         {approval.status === 'pending' && (canDecide || canRequest) && (
           <div className="flex flex-none items-center gap-2">
             {canDecide && <DecideButtons approval={approval} />}
-            {canRequest && !canDecide && (
+            {/* A change order's request is withdrawn by cancelling the change order. */}
+            {canRequest && !canDecide && !approval.change_order && (
               <ConfirmDialog
                 title={t('Withdraw this request?')}
                 body={
@@ -173,10 +177,14 @@ function Row({
         )}
       </div>
 
-      {approval.body && (
-        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink-soft">
-          {approval.body}
-        </p>
+      {approval.change_order ? (
+        <ChangeOrderApprovalDetails changeOrder={approval.change_order} />
+      ) : (
+        approval.body && (
+          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink-soft">
+            {approval.body}
+          </p>
+        )
       )}
 
       {approval.document?.url && (

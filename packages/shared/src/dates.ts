@@ -1,13 +1,10 @@
 /**
- * Report and attendance dates are plain calendar dates in `Asia/Kolkata`
- * (spec §17) — they never carry a timezone. Represent them as `YYYY-MM-DD`
- * strings everywhere outside the database.
+ * Report and attendance dates are plain calendar dates in the company's time zone —
+ * `Asia/Kolkata` for an Indian one (spec §17) — and never carry a timezone themselves.
+ * Represent them as `YYYY-MM-DD` strings everywhere outside the database.
  */
 
 export const APP_TIMEZONE = 'Asia/Kolkata';
-
-/** Minutes IST is ahead of UTC. India has no DST, so this is a constant. */
-const IST_OFFSET_MINUTES = 330;
 
 export type IsoDate = string;
 
@@ -19,10 +16,41 @@ export function isIsoDate(value: string): value is IsoDate {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-/** The current calendar date in IST, regardless of server timezone. */
+/**
+ * The current calendar date in IST, regardless of server timezone. `todayIn` for an Indian
+ * company; new code should pass the tenant's (or the site's) zone to `todayIn` instead.
+ */
 export function todayInIst(now: Date = new Date()): IsoDate {
-  const shifted = new Date(now.getTime() + IST_OFFSET_MINUTES * 60_000);
-  return shifted.toISOString().slice(0, 10);
+  return todayIn(APP_TIMEZONE, now);
+}
+
+/**
+ * The calendar date it is right now in `timeZone` — what "today" means for a site's attendance
+ * and report. Goes through the tz database rather than a fixed offset, so +5:45 (Kathmandu) and
+ * zones with daylight saving are right too.
+ */
+export function todayIn(timeZone: string, now: Date = new Date()): IsoDate {
+  const parts = dayFormatter(timeZone).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((entry) => entry.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+function dayFormatter(timeZone: string): Intl.DateTimeFormat {
+  let formatter = dayFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      calendar: 'gregory',
+      numberingSystem: 'latn',
+    });
+    dayFormatters.set(timeZone, formatter);
+  }
+  return formatter;
 }
 
 /**

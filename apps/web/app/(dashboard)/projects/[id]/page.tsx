@@ -21,8 +21,9 @@ import type {
   SiteDocument,
   SiteMessagePage,
   TeamMember,
+  SiteForecast,
 } from '@/lib/api-types';
-import { moneyShort, shortDate, timeOfDay } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ import { ProjectTabs } from './project-tabs';
 import { SiteMap } from '@/components/site-map';
 import { WhatsappButton } from '@/components/whatsapp-button';
 import { MaterialEstimates } from './material-estimates';
+import { ForecastCard } from './forecast-card';
 import { EditSiteDialog } from './edit-site-dialog';
 import { AddMemberDialog } from './add-member-dialog';
 import { FileReportDialog } from './file-report-dialog';
@@ -49,16 +51,59 @@ import { SiteApprovals } from './site-approvals';
 import { AskDocuments } from '@/components/ask-documents';
 import { DocumentsList } from '@/components/documents-list';
 import { getT } from '@/lib/i18n-server';
+import type { CostCode, CostCodeTemplateSummary, CostReport } from '@/lib/cost-code-types';
+import { CostCodesTab } from './cost-codes';
+import type { SubcontractSummary } from '@/lib/subcontract-types';
+import type { Contractor } from '@/lib/api-types';
+import { SubcontractsTable } from '../../subcontracts/subcontracts-table';
+import { NewSubcontractDialog } from '../../subcontracts/new-subcontract-dialog';
+import type { PurchaseOrderSummary } from '@/lib/procurement-types';
+import { SitePurchases } from './site-purchases';
+import type {
+  ChangeOrderRegister,
+  ChangeOrderSiteSummary,
+  ChangeOrderSuggestion,
+} from '@/lib/change-order-types';
+import { SiteChangeOrders } from '../../change-orders/site-change-orders';
+import { ClientChangeOrders } from '../../change-orders/client-change-order';
+import { SiteQuality } from './site-quality';
+import type { ScheduleView } from '@/lib/schedule-types';
+import { ScheduleTab } from './schedule/schedule-tab';
+import type {
+  SafetyIncidentSummary,
+  SafetyKpis,
+  SafetyObservationSummary,
+  SafetyPermitSummary,
+  SafetyTalkSummary,
+} from '@/lib/safety-types';
+import { SiteSafety } from './site-safety';
+import type { EquipmentCostReport, EquipmentLog, EquipmentSummary } from '@/lib/equipment-types';
+import { SiteEquipment } from './site-equipment';
+import type { BoqView } from '@/lib/boq-types';
+import { BoqTab } from './boq-tab';
+import type { RfiSettings, RfiStats, RfiSummary, SubmittalStats, SubmittalSummary } from '@/lib/rfi-types';
+import { submittalFormData } from '@/lib/rfi-form-data';
+import { SiteDesign } from './site-design';
 
 const TABS = [
   'timeline',
+  'schedule',
   'reports',
   'conversation',
   'documents',
+  'design',
   'approvals',
   'payments',
   'people',
   'materials',
+  'cost',
+  'boq',
+  'subcontracts',
+  'purchases',
+  'change-orders',
+  'quality',
+  'safety',
+  'equipment',
 ] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -73,11 +118,12 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; baseline?: string }>;
 }) {
   const t = await getT();
+  const { moneyShort, shortDate, timeOfDay, todayIso } = await getFormat();
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, baseline } = await searchParams;
   const active: TabKey = (TABS as readonly string[]).includes(tab ?? '')
     ? (tab as TabKey)
     : 'timeline';
@@ -227,8 +273,157 @@ export default async function ProjectPage({
   // are exactly the ones that would succeed.
   const canEditTimeline = ['owner', 'project_manager'].includes(me.user.role);
   const canEditSite = me.permissions.includes('projects.manage');
-  const timeline = schedule(project);
+  const timeline = schedule(project, todayIso());
   const budget = project.budget_amount ? BigInt(project.budget_amount) : null;
+
+  /*
+   * The breakdown and its budgets (roadmap Phase 2, module 1), fetched only for its own tab.
+   * `cost_codes.view` rather than `expenses.view`: a supervisor records expenses against a line but
+   * what each line was priced at is the builder's margin.
+   */
+  const canSeeCost = me.permissions.includes('cost_codes.view');
+  const [costReport, costTemplates] =
+    active === 'cost' && canSeeCost
+      ? await Promise.all([
+          serverFetch<CostReport>(`/projects/${id}/cost-report`),
+          serverFetch<CostCodeTemplateSummary[]>('/cost-code-templates'),
+        ])
+      : [null, [] as CostCodeTemplateSummary[]];
+
+  // The site's subcontracts (roadmap Phase 2, module 3), fetched only for their own tab.
+  const canSeeSubcontracts =
+    me.permissions.includes('subcontracts.view') || me.permissions.includes('subcontracts.measure');
+  const canLetSubcontracts = me.permissions.includes('subcontracts.manage');
+  const [subcontracts, contractors] =
+    active === 'subcontracts' && canSeeSubcontracts
+      ? await Promise.all([
+          serverFetch<{ items: SubcontractSummary[] }>(`/subcontracts?project_id=${id}`),
+          canLetSubcontracts
+            ? serverFetch<Page<Contractor>>('/contractors?limit=200').catch(() => null)
+            : null,
+        ])
+      : [null, null];
+
+  // Purchase orders (roadmap Phase 2, module 2), fetched only for their own tab. Procurement sits
+  // behind the `materials` module; receivers see the list too, without prices.
+  const canSeePurchases =
+    me.enabled_modules.includes('materials') &&
+    ['procurement.view', 'procurement.receive'].some((p) => me.permissions.includes(p));
+  const purchases =
+    active === 'purchases' && canSeePurchases
+      ? await serverFetch<PurchaseOrderSummary[]>(`/purchase-orders?project_id=${id}`)
+      : [];
+
+  /*
+   * Change orders (roadmap Phase 2, module 4), fetched only for their own tab. The team reads the
+   * register with `change_orders.view`; a client sees the ones put to them through the approvals
+   * already loaded above, which carry the price and days and never the cost.
+   */
+  const canSeeChangeOrders = me.permissions.includes('change_orders.view');
+  const clientSeesChangeOrders =
+    !canSeeChangeOrders && canSeeApprovals && approvals.some((approval) => approval.change_order);
+  const [changeOrders, changeOrderSummary, changeOrderSuggestions] =
+    active === 'change-orders' && canSeeChangeOrders
+      ? await Promise.all([
+          serverFetch<ChangeOrderRegister>(`/change-orders?project_id=${id}`),
+          serverFetch<ChangeOrderSiteSummary>(`/projects/${id}/change-order-summary`),
+          me.permissions.includes('change_orders.manage')
+            ? serverFetch<{ items: ChangeOrderSuggestion[] }>(`/change-order-suggestions?project_id=${id}`)
+            : { items: [] as ChangeOrderSuggestion[] },
+        ])
+      : [null, null, null];
+
+  // QA/QC (roadmap Phase 2, module 7). The team sees it with a quality permission; a client sees
+  // their punch list and the inspections shared with them. Its fetches live in SiteQuality, which
+  // only renders on its own tab.
+  const canSeeQuality =
+    me.permissions.includes('quality.view') ||
+    me.permissions.includes('quality.inspect') ||
+    me.user.role === 'client';
+
+  // The programme (roadmap Phase 2, module 6), fetched only for its own tab. The pickers in the
+  // task dialog are only needed by someone who can edit the plan.
+  const canSeeSchedule = me.permissions.includes('schedule.view');
+  const canPlanSchedule = me.permissions.includes('schedule.manage');
+  const [scheduleView, scheduleCostCodes, scheduleContractors] =
+    active === 'schedule' && canSeeSchedule
+      ? await Promise.all([
+          serverFetch<ScheduleView>(
+            `/projects/${id}/schedule${baseline ? `?baseline_id=${encodeURIComponent(baseline)}` : ''}`,
+          ),
+          canPlanSchedule
+            ? serverFetch<CostCode[]>(`/projects/${id}/cost-codes`).catch(() => [] as CostCode[])
+            : ([] as CostCode[]),
+          canPlanSchedule
+            ? serverFetch<Page<Contractor>>('/contractors?limit=200').catch(() => null)
+            : null,
+        ])
+      : [null, [] as CostCode[], null];
+
+  // Safety (roadmap Phase 2, module 8), fetched only for its own tab.
+  const canSeeSafety = me.permissions.includes('safety.view');
+  const safety =
+    active === 'safety' && canSeeSafety
+      ? await Promise.all([
+          serverFetch<SafetyKpis>(`/safety/kpis?project_id=${id}`),
+          serverFetch<{ items: SafetyIncidentSummary[] }>(`/safety/incidents?project_id=${id}&limit=50`),
+          serverFetch<{ items: SafetyPermitSummary[] }>(`/safety/permits?project_id=${id}&limit=50`),
+          serverFetch<{ items: SafetyTalkSummary[] }>(`/safety/toolbox-talks?project_id=${id}&limit=20`),
+          serverFetch<{ items: SafetyObservationSummary[] }>(`/safety/observations?project_id=${id}&limit=50`),
+        ])
+      : null;
+
+  // Equipment (roadmap Phase 2, module 10), fetched only for its own tab. Whoever only logs sees the
+  // machines and their logs; the cost needs `equipment.view`.
+  const canSeeEquipment = ['equipment.view', 'equipment.log', 'equipment.manage'].some((p) => me.permissions.includes(p));
+  const equipment =
+    active === 'equipment' && canSeeEquipment
+      ? await Promise.all([
+          serverFetch<{ items: EquipmentSummary[] }>(`/equipment?project_id=${id}`),
+          serverFetch<{ items: EquipmentLog[] }>(`/equipment/logs?project_id=${id}&limit=30`),
+          me.permissions.includes('equipment.view')
+            ? serverFetch<EquipmentCostReport>(`/equipment/reports/costs?project_id=${id}`)
+            : Promise.resolve(null),
+        ])
+      : null;
+
+  // The bill of quantities (roadmap Phase 2, module 5), fetched only for its own tab. A supervisor
+  // measures against it without the money; the API leaves the rates out for them.
+  const canSeeBoq = ['boq.view', 'boq.measure', 'boq.bill'].some((p) => me.permissions.includes(p));
+  const [boq, boqCostCodes] =
+    active === 'boq' && canSeeBoq
+      ? await Promise.all([
+          serverFetch<BoqView>(`/projects/${id}/boq`),
+          me.permissions.includes('boq.manage')
+            ? serverFetch<CostCode[]>(`/projects/${id}/cost-codes`).catch(() => [] as CostCode[])
+            : ([] as CostCode[]),
+        ])
+      : [null, [] as CostCode[]];
+
+  // RFIs and submittals (roadmap Phase 2, module 9), fetched only for their own tab.
+  const canSeeRfis = me.permissions.includes('rfis.view');
+  const canSeeSubmittals = me.permissions.includes('submittals.view');
+  const canRaiseRfi = me.permissions.includes('rfis.manage');
+  const canSubmit = me.permissions.includes('submittals.manage');
+  const design =
+    active === 'design' && (canSeeRfis || canSeeSubmittals)
+      ? await Promise.all([
+          canSeeRfis
+            ? serverFetch<{ items: RfiSummary[]; stats: RfiStats }>(`/rfis?project_id=${id}`)
+            : null,
+          canSeeSubmittals
+            ? serverFetch<{ items: SubmittalSummary[]; stats: SubmittalStats }>(`/submittals?project_id=${id}`)
+            : null,
+          canRaiseRfi || canSubmit ? submittalFormData(me.permissions) : null,
+          canRaiseRfi ? serverFetch<RfiSettings>('/rfis/settings').catch(() => null) : null,
+        ])
+      : null;
+
+  // Same gate as the overview: what the site costs the builder, never shown to a client.
+  const forecast =
+    me.enabled_modules.includes('dashboard') && me.permissions.includes('expenses.view')
+      ? await serverFetch<SiteForecast | null>(`/projects/${id}/forecast`).catch(() => null)
+      : null;
 
   return (
     <FadeIn className="flex flex-col gap-5">
@@ -269,6 +464,8 @@ export default async function ProjectPage({
         </div>
       </div>
 
+      {forecast && <ForecastCard forecast={forecast} projectId={id} />}
+
       <ProjectTabs
         projectId={id}
         active={active}
@@ -278,6 +475,16 @@ export default async function ProjectPage({
         showDocuments={hasDocuments}
         showPayments={canSeePayments}
         showApprovals={canSeeApprovals}
+        showCost={canSeeCost}
+        showSubcontracts={canSeeSubcontracts}
+        showPurchases={canSeePurchases}
+        showChangeOrders={canSeeChangeOrders || clientSeesChangeOrders}
+        showQuality={canSeeQuality}
+        showSchedule={canSeeSchedule}
+        showSafety={canSeeSafety}
+        showBoq={canSeeBoq}
+        showDesign={canSeeRfis || canSeeSubmittals}
+        showEquipment={canSeeEquipment}
         unreadCount={active === 'conversation' ? 0 : conversation.unread_count}
         pendingApprovals={approvals.filter((a) => a.status === 'pending').length}
       />
@@ -341,6 +548,21 @@ export default async function ProjectPage({
         </div>
       )}
 
+      {active === 'schedule' && scheduleView && (
+        <ScheduleTab
+          projectId={id}
+          projectName={project.name}
+          view={scheduleView}
+          pickers={{
+            costCodes: scheduleCostCodes,
+            contractors: (scheduleContractors?.items ?? []).map((c) => ({ id: c.id, name: c.name })),
+            members: canPlanSchedule
+              ? members.map((member) => ({ id: member.user.id, name: member.user.name }))
+              : [],
+          }}
+        />
+      )}
+
       {active === 'conversation' && canTalk && (
         <SiteConversation
           projectId={id}
@@ -382,6 +604,96 @@ export default async function ProjectPage({
           canRequest={me.permissions.includes('approvals.request')}
           canDecide={me.permissions.includes('approvals.decide')}
         />
+      )}
+
+      {active === 'cost' && costReport && (
+        <CostCodesTab
+          projectId={id}
+          projectName={project.name}
+          report={costReport}
+          templates={costTemplates}
+          canManage={me.permissions.includes('cost_codes.manage')}
+        />
+      )}
+
+      {active === 'boq' && boq && (
+        <BoqTab
+          projectId={id}
+          boq={boq}
+          costCodes={boqCostCodes}
+          can={{
+            view: me.permissions.includes('boq.view'),
+            manage: me.permissions.includes('boq.manage'),
+            measure: me.permissions.includes('boq.measure'),
+            bill: me.permissions.includes('boq.bill'),
+          }}
+        />
+      )}
+
+      {active === 'subcontracts' && subcontracts && (
+        <div className="flex flex-col gap-3">
+          {canLetSubcontracts && (
+            <div className="flex justify-end">
+              <NewSubcontractDialog
+                sites={[{ id, name: project.name }]}
+                contractors={contractors?.items ?? []}
+                fixedSiteId={id}
+              />
+            </div>
+          )}
+          <SubcontractsTable subcontracts={subcontracts.items} showSite={false} />
+        </div>
+      )}
+      {active === 'purchases' && canSeePurchases && (
+        <SitePurchases projectId={id} orders={purchases} />
+      )}
+      {active === 'design' && design && (
+        <SiteDesign
+          site={{ id, name: project.name }}
+          rfis={design[0]}
+          submittals={design[1]}
+          documents={design[2]?.documents ?? []}
+          parties={design[2]?.parties ?? { contractors: [], vendors: [] }}
+          aiEnabled={design[3]?.ai_enabled ?? false}
+          canRaiseRfi={canRaiseRfi}
+          canSubmit={canSubmit}
+        />
+      )}
+      {active === 'safety' && safety && (
+        <SiteSafety
+          site={{ id, name: project.name }}
+          kpis={safety[0]}
+          incidents={safety[1].items}
+          permits={safety[2].items}
+          talks={safety[3].items}
+          observations={safety[4].items}
+          canReport={me.permissions.includes('safety.report')}
+        />
+      )}
+      {active === 'equipment' && equipment && (
+        <SiteEquipment
+          siteId={id}
+          machines={equipment[0].items}
+          logs={equipment[1].items}
+          costs={equipment[2]}
+          canLog={['equipment.log', 'equipment.manage'].some((p) => me.permissions.includes(p))}
+        />
+      )}
+
+      {active === 'change-orders' && changeOrders && changeOrderSummary && (
+        <SiteChangeOrders
+          project={{ id, name: project.name }}
+          summary={changeOrderSummary}
+          changeOrders={changeOrders.items}
+          suggestions={changeOrderSuggestions?.items ?? []}
+          canManage={me.permissions.includes('change_orders.manage')}
+        />
+      )}
+      {active === 'change-orders' && clientSeesChangeOrders && (
+        <ClientChangeOrders projectId={id} approvals={approvals} />
+      )}
+      {active === 'quality' && canSeeQuality && (
+        <SiteQuality projectId={id} projectName={project.name} me={me} />
       )}
 
       {active === 'materials' && (
@@ -446,7 +758,7 @@ export default async function ProjectPage({
                       >
                         {activity.activity}
                         {activity.quantity && (
-                          <span className="ml-1.5 font-mono text-ink-muted">
+                          <span className="ms-1.5 font-mono text-ink-muted">
                             {activity.quantity} {activity.unit ?? ''}
                           </span>
                         )}

@@ -128,12 +128,24 @@ const UPLOAD_KINDS = [
   'dpr_voice',
   'worker_photo',
   'worker_id_proof',
+  /** A scan of a passport, visa, Emirates ID or labour card. Server-side encrypted where enabled. */
+  'worker_document',
   'bill',
   'document',
   /** Photos and videos of the site itself, as opposed to evidence from one day's report. */
   'site_media',
   /** A photo a client or the team attached to a message in the site conversation. */
   'message_attachment',
+  /** QA/QC: a photo on an inspection line or a snag, before or after the fix. */
+  'quality_photo',
+  /** QA/QC: a lab's test report, usually a PDF. */
+  'quality_report',
+  /** Safety evidence: an incident scene, a witness statement, an observation and its close-out. */
+  'safety_photo',
+  /** RFIs and submittals: a photo or file on an RFI, a response, or a submittal revision. */
+  'rfi_attachment',
+  /** Equipment: a photo of a meter or a fuel bill, a machine's insurance or fitness papers. */
+  'equipment_photo',
 ] as const;
 
 /**

@@ -3,12 +3,13 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
-import { money } from '@/lib/format';
+import type { Format } from '@/lib/format';
 import type { WageLine } from '@/lib/api-types';
 import type { Translator } from '@/lib/i18n';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
-function buildColumns(t: Translator): ColumnDef<WageLine>[] {
+function buildColumns(t: Translator, { money }: Format): ColumnDef<WageLine>[] {
   return [
   {
     accessorKey: 'worker_name',
@@ -25,7 +26,17 @@ function buildColumns(t: Translator): ColumnDef<WageLine>[] {
     header: t('Days'),
     meta: { align: 'right' },
     sortingFn: (a, b) => Number(a.original.days_present) - Number(b.original.days_present),
-    cell: ({ row }) => <span className="font-mono">{row.original.days_present}</span>,
+    cell: ({ row }) => (
+      <div className="flex flex-col items-end">
+        <span className="font-mono">{row.original.days_present}</span>
+        {/* A monthly worker's pay is reduced by leave, so say how much was taken. */}
+        {row.original.pay_basis === 'monthly' && Number(row.original.leave_days) > 0 && (
+          <span className="font-mono text-[12px] text-ink-muted">
+            {row.original.leave_days} {t('leave')}
+          </span>
+        )}
+      </div>
+    ),
   },
   {
     accessorKey: 'overtime_hours',
@@ -40,7 +51,19 @@ function buildColumns(t: Translator): ColumnDef<WageLine>[] {
     header: t('Gross'),
     meta: { align: 'right' },
     sortingFn: (a, b) => Number(BigInt(a.original.gross_amount) - BigInt(b.original.gross_amount)),
-    cell: ({ row }) => <span className="font-mono">{money(row.original.gross_amount)}</span>,
+    cell: ({ row }) => (
+      <div className="flex flex-col items-end">
+        <span className="font-mono">{money(row.original.gross_amount)}</span>
+        {/* Only a salaried line has two parts worth telling apart: salary, and overtime on top. */}
+        {row.original.pay_basis === 'monthly' && (
+          <span className="font-mono text-[12px] text-ink-muted">
+            {money(row.original.fixed_amount)} {t('salary')}
+            {BigInt(row.original.variable_amount) > 0n &&
+              ` + ${money(row.original.variable_amount)}`}
+          </span>
+        )}
+      </div>
+    ),
   },
   {
     accessorKey: 'advances_deducted',
@@ -80,9 +103,10 @@ function buildColumns(t: Translator): ColumnDef<WageLine>[] {
 
 export function LinesTable({ lines }: { lines: WageLine[] }) {
   const { t } = useLanguage();
+  const fmt = useFormat();
   return (
     <DataTable
-      columns={buildColumns(t)}
+      columns={buildColumns(t, fmt)}
       data={lines}
       searchPlaceholder="Search workers"
       emptyMessage="No attendance in this range — nothing to pay."

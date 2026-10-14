@@ -12,6 +12,7 @@ import type { RequestUser } from '../../common/auth/request-user';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { ScopeCreepService } from '../change-orders/scope-creep.service';
 
 const MESSAGE_SELECT = {
   id: true,
@@ -51,6 +52,7 @@ export class MessagesService {
     private readonly access: ProjectAccess,
     private readonly uploads: UploadsService,
     private readonly jobs: JobQueueService,
+    private readonly scopeCreep: ScopeCreepService,
   ) {}
 
   /**
@@ -296,6 +298,9 @@ export class MessagesService {
       audience: input.audience,
       recipientId: input.audience === 'direct' ? input.recipient_id! : null,
     });
+
+    // "Can you add a window in the study?" is a change order nobody has priced yet. Never throws.
+    await this.scopeCreep.fromSiteMessage(actor, message.id);
 
     return this.view(actor, message);
   }

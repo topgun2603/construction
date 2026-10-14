@@ -39,12 +39,17 @@ export const billDraftSchema = z.object({
    */
   date_printed: z.string().trim().max(40).nullable(),
   category: z.enum(EXPENSE_CATEGORIES).nullable(),
-  /** The GSTIN if the bill carries one — fifteen characters, and worth keeping for the accountant. */
-  gstin: z
+  /**
+   * The supplier's tax registration number in the company's regime — a GSTIN, a UAE TRN, a Saudi
+   * VAT number — already checked against that regime's rule (`validTaxIdOrNull`).
+   */
+  tax_id: z
     .string()
     .trim()
-    .regex(/^[0-9A-Z]{15}$/, 'a GSTIN is fifteen characters')
+    .regex(/^[0-9A-Z]{8,20}$/, 'a tax registration number is letters and digits')
     .nullable(),
+  /** The VAT or GST printed on the bill, as a decimal string like `amount`. Null if none is shown. */
+  tax_amount: z.string().nullable(),
   /** What was bought, in the bill's own words. Becomes the expense note. */
   summary: z.string().trim().max(300).nullable(),
 });
@@ -57,6 +62,13 @@ export interface ScanBillResult {
   vendor: string | null;
   spent_on: string | null;
   category: string | null;
+  /** The supplier's tax number in the company's regime, checked. Null if unread or not valid. */
+  tax_id: string | null;
+  /** What that number is called — GSTIN, TRN, VAT number — for the form's label. */
+  tax_id_label: string | null;
+  /** The tax printed on the bill, in minor units like `amount`. Null if the bill shows none. */
+  tax_amount: string | null;
+  /** `tax_id` for an Indian company, kept so clients built before `tax_id` keep working. */
   gstin: string | null;
   summary: string | null;
   /** Field names the scan could not fill, so the form can say so rather than look complete. */

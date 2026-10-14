@@ -1,9 +1,107 @@
+import { currencyMinorDigits, INDIA_LOCALE } from './locale';
+
 /**
- * Money is always an integer count of paise held in a bigint (spec §17).
+ * Money is always an integer count of minor units held in a bigint (spec §17) — paise for an
+ * Indian company, fils for a Gulf one. Which currency is the tenant's setting, not the amount's.
  * Never introduce a float anywhere in this file.
  */
 
 export const PAISE_PER_RUPEE = 100n;
+
+/** What `formatMoney` needs from a tenant's locale settings. */
+export interface MoneyFormat {
+  currency: string;
+  locale: string;
+}
+
+/**
+ * `125050n` → `₹1,250.50` for INR in `en-IN`, `AED 1,250.50` in `en-AE`, `1.250 KWD` style for a
+ * three-decimal currency. The amount reaches `Intl` as an exact decimal string, never a number.
+ */
+export function formatMoney(minor: bigint, format: MoneyFormat = INDIA_LOCALE): string {
+  const digits = currencyMinorDigits(format.currency);
+  return numberFormat(format.locale, {
+    style: 'currency',
+    currency: format.currency,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(minorToDecimal(minor, digits) as Intl.StringNumericLiteral);
+}
+
+/**
+ * Short form for headline figures. Lakh and crore for an Indian locale, because that is how
+ * builders there say budgets (`₹4.2 Cr`); the locale's own compact notation everywhere else
+ * (`AED 4.2M`). Truncates rather than rounds, so a figure is never overstated.
+ */
+export function formatMoneyCompact(minor: bigint, format: MoneyFormat = INDIA_LOCALE): string {
+  const scale = 10n ** BigInt(currencyMinorDigits(format.currency));
+  const negative = minor < 0n;
+  const major = (negative ? -minor : minor) / scale;
+
+  if (usesLakhCrore(format.locale)) {
+    const symbol = currencySymbol(format);
+    const sign = negative ? '-' : '';
+    if (major >= 10_000_000n) return `${sign}${symbol}${oneDecimal(major, 10_000_000n)} Cr`;
+    if (major >= 100_000n) return `${sign}${symbol}${oneDecimal(major, 100_000n)} L`;
+    return `${sign}${symbol}${groupIndian(major.toString())}`;
+  }
+
+  return numberFormat(format.locale, {
+    style: 'currency',
+    currency: format.currency,
+    notation: 'compact',
+    // Currency style defaults to two minimum places; left alone, 450 would read "AED 450.0".
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+    roundingMode: 'trunc',
+  }).format(negative ? -major : major);
+}
+
+/** `125050n`, 2 → `"1250.50"`. Exact, for handing to `Intl` or a CSV. */
+export function minorToDecimal(minor: bigint, digits: number): string {
+  const negative = minor < 0n;
+  const abs = negative ? -minor : minor;
+  const sign = negative ? '-' : '';
+  if (digits === 0) return `${sign}${abs}`;
+  const scale = 10n ** BigInt(digits);
+  return `${sign}${abs / scale}.${(abs % scale).toString().padStart(digits, '0')}`;
+}
+
+/**
+ * `"1250.5"`, 2 → `125050n`. The inverse of `minorToDecimal`, for an amount read as text — off a
+ * bill, out of a CSV. Null when it is not a plain decimal or has more places than the currency.
+ */
+export function decimalToMinor(value: string, digits: number): bigint | null {
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
+  if (!match) return null;
+  const [, sign, whole, fraction = ''] = match;
+  if (fraction.length > digits) return null;
+  const minor = BigInt(whole!) * 10n ** BigInt(digits) + BigInt(fraction.padEnd(digits, '0') || '0');
+  return sign === '-' ? -minor : minor;
+}
+
+/** Lakh and crore belong to India's locales (`en-IN`, `ta-IN`, `hi-IN`), not to the rupee. */
+function usesLakhCrore(locale: string): boolean {
+  return new Intl.Locale(locale).region === 'IN';
+}
+
+function currencySymbol(format: MoneyFormat): string {
+  const parts = numberFormat(format.locale, { style: 'currency', currency: format.currency })
+    .formatToParts(0);
+  return parts.find((part) => part.type === 'currency')?.value ?? format.currency;
+}
+
+/** Building a formatter costs far more than using one, and a wage sheet formats hundreds. */
+const formatters = new Map<string, Intl.NumberFormat>();
+function numberFormat(locale: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let formatter = formatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, options);
+    formatters.set(key, formatter);
+  }
+  return formatter;
+}
 
 export function rupeesToPaise(rupees: number): bigint {
   if (!Number.isFinite(rupees)) throw new RangeError('rupees must be finite');
@@ -26,10 +124,12 @@ export function formatPaise(paise: bigint): string {
   return negative ? `-${text}` : text;
 }
 
-/** `formatPaise` with the rupee sign. */
+/**
+ * `formatMoney` for an Indian company. Kept so callers that have no tenant in hand yet keep
+ * working; new code should pass the tenant's settings to `formatMoney`.
+ */
 export function formatInr(paise: bigint): string {
-  const body = formatPaise(paise);
-  return body.startsWith('-') ? `-₹${body.slice(1)}` : `₹${body}`;
+  return formatMoney(paise, INDIA_LOCALE);
 }
 
 /**
@@ -38,22 +138,15 @@ export function formatInr(paise: bigint): string {
  * Dashboards show budgets in crores because that is how builders say them, and a
  * full `₹4,20,00,000.00` costs a tile its whole width. Below a lakh there is no
  * conventional short form, so it falls back to grouped rupees with no paise —
- * headline numbers never need them.
+ * headline numbers never need them. `formatMoneyCompact` for an Indian company.
  */
 export function formatInrCompact(paise: bigint): string {
-  const negative = paise < 0n;
-  const abs = negative ? -paise : paise;
-  const rupees = abs / PAISE_PER_RUPEE;
-
-  const sign = negative ? '-' : '';
-  if (rupees >= 10_000_000n) return `${sign}₹${oneDecimal(rupees, 10_000_000n)} Cr`;
-  if (rupees >= 100_000n) return `${sign}₹${oneDecimal(rupees, 100_000n)} L`;
-  return `${sign}₹${groupIndian(rupees.toString())}`;
+  return formatMoneyCompact(paise, INDIA_LOCALE);
 }
 
-/** `rupees / unit` to one decimal place, without touching a float. */
-function oneDecimal(rupees: bigint, unit: bigint): string {
-  const tenths = (rupees * 10n) / unit;
+/** `major / unit` to one decimal place, truncated, without touching a float. */
+function oneDecimal(major: bigint, unit: bigint): string {
+  const tenths = (major * 10n) / unit;
   return `${tenths / 10n}.${tenths % 10n}`;
 }
 

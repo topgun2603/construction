@@ -54,6 +54,110 @@ export const PERMISSIONS = [
   'expenses.record',
   'expenses.approve',
 
+  /*
+   * Cost codes and budgets. Viewing is the budget and the budget-vs-actual report — what a line was
+   * priced at is the builder's margin, so it is not handed to everybody who records a diesel bill.
+   * Picking a code when recording an expense needs only `expenses.record`.
+   */
+  'cost_codes.view',
+  'cost_codes.manage',
+
+  /*
+   * Subcontracts and progress (RA) billing. Split along the decisions a job actually has: who sees
+   * what a subcontract is worth (the margin again), who writes and changes them, who measures work
+   * on site, who certifies a bill as owed, and who hands the money over.
+   */
+  'subcontracts.view',
+  'subcontracts.manage',
+  'subcontracts.measure',
+  'subcontracts.certify',
+  'subcontracts.pay',
+
+  /*
+   * Procurement (roadmap Phase 2, module 2): suppliers, quotes, purchase orders, goods received
+   * and supplier invoices. Split along the decisions a company separates on purpose — the person
+   * who raises an order should not be the only one who can approve it, the store keeper who signs
+   * for a delivery need not see what it cost, and whoever matches the invoice is accounts.
+   * How much a person may approve is an amount (Settings → Procurement), not a permission.
+   */
+  'vendors.manage',
+  'procurement.view',
+  'procurement.manage',
+  'procurement.approve',
+  'procurement.receive',
+  'procurement.invoices',
+
+  /*
+   * Change orders (roadmap Phase 2, module 4): variations to the client's contract. Seeing one shows
+   * its cost as well as its price — the margin — so viewing is its own permission. Approving is the
+   * internal sign-off before anything is put in front of the client.
+   */
+  'change_orders.view',
+  'change_orders.manage',
+  'change_orders.approve',
+
+  /*
+   * QA/QC (roadmap Phase 2, module 7): inspections, material tests and snag lists. Split along who
+   * does what on a real job — anyone running the site reads the quality record; supervisors and
+   * engineers inspect, record tests and raise snags; the checklist library is a quality manager's
+   * to write; and saying a snag is really fixed (or that it is not) is the one decision kept from
+   * whoever fixed it.
+   */
+  'quality.view',
+  'quality.inspect',
+  'quality.manage',
+  'quality.verify',
+
+  /*
+   * Scheduling (roadmap Phase 2, module 6). Reading the programme is for everybody running the job;
+   * changing the plan — tasks, links, baselines, imports — is the planner's; reporting how far the
+   * work has got and when it really started is the supervisor's, and does not let them move the plan.
+   */
+  'schedule.view',
+  'schedule.manage',
+  'schedule.progress',
+
+  /*
+   * Safety (HSE, roadmap Phase 2, module 8). Reporting is deliberately wide — anybody on a site who
+   * sees a hazard or a near miss must be able to write it down, or it goes unreported. Managing is
+   * the investigation, the close-out and signing permits to work, which is a competent person's job.
+   */
+  'safety.view',
+  'safety.report',
+  'safety.manage',
+
+  /*
+   * Bill of quantities (roadmap Phase 2, module 5): the client-side BOQ and the running bills raised
+   * against it. Split along the same lines as subcontracts — who sees what the job is priced at, who
+   * writes the BOQ, who measures on site, and who bills the client.
+   */
+  'boq.view',
+  'boq.manage',
+  'boq.measure',
+  'boq.bill',
+
+  /*
+   * RFIs and submittals (roadmap Phase 2, module 9). Raising a question to the designer is a site
+   * job, so a supervisor manages RFIs. Submittals are split three ways: who reads the log, who
+   * prepares and sends them, and who may stamp a review on the record — usually the consultant
+   * through their own link, but sometimes a manager recording what came back by hand.
+   */
+  'rfis.view',
+  'rfis.manage',
+  'submittals.view',
+  'submittals.manage',
+  'submittals.review',
+
+  /*
+   * Equipment and plant (roadmap Phase 2, module 10). Viewing shows what each machine costs — hire
+   * rates, charge-out rates, cost per site — so it is not every operator's. Logging is the site's
+   * daily job: the hours, the meter, the fuel, from a phone, without seeing the rates. Managing is
+   * the register itself, moving machines between sites, servicing and booking the vendor's invoice.
+   */
+  'equipment.view',
+  'equipment.manage',
+  'equipment.log',
+
   // Talking to the client
   'messages.post',
   'messages.internal',
@@ -91,6 +195,12 @@ export const PERMISSIONS = [
   'team.manage',
   'roles.manage',
   'tenant.manage',
+  /*
+   * Read the audit log: every change anybody made, with the before and after. Owner-only by
+   * default — it shows salaries, payments and who touched them, which is exactly what makes it
+   * worth having and exactly why it is not every manager's to browse.
+   */
+  'audit.view',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -194,6 +304,213 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Cost codes and budgets',
+    items: [
+      {
+        permission: 'cost_codes.view',
+        label: 'See budgets and the budget-vs-actual report',
+        note: 'What each line was priced at. Anyone who records expenses can still pick a code.',
+      },
+      {
+        permission: 'cost_codes.manage',
+        label: 'Edit cost codes, budgets and templates',
+      },
+    ],
+  },
+  {
+    group: 'Subcontracts',
+    items: [
+      {
+        permission: 'subcontracts.view',
+        label: 'See subcontracts, their bills and statements',
+        note: 'What each subcontract is worth and what has been paid on it',
+      },
+      {
+        permission: 'subcontracts.manage',
+        label: 'Write subcontracts, their rates and variations',
+      },
+      {
+        permission: 'subcontracts.measure',
+        label: 'Measure work done for a running bill',
+        note: 'Enter quantities and back-charges on a draft bill. Without “see subcontracts” the rates and amounts stay hidden.',
+      },
+      {
+        permission: 'subcontracts.certify',
+        label: 'Certify bills, approve variations and release retention',
+        note: 'What a certified bill says is owed becomes cost on the site',
+      },
+      { permission: 'subcontracts.pay', label: 'Record payments to subcontractors' },
+    ],
+  },
+  {
+    group: 'Procurement',
+    items: [
+      { permission: 'vendors.manage', label: 'Add and edit suppliers' },
+      {
+        permission: 'procurement.view',
+        label: 'See quotes and purchase orders',
+        note: 'Includes the prices suppliers quoted',
+      },
+      {
+        permission: 'procurement.manage',
+        label: 'Ask for quotes and raise purchase orders',
+      },
+      {
+        permission: 'procurement.approve',
+        label: 'Approve purchase orders',
+        note: 'Only up to their approval limit, set in Settings → Procurement. Owners have none.',
+      },
+      {
+        permission: 'procurement.receive',
+        label: 'Receive goods against a purchase order',
+        note: 'Books the delivery into site stock',
+      },
+      {
+        permission: 'procurement.invoices',
+        label: 'Record and match supplier invoices',
+        note: 'An approved invoice becomes an expense on the site',
+      },
+    ],
+  },
+  {
+    group: 'Change orders',
+    items: [
+      {
+        permission: 'change_orders.view',
+        label: 'See change orders and the contract value',
+        note: 'Shows what each change costs as well as what the client is charged',
+      },
+      {
+        permission: 'change_orders.manage',
+        label: 'Raise and edit change orders',
+        note: 'Also sees the extra-work suggestions picked up from daily reports and messages',
+      },
+      {
+        permission: 'change_orders.approve',
+        label: 'Approve change orders before they go to the client',
+        note: 'Nobody but an owner approves one they raised themselves',
+      },
+    ],
+  },
+  {
+    group: 'Quality',
+    items: [
+      {
+        permission: 'quality.view',
+        label: 'See inspections, test results and snag lists',
+      },
+      {
+        permission: 'quality.inspect',
+        label: 'Run inspections, record tests and raise snags',
+        note: 'Includes marking a snag fixed with its “after” photo',
+      },
+      {
+        permission: 'quality.manage',
+        label: 'Edit the checklist library',
+      },
+      {
+        permission: 'quality.verify',
+        label: 'Close or reopen fixed snags, and countersign inspections',
+        note: 'The check on whoever did the fixing',
+      },
+    ],
+  },
+  {
+    group: 'Schedule',
+    items: [
+      { permission: 'schedule.view', label: 'See the programme, critical path and look-ahead' },
+      {
+        permission: 'schedule.manage',
+        label: 'Plan the schedule: tasks, links, baselines and imports',
+      },
+      {
+        permission: 'schedule.progress',
+        label: 'Report progress on tasks',
+        note: 'Percent complete and actual start and finish dates. The plan itself stays as it is.',
+      },
+    ],
+  },
+  {
+    group: 'Safety',
+    items: [
+      {
+        permission: 'safety.view',
+        label: 'See incidents, permits, toolbox talks and safety figures',
+      },
+      {
+        permission: 'safety.report',
+        label: 'Report incidents and observations, record toolbox talks, request permits',
+        note: 'Give this to everybody on site: an unreported near miss is the next accident.',
+      },
+      {
+        permission: 'safety.manage',
+        label: 'Investigate and close incidents, issue and suspend permits',
+        note: 'Signs permits to work as issuer or area authority',
+      },
+    ],
+  },
+  {
+    group: 'Bill of quantities',
+    items: [
+      {
+        permission: 'boq.view',
+        label: 'See the BOQ, its rates and the bills to the client',
+        note: 'What each item is priced at and what has been billed',
+      },
+      { permission: 'boq.manage', label: 'Import and edit the BOQ and the client’s billing terms' },
+      {
+        permission: 'boq.measure',
+        label: 'Record measurements against BOQ items',
+        note: 'Without “see the BOQ” the rates and amounts stay hidden.',
+      },
+      {
+        permission: 'boq.bill',
+        label: 'Raise, certify and invoice running bills to the client',
+        note: 'An invoiced bill becomes an instalment in the payment schedule',
+      },
+    ],
+  },
+  {
+    group: 'RFIs and submittals',
+    items: [
+      { permission: 'rfis.view', label: 'See RFIs and their answers' },
+      {
+        permission: 'rfis.manage',
+        label: 'Raise, send, answer and close RFIs',
+        note: 'Includes sending the designer a link to answer without an account',
+      },
+      { permission: 'submittals.view', label: 'See submittals and their reviews' },
+      {
+        permission: 'submittals.manage',
+        label: 'Prepare, send and resubmit submittals',
+      },
+      {
+        permission: 'submittals.review',
+        label: 'Record a review outcome on a submittal',
+        note: 'For a review that came back by email or by hand; consultants review through their link',
+      },
+    ],
+  },
+  {
+    group: 'Equipment',
+    items: [
+      {
+        permission: 'equipment.view',
+        label: 'See machines, their rates, utilisation and cost per site',
+        note: 'Hire and charge-out rates, hire statements and fuel checks',
+      },
+      {
+        permission: 'equipment.manage',
+        label: 'Register machines, move them between sites, record servicing and book hire invoices',
+      },
+      {
+        permission: 'equipment.log',
+        label: 'Log daily hours, meter readings and fuel',
+        note: 'From a phone, with meter and fuel bill photos. Without “see machines” the rates stay hidden.',
+      },
+    ],
+  },
+  {
     group: 'Client conversation',
     items: [
       { permission: 'messages.post', label: 'Write in the site conversation' },
@@ -259,6 +576,11 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
       { permission: 'team.manage', label: 'Invite and remove people' },
       { permission: 'roles.manage', label: 'Create and edit roles' },
       { permission: 'tenant.manage', label: 'Change company details and plan' },
+      {
+        permission: 'audit.view',
+        label: 'Read and export the audit log',
+        note: 'Every change anybody made, including wages and payments',
+      },
     ],
   },
 ];
@@ -305,6 +627,54 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'expenses.view',
     'expenses.record',
     'expenses.approve',
+    // Running a job means owning its breakdown and its budget lines.
+    'cost_codes.view',
+    'cost_codes.manage',
+    // Writes the subcontracts on their jobs, measures them and certifies the bills. Paying is the
+    // books' — the same split as wages, where a manager sees the sheet and accounts pays it.
+    'subcontracts.view',
+    'subcontracts.manage',
+    'subcontracts.measure',
+    'subcontracts.certify',
+    // Buying for the job is running the job — approving only up to the limit the owner sets.
+    'vendors.manage',
+    'procurement.view',
+    'procurement.manage',
+    'procurement.approve',
+    'procurement.receive',
+    // Pricing and agreeing changes with the client is running the job. Their own change orders still
+    // need somebody else to approve them.
+    'change_orders.view',
+    'change_orders.manage',
+    'change_orders.approve',
+    // Quality on their jobs end to end, including the library and closing what was fixed.
+    'quality.view',
+    'quality.inspect',
+    'quality.manage',
+    'quality.verify',
+    // The programme is the project manager's to write and keep.
+    'schedule.view',
+    'schedule.manage',
+    'schedule.progress',
+    // Runs safety on their jobs: investigates incidents and signs permits to work.
+    'safety.view',
+    'safety.report',
+    'safety.manage',
+    // The BOQ is the job's: the manager imports it, measures against it and bills the client on it.
+    'boq.view',
+    'boq.manage',
+    'boq.measure',
+    'boq.bill',
+    // Questions to the designers and the approvals of what is built are the manager's to run.
+    'rfis.view',
+    'rfis.manage',
+    'submittals.view',
+    'submittals.manage',
+    'submittals.review',
+    // Runs the plant on their jobs: which machines are where, their hours, servicing and hire bills.
+    'equipment.view',
+    'equipment.manage',
+    'equipment.log',
     'messages.post',
     'messages.internal',
     'documents.view',
@@ -331,8 +701,35 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     // Setting the estimate is not — that is the figure their consumption is judged against.
     'stock.view',
     'stock.record',
+    // Signing for a delivery against the order is the same job as signing for it at all. What the
+    // order cost is not theirs to see, so no `procurement.view`.
+    'procurement.receive',
     'expenses.view',
     'expenses.record',
+    // Measures the subcontractor's work on their own site for the running bill. Not the rates or
+    // the bill's money: what a subcontract is worth is the margin, the same as a budget line.
+    'subcontracts.measure',
+    // Walks the floors: runs the pour card, records the cube results and raises snags — and marks
+    // their own fixes done. Saying a fix is good enough to close stays with the manager.
+    'quality.view',
+    'quality.inspect',
+    // Works to the programme and says how far it has got; re-planning it is the manager's.
+    'schedule.view',
+    'schedule.progress',
+    // The person on site when something happens: reports it, records the morning toolbox talk and
+    // asks for a permit. Signing their own permit is not theirs, so no `safety.manage`.
+    'safety.view',
+    'safety.report',
+    // Measures the work against the BOQ on their own site; what it is billed at is not theirs to see.
+    'boq.measure',
+    // The person who finds the clash on site raises the RFI about it. Submittals they read, to
+    // build to what was approved; preparing and stamping them is not theirs.
+    'rfis.view',
+    'rfis.manage',
+    'submittals.view',
+    // Logs the machines on their site each day — hours, meter, fuel. What a machine costs is not
+    // theirs to see, the same as a subcontract's rates.
+    'equipment.log',
     'messages.post',
     'messages.internal',
     // Reads the drawings they are building from; revising them is not a site decision.
@@ -363,6 +760,26 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'expenses.view',
     'expenses.record',
     'expenses.approve',
+    // Reads the budget report because cost against budget is accounts' question too; setting the
+    // budget is the job's, not the books'.
+    'cost_codes.view',
+    // Reads every subcontract account and pays the certified bills; certifying them is the job's.
+    'subcontracts.view',
+    'subcontracts.pay',
+    // Matching the supplier's invoice to the order and the delivery is the books' job, and so is
+    // keeping supplier tax numbers right. Approving the order itself is not.
+    'vendors.manage',
+    'procurement.view',
+    'procurement.invoices',
+    // Reads the register: an approved change order is money the client will be billed.
+    'change_orders.view',
+    // When the work happens is when the money goes out and comes in.
+    'schedule.view',
+    // Reads the BOQ and raises the client's bills on it, the same half of the ledger as receipts.
+    'boq.view',
+    'boq.bill',
+    // Reads what the plant costs and checks the hire statement against the vendor's invoice.
+    'equipment.view',
     'messages.post',
     'messages.internal',
     'documents.view',

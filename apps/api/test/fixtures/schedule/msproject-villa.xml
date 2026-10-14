@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- A trimmed Microsoft Project XML (MSPDI) save: a Gulf villa on a Sunday–Thursday week. -->
+<Project xmlns="http://schemas.microsoft.com/project">
+  <SaveVersion>14</SaveVersion>
+  <Name>Villa 12.xml</Name>
+  <Title>Villa 12, Al Barsha</Title>
+  <StartDate>2026-08-02T08:00:00</StartDate>
+  <FinishDate>2026-09-30T17:00:00</FinishDate>
+  <CalendarUID>1</CalendarUID>
+  <MinutesPerDay>480</MinutesPerDay>
+  <MinutesPerWeek>2400</MinutesPerWeek>
+  <Calendars>
+    <Calendar>
+      <UID>1</UID>
+      <Name>Gulf Standard</Name>
+      <IsBaseCalendar>1</IsBaseCalendar>
+      <WeekDays>
+        <WeekDay><DayType>1</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>2</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>3</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>4</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>5</DayType><DayWorking>1</DayWorking></WeekDay>
+        <WeekDay><DayType>6</DayType><DayWorking>0</DayWorking></WeekDay>
+        <WeekDay><DayType>7</DayType><DayWorking>0</DayWorking></WeekDay>
+      </WeekDays>
+      <Exceptions>
+        <Exception>
+          <EnteredByOccurrences>0</EnteredByOccurrences>
+          <TimePeriod><FromDate>2026-12-02T00:00:00</FromDate><ToDate>2026-12-03T23:59:00</ToDate></TimePeriod>
+          <Name>National Day</Name>
+          <Type>1</Type>
+          <DayWorking>0</DayWorking>
+        </Exception>
+      </Exceptions>
+    </Calendar>
+  </Calendars>
+  <Tasks>
+    <Task>
+      <UID>0</UID><ID>0</ID><Name>Villa 12</Name><OutlineNumber>0</OutlineNumber><OutlineLevel>0</OutlineLevel>
+      <Summary>1</Summary><Duration>PT432H0M0S</Duration>
+    </Task>
+    <Task>
+      <UID>1</UID><ID>1</ID><Name>Substructure</Name><WBS>1</WBS><OutlineNumber>1</OutlineNumber><OutlineLevel>1</OutlineLevel>
+      <Summary>1</Summary><Start>2026-08-02T08:00:00</Start><Finish>2026-08-20T17:00:00</Finish><Duration>PT120H0M0S</Duration>
+    </Task>
+    <Task>
+      <UID>2</UID><ID>2</ID><Name>Excavation</Name><WBS>1.1</WBS><OutlineNumber>1.1</OutlineNumber><OutlineLevel>2</OutlineLevel>
+      <Summary>0</Summary><Milestone>0</Milestone>
+      <Start>2026-08-02T08:00:00</Start><Finish>2026-08-06T17:00:00</Finish><Duration>PT40H0M0S</Duration><DurationFormat>7</DurationFormat>
+      <PercentComplete>100</PercentComplete>
+      <ActualStart>2026-08-02T08:00:00</ActualStart><ActualFinish>2026-08-06T17:00:00</ActualFinish>
+      <ConstraintType>0</ConstraintType>
+    </Task>
+    <Task>
+      <UID>3</UID><ID>3</ID><Name>Footings &amp; PCC</Name><WBS>1.2</WBS><OutlineNumber>1.2</OutlineNumber><OutlineLevel>2</OutlineLevel>
+      <Summary>0</Summary><Milestone>0</Milestone>
+      <Start>2026-08-09T08:00:00</Start><Finish>2026-08-18T17:00:00</Finish><Duration>PT64H0M0S</Duration>
+      <PercentComplete>25</PercentComplete><ActualStart>2026-08-09T08:00:00</ActualStart>
+      <ConstraintType>0</ConstraintType>
+      <PredecessorLink><PredecessorUID>2</PredecessorUID><Type>1</Type><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>
+    </Task>
+    <Task>
+      <UID>4</UID><ID>4</ID><Name>Plinth beam</Name><WBS>1.3</WBS><OutlineNumber>1.3</OutlineNumber><OutlineLevel>2</OutlineLevel>
+      <Summary>0</Summary><Milestone>0</Milestone>
+      <Start>2026-08-11T08:00:00</Start><Finish>2026-08-18T17:00:00</Finish><Duration>PT48H0M0S</Duration>
+      <PercentComplete>0</PercentComplete><ConstraintType>0</ConstraintType>
+      <PredecessorLink><PredecessorUID>3</PredecessorUID><Type>3</Type><LinkLag>9600</LinkLag><LagFormat>7</LagFormat></PredecessorLink>
+    </Task>
+    <Task>
+      <UID>5</UID><ID>5</ID><Name>Superstructure</Name><WBS>2</WBS><OutlineNumber>2</OutlineNumber><OutlineLevel>1</OutlineLevel>
+      <Summary>1</Summary><Duration>PT120H0M0S</Duration>
+    </Task>
+    <Task>
+      <UID>6</UID><ID>6</ID><Name>Ground floor columns</Name><WBS>2.1</WBS><OutlineNumber>2.1</OutlineNumber><OutlineLevel>2</OutlineLevel>
+      <Summary>0</Summary><Milestone>0</Milestone><Duration>PT40H0M0S</Duration><ConstraintType>0</ConstraintType>
+      <PredecessorLink><PredecessorUID>4</PredecessorUID><Type>1</Type><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>
+    </Task>
+    <Task>
+      <UID>7</UID><ID>7</ID><Name>First floor slab</Name><WBS>2.2</WBS><OutlineNumber>2.2</OutlineNumber><OutlineLevel>2</OutlineLevel>
+      <Summary>0</Summary><Milestone>0</Milestone><Duration>PT80H0M0S</Duration><ConstraintType>0</ConstraintType>
+      <PredecessorLink><PredecessorUID>6</PredecessorUID><Type>0</Type><LinkLag>4800</LinkLag><LagFormat>7</LagFormat></PredecessorLink>
+    </Task>
+    <Task>
+      <UID>8</UID><ID>8</ID><Name>Structure complete</Name><WBS>2.3</WBS><OutlineNumber>2.3</OutlineNumber><OutlineLevel>2</OutlineLevel>
+      <Summary>0</Summary><Milestone>1</Milestone><Duration>PT0H0M0S</Duration><ConstraintType>0</ConstraintType>
+      <PredecessorLink><PredecessorUID>7</PredecessorUID><Type>1</Type><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>
+    </Task>
+    <Task>
+      <UID>9</UID><ID>9</ID><Name>Municipality inspection</Name><WBS>3</WBS><OutlineNumber>3</OutlineNumber><OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary><Milestone>0</Milestone><Duration>PT8H0M0S</Duration>
+      <ConstraintType>4</ConstraintType><ConstraintDate>2026-08-23T08:00:00</ConstraintDate>
+    </Task>
+    <Task>
+      <UID>10</UID><ID>10</ID><Name>Handover</Name><WBS>4</WBS><OutlineNumber>4</OutlineNumber><OutlineLevel>1</OutlineLevel>
+      <Summary>0</Summary><Milestone>1</Milestone><Duration>PT0H0M0S</Duration>
+      <ConstraintType>7</ConstraintType><ConstraintDate>2026-10-29T17:00:00</ConstraintDate>
+      <PredecessorLink><PredecessorUID>8</PredecessorUID><Type>1</Type><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>
+      <PredecessorLink><PredecessorUID>9</PredecessorUID><Type>1</Type><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>
+      <PredecessorLink><PredecessorUID>5</PredecessorUID><Type>1</Type><LinkLag>0</LinkLag><LagFormat>7</LagFormat></PredecessorLink>
+    </Task>
+  </Tasks>
+  <Resources>
+    <Resource><UID>0</UID><ID>0</ID><Name>Unassigned</Name></Resource>
+  </Resources>
+  <Assignments/>
+</Project>

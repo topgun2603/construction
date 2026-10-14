@@ -37,11 +37,11 @@ export async function StartBanner() {
         aria-hidden
         priority
         sizes="(min-width: 1280px) 60vw, 0px"
-        className="pointer-events-none absolute inset-y-0 right-0 -z-10 hidden h-full w-[62%] object-cover object-left xl:block"
+        className="pointer-events-none absolute inset-y-0 end-0 -z-10 hidden h-full w-[62%] object-cover object-left rtl:object-right xl:block"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 hidden bg-gradient-to-r from-surface via-surface/85 via-35% to-transparent xl:block"
+        className="pointer-events-none absolute inset-0 -z-10 hidden bg-gradient-to-r rtl:bg-gradient-to-l from-surface via-surface/85 via-35% to-transparent xl:block"
       />
 
       <div className="flex flex-col gap-5 p-7 sm:p-9 xl:max-w-[54%]">
@@ -78,7 +78,7 @@ export async function StartBanner() {
         </ul>
       </div>
 
-      <div className="pointer-events-none absolute right-8 top-1/2 hidden -translate-y-1/2 xl:block">
+      <div className="pointer-events-none absolute end-8 top-1/2 hidden -translate-y-1/2 xl:block">
         <ul className="flex flex-col gap-3 rounded-card border border-line bg-surface/90 p-5 shadow-float backdrop-blur-sm">
           {WHAT_COMES_NEXT.map((step) => (
             <li key={t(step.label)} className="flex items-center gap-2.5 text-[13.5px]">

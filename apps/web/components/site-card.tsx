@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { moneyShort, timeOfDay } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import type { DashboardSite } from '@/lib/api-types';
 import { Badge } from '@/components/ui/badge';
 import { MeterRow } from '@/components/ui/meter';
@@ -16,7 +16,8 @@ import { getT } from '@/lib/i18n-server';
  */
 export async function SiteCard({ site }: { site: DashboardSite }) {
   const t = await getT();
-  const timeline = schedule(site);
+  const { moneyShort, timeOfDay, todayIso } = await getFormat();
+  const timeline = schedule(site, todayIso());
   const budget = site.budget_amount ? BigInt(site.budget_amount) : null;
   const spend = BigInt(site.spend_month || '0');
   const budgetUsed = budget && budget > 0n ? Number((spend * 100n) / budget) : 0;

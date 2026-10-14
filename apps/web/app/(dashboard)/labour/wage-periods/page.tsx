@@ -2,7 +2,7 @@ import { serverFetch } from '@/lib/server-api';
 import type { Contractor, Page, WagePeriod } from '@/lib/api-types';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
-import { moneyShort } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { GeneratePeriodDialog } from './generate-dialog';
 import { PeriodsTable } from './periods-table';
 import { getT } from '@/lib/i18n-server';
@@ -11,6 +11,7 @@ export const metadata = { title: 'Wage periods · BUILDR' };
 
 export default async function WagePeriodsPage() {
   const t = await getT();
+  const { moneyShort } = await getFormat();
   const [periods, contractors] = await Promise.all([
     serverFetch<Page<WagePeriod>>('/wage-periods?limit=100'),
     serverFetch<Page<Contractor>>('/contractors?limit=200'),

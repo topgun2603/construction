@@ -159,6 +159,8 @@ export async function createPlan(input: {
   name: string;
   months: number | null;
   price: string;
+  /** Other currencies, minor units: { AED: "399900" }. */
+  prices?: Record<string, string>;
   description: string | null;
   highlights: string[];
   is_active: boolean;
@@ -175,6 +177,7 @@ export async function updatePlan(
     name?: string;
     months?: number | null;
     price?: string;
+    prices?: Record<string, string>;
     description?: string | null;
     highlights?: string[];
     is_active?: boolean;

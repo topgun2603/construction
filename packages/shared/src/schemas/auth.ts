@@ -6,6 +6,12 @@ import { phoneSchema, uuidSchema } from './common';
 export const authExchangeSchema = z.object({
   firebase_token: z.string().min(1),
   device_id: z.string().min(1).max(128).optional(),
+  /**
+   * Which company to sign in to, for a person who belongs to more than one. Sent on the second
+   * exchange after a `tenant_choice_required` answer; refused unless the verified identity really
+   * has a membership there.
+   */
+  tenant_id: uuidSchema.optional(),
 });
 export type AuthExchangeInput = z.infer<typeof authExchangeSchema>;
 

@@ -70,12 +70,12 @@ export function TenantFilters({
   return (
     <div className="flex flex-wrap items-center gap-2.5">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+        <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
         <Input
           value={term}
           onChange={(event) => setTerm(event.target.value)}
           placeholder={t('Search name or owner number')}
-          className="w-[280px] pl-9"
+          className="w-[280px] ps-9"
           aria-label={t('Search tenants')}
         />
       </div>

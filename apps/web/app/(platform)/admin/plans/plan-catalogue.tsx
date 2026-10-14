@@ -4,9 +4,10 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Infinity as InfinityIcon, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { PlanView } from '@sitebook/shared';
+import { currencyMinorDigits, decimalToMinor, minorToDecimal, type PlanView } from '@sitebook/shared';
 import { createPlan, deletePlan, updatePlan } from '@/lib/platform-actions';
-import { money } from '@/lib/format';
+// The platform bills in rupees; a tenant's own currency does not apply here.
+import { indiaFormat } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,6 +16,8 @@ import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useLanguage } from '@/components/language-provider';
+
+const { money } = indiaFormat;
 
 /**
  * The catalogue, and the form that edits it.
@@ -162,7 +165,7 @@ export function PlanCatalogue({
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="ml-auto size-8 text-ink-faint hover:text-blocked-fg"
+                        className="ms-auto size-8 text-ink-faint hover:text-blocked-fg"
                         aria-label={`Delete ${plan.name}`}
                       >
                         <Trash2 className="size-4" />
@@ -208,7 +211,7 @@ function LifetimeHero({
       {/* One accent bloom, as on the console door. Static: a plan card is not a thing to animate. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-20 -top-24 size-[320px] rounded-full bg-accent/30 blur-[90px]"
+        className="pointer-events-none absolute -end-20 -top-24 size-[320px] rounded-full bg-accent/30 blur-[90px]"
       />
       <div className="relative flex flex-wrap items-center justify-between gap-6 p-6">
         <div className="flex flex-col gap-3">
@@ -291,6 +294,21 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
     }
     const price = `${BigInt(rupees) * 100n}`;
 
+    // Other currencies, one per line: "AED 3999". Each in its own units — Stripe bills a Gulf
+    // company in its currency, and a plan with no line for it cannot be bought online.
+    const prices: Record<string, string> = {};
+    for (const line of String(formData.get('prices') ?? '').split('\n')) {
+      const text = line.trim().toUpperCase().replace(/,/g, '');
+      if (!text) continue;
+      const match = /^([A-Z]{3})\s+(\d+(?:\.\d+)?)$/.exec(text);
+      const minor = match ? decimalToMinor(match[2]!, currencyMinorDigits(match[1]!)) : null;
+      if (!match || minor === null || match[1] === 'INR') {
+        setError(`Could not read "${line.trim()}" — write one currency per line, like AED 3999`);
+        return;
+      }
+      prices[match[1]!] = minor.toString();
+    }
+
     const highlights = String(formData.get('highlights') ?? '')
       .split('\n')
       .map((line) => line.trim())
@@ -301,6 +319,7 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
         name: String(formData.get('name') ?? '').trim(),
         months,
         price,
+        prices,
         description: String(formData.get('description') ?? '').trim() || null,
         badge: String(formData.get('badge') ?? '').trim() || null,
         highlights,
@@ -434,6 +453,25 @@ function PlanForm({ plan, onDone }: { plan: PlanView | null; onDone: () => void 
           A ribbon on the card, on the web and in the app — &ldquo;Best value&rdquo;,
           &ldquo;Most popular&rdquo;, &ldquo;Premium&rdquo;. Leave it empty for a plan you are not
           pushing. Two or three words at most: it sits beside the name on a phone.
+        </p>
+
+        <Field label={t('Prices in other currencies')} htmlFor="prices" optional>
+          <textarea
+            id="prices"
+            name="prices"
+            rows={3}
+            defaultValue={Object.entries(plan?.prices ?? {})
+              .map(
+                ([currency, minor]) =>
+                  `${currency} ${minorToDecimal(BigInt(minor), currencyMinorDigits(currency))}`,
+              )
+              .join('\n')}
+            placeholder={'AED 3999\nSAR 4099'}
+            className="w-full rounded-btn border border-line-strong bg-surface px-3 py-2 font-mono text-[14px] outline-none transition focus:border-accent"
+          />
+        </Field>
+        <p className="-mt-2 text-[12px] text-ink-faint">
+          {t('One currency per line. Companies paying in that currency subscribe through Stripe; one with no line here cannot subscribe online.')}
         </p>
 
         <Field label={t('Highlights')} htmlFor="highlights" optional>

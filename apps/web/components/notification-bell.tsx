@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { markAllNotificationsRead } from '@/lib/actions';
-import { relativeTime } from '@/lib/format';
+import { useFormat } from '@/components/format-provider';
 import { useLanguage } from '@/components/language-provider';
 
 export interface NotificationRow {
@@ -33,6 +33,7 @@ export interface NotificationRow {
  */
 export function NotificationBell({ items }: { items: NotificationRow[] }) {
   const { t } = useLanguage();
+  const { relativeTime } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -55,7 +56,7 @@ export function NotificationBell({ items }: { items: NotificationRow[] }) {
         >
           <Bell className="size-[18px]" />
           {unread > 0 && (
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-blocked ring-2 ring-surface" />
+            <span className="absolute end-1.5 top-1.5 size-2 rounded-full bg-blocked ring-2 ring-surface" />
           )}
         </button>
       </DropdownMenuTrigger>

@@ -62,13 +62,16 @@ export class UploadsService {
   async presign(actor: RequestUser, input: PresignInput): Promise<PresignResult> {
     if (input.project_id) await this.access.assertAccess(actor, input.project_id);
 
-    const key = this.buildKey(actor, input);
+    const key = this.buildKey(actor.tenantId, input);
 
+    // Identity papers are encrypted at rest by the bucket where it supports it (S3, Tigris).
+    const encrypt = input.kind === 'worker_document' && this.config.S3_SERVER_SIDE_ENCRYPTION;
     const command = new PutObjectCommand({
       Bucket: this.config.S3_BUCKET,
       Key: key,
       ContentType: input.content_type,
       ContentLength: input.content_length,
+      ...(encrypt ? { ServerSideEncryption: 'AES256' as const } : {}),
     });
 
     const url = await getSignedUrl(this.client, command, { expiresIn: URL_TTL_SECONDS });
@@ -81,8 +84,41 @@ export class UploadsService {
       headers: {
         'Content-Type': input.content_type,
         'Content-Length': String(input.content_length),
+        ...(encrypt ? { 'x-amz-server-side-encryption': 'AES256' } : {}),
       },
     };
+  }
+
+  /**
+   * A PUT URL for a key the caller built itself, for uploads with no signed-in user behind them —
+   * an outside consultant answering an RFI through their link (roadmap Phase 2, module 9). The
+   * caller is responsible for the key starting with the tenant and the record it belongs to; that
+   * prefix is what the record later checks before it accepts the file.
+   */
+  async presignKey(
+    key: string,
+    contentType: string,
+    contentLength: number,
+  ): Promise<PresignResult> {
+    if (key.includes('..')) throw ApiError.forbidden('That file does not belong to this account');
+    const command = new PutObjectCommand({
+      Bucket: this.config.S3_BUCKET,
+      Key: key,
+      ContentType: contentType,
+      ContentLength: contentLength,
+    });
+    const url = await getSignedUrl(this.client, command, { expiresIn: URL_TTL_SECONDS });
+    return {
+      url,
+      s3_key: key,
+      expires_in: URL_TTL_SECONDS,
+      headers: { 'Content-Type': contentType, 'Content-Length': String(contentLength) },
+    };
+  }
+
+  /** The extension a stored key gets for a content type; `bin` for anything unexpected. */
+  extensionFor(contentType: string): string {
+    return EXTENSIONS[contentType] ?? 'bin';
   }
 
   /**
@@ -119,9 +155,18 @@ export class UploadsService {
    * with one thumbnail missing, not fail entirely because a single row is odd.
    */
   async signedViewUrl(actor: RequestUser, s3Key: string): Promise<string | null> {
+    return this.signedViewUrlFor(actor.tenantId, s3Key);
+  }
+
+  /**
+   * The same, by tenant id, for a reader with no session — the outside party on an RFI link, who
+   * may only be shown the files of the one record their link names. The tenant prefix still holds.
+   */
+  async signedViewUrlFor(tenantId: string, s3Key: string): Promise<string | null> {
+    if (!s3Key.startsWith(`${tenantId}/`) || s3Key.includes('..')) return null;
     try {
-      const { url } = await this.viewUrl(actor, { s3_key: s3Key });
-      return url;
+      const command = new GetObjectCommand({ Bucket: this.config.S3_BUCKET, Key: s3Key });
+      return await getSignedUrl(this.client, command, { expiresIn: VIEW_TTL_SECONDS });
     } catch {
       return null;
     }
@@ -182,12 +227,12 @@ export class UploadsService {
     );
   }
 
-  private buildKey(actor: RequestUser, input: PresignInput): string {
+  private buildKey(tenantId: string, input: PresignInput): string {
     const now = new Date();
     const yyyymm = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
     const extension = EXTENSIONS[input.content_type] ?? 'bin';
     const scope = input.project_id ? `p/${input.project_id}` : 'tenant';
-    return `${actor.tenantId}/${input.kind}/${scope}/${yyyymm}/${randomUUID()}.${extension}`;
+    return `${tenantId}/${input.kind}/${scope}/${yyyymm}/${randomUUID()}.${extension}`;
   }
 }
 

@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Headers,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { createHash } from 'node:crypto';
 import { Throttle } from '@nestjs/throttler';
@@ -23,6 +14,7 @@ import { CurrentUser, Public, RequiresPermission } from '../../common/decorators
 import { ApiError } from '../../common/errors/api-error';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { RazorpayService } from '../../integrations/razorpay.service';
+import { StripeService } from '../../integrations/stripe.service';
 import { BillingService } from './billing.service';
 
 /**
@@ -37,6 +29,7 @@ export class BillingController {
   constructor(
     private readonly billing: BillingService,
     private readonly razorpay: RazorpayService,
+    private readonly stripe: StripeService,
   ) {}
 
   @RequiresPermission('tenant.manage')
@@ -130,6 +123,38 @@ export class BillingController {
       payload: payload.payload ?? {},
     });
 
+    return { received: true, ...result };
+  }
+
+  /**
+   * Stripe's webhook (roadmap Phase 0, item 7) — the same three rules as Razorpay's: verified
+   * against the raw bytes with the endpoint's signing secret, a duplicate answered 200, and rate
+   * limited. Stripe's own event id (`evt_…`) is the idempotency key.
+   */
+  @Public()
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Post('stripe/webhook')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Stripe subscription events' })
+  async stripeWebhook(
+    @Req() request: Request & { rawBody?: Buffer },
+    @Headers('stripe-signature') signature: string | undefined,
+  ) {
+    const raw = request.rawBody;
+    if (!raw) throw ApiError.unauthenticated('Webhook body could not be verified');
+    if (!this.stripe.verifyWebhook(raw, signature)) {
+      throw ApiError.unauthenticated('Invalid webhook signature');
+    }
+
+    const event = request.body as { id?: string; type?: string };
+    const result = await this.billing.handleWebhook(
+      {
+        eventId: typeof event.id === 'string' ? event.id : `sha:${hashBody(raw)}`,
+        eventType: typeof event.type === 'string' ? event.type : 'unknown',
+        payload: request.body as Record<string, unknown>,
+      },
+      'stripe',
+    );
     return { received: true, ...result };
   }
 }

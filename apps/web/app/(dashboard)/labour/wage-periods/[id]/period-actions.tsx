@@ -23,9 +23,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { money, shortDate, todayIso } from '@/lib/format';
 import type { WagePeriodDetail } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /**
  * Finalising and paying both move something that is hard to move back, so each confirms first
@@ -44,6 +44,7 @@ export function PeriodActions({
   outstanding: string;
 }) {
   const { t } = useLanguage();
+  const { money, shortDate, todayIso } = useFormat();
   const router = useRouter();
   const [confirmFinalise, setConfirmFinalise] = useState(false);
   const [payOpen, setPayOpen] = useState(false);

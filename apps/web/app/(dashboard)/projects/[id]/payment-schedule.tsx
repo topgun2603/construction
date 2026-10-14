@@ -1,5 +1,12 @@
 'use client';
 
+import {
+  PAYMENT_MODE_LABELS,
+  paymentModesFor,
+  taxOnTop,
+  taxRule,
+  type PaymentMode,
+} from '@sitebook/shared';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { BadgeIndianRupee, Check, Loader2, Plus, Send, Trash2 } from 'lucide-react';
@@ -40,9 +47,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { money, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { minorToAmountInput } from '@/lib/money-input';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 const STATUS: Record<PaymentStage['status'], { label: string; tone: Tone }> = {
   paid: { label: 'Paid', tone: 'done' },
@@ -76,6 +84,7 @@ export function PaymentScheduleTab({
   canManage: boolean;
 }) {
   const { t } = useLanguage();
+  const { money } = useFormat();
   const scheduled = BigInt(schedule.totals.scheduled);
   const budget = schedule.totals.budget ? BigInt(schedule.totals.budget) : null;
   // A schedule that does not add up to the contract is one with an instalment missing from it.
@@ -145,6 +154,7 @@ export function PaymentScheduleTab({
 }
 
 function Total({ label, value, tone }: { label: string; value: string; tone?: 'done' | 'pending' }) {
+  const { money } = useFormat();
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[12.5px] leading-tight text-ink-muted">{label}</span>
@@ -163,10 +173,14 @@ function Total({ label, value, tone }: { label: string; value: string; tone?: 'd
 
 function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolean }) {
   const { t } = useLanguage();
+  const { money, shortDate, settings } = useFormat();
   const router = useRouter();
   const [pending, start] = useTransition();
   const status = STATUS[stage.status];
   const partPaid = BigInt(stage.paid) > 0n && BigInt(stage.outstanding) > 0n;
+  // VAT is charged on top, so the client is asked for the total; the breakdown sits under it.
+  const taxed = BigInt(stage.tax_amount) > 0n;
+  const taxName = taxRule(settings.taxRegime ?? 'none').taxName ?? t('Tax');
 
   return (
     <div className="flex flex-wrap items-center gap-4 p-4">
@@ -191,7 +205,14 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
       </div>
 
       <div className="flex flex-none flex-col items-end">
-        <span className="font-mono text-[15px] font-semibold">{money(stage.amount)}</span>
+        <span className="font-mono text-[15px] font-semibold">
+          {money(taxed ? stage.total : stage.amount)}
+        </span>
+        {taxed && (
+          <span className="font-mono text-[12px] text-ink-muted">
+            {money(stage.amount)} + {taxName} {money(stage.tax_amount)}
+          </span>
+        )}
         {BigInt(stage.outstanding) > 0n && BigInt(stage.paid) > 0n && (
           <span className="font-mono text-[12px] text-pending-fg">
             {money(stage.outstanding)} left
@@ -232,7 +253,7 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
             body={
               <>
                 <strong className="font-semibold text-ink">{t(stage.label)}</strong> comes off the
-                schedule, and the total the client owes drops by {money(stage.amount)}.
+                schedule, and the total the client owes drops by {money(stage.total)}.
               </>
             }
             confirmLabel={t('Remove')}
@@ -252,6 +273,7 @@ function StageRow({ stage, canManage }: { stage: PaymentStage; canManage: boolea
 
 function ReceiptRow({ receipt, canManage }: { receipt: ClientPayment; canManage: boolean }) {
   const { t } = useLanguage();
+  const { money, shortDate } = useFormat();
   return (
     <div className="flex flex-wrap items-center gap-4 p-4">
       <Check className="size-4 flex-none text-done" />
@@ -260,7 +282,7 @@ function ReceiptRow({ receipt, canManage }: { receipt: ClientPayment; canManage:
           {receipt.stage_label ?? 'Against no particular instalment'}
         </span>
         <span className="text-[12.5px] text-ink-muted">
-          {shortDate(receipt.received_on)} · {receipt.mode.toUpperCase()}
+          {shortDate(receipt.received_on)} · {t(PAYMENT_MODE_LABELS[receipt.mode as PaymentMode] ?? receipt.mode)}
           {receipt.reference && ` · ${receipt.reference}`} · {receipt.recorded_by.name}
         </span>
       </div>
@@ -290,29 +312,41 @@ function ReceiptRow({ receipt, canManage }: { receipt: ClientPayment; canManage:
   );
 }
 
-/** Rupees in the box, paise on the wire. */
-function toPaise(rupees: string): string | null {
+/** Major units in the box, minor units on the wire — `digits` is the currency's, 2 for rupees. */
+function toPaise(rupees: string, digits = 2): string | null {
   const trimmed = rupees.trim().replace(/,/g, '');
-  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
-  const [whole, fraction = ''] = trimmed.split('.');
-  return (BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))).toString();
+  const fraction = digits > 0 ? `(\\.\\d{1,${digits}})?` : '';
+  if (!new RegExp(`^\\d+${fraction}$`).test(trimmed)) return null;
+  const [whole, part = ''] = trimmed.split('.');
+  const minor = BigInt(part.padEnd(digits, '0') || '0');
+  return (BigInt(whole!) * 10n ** BigInt(digits) + minor).toString();
 }
 
 function StageDialog({ projectId, milestones }: { projectId: string; milestones: Milestone[] }) {
   const { t } = useLanguage();
+  const { currencyDigits, settings } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
+  const [tax, setTax] = useState('');
+  // VAT goes on top of an instalment; a regime without one (or GST, with no single rate) gets the
+  // field without the shortcut, and no tax at all gets neither.
+  const rule = taxRule(settings.taxRegime ?? 'none');
+  const rate = rule.standardRateBp;
   const [milestoneId, setMilestoneId] = useState('none');
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   function submit() {
-    const paise = toPaise(amount);
+    const paise = toPaise(amount, currencyDigits);
     if (!label.trim()) return setError('Give it a name the client will recognise');
     if (!paise || paise === '0') return setError('Enter the amount in rupees, like 250000');
+    const taxPaise = rule.taxName && tax.trim() ? toPaise(tax, currencyDigits) : null;
+    if (rule.taxName && tax.trim() && taxPaise === null) {
+      return setError(`${t('Enter the')} ${rule.taxName} ${t('as an amount, like 50')}`);
+    }
     setError(null);
 
     start(async () => {
@@ -320,6 +354,7 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
         projectId,
         label: label.trim(),
         amount: paise,
+        ...(taxPaise && taxPaise !== '0' ? { tax_amount: taxPaise } : {}),
         milestone_id: milestoneId === 'none' ? null : milestoneId,
         due_date: dueDate || null,
       });
@@ -327,6 +362,7 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
       setOpen(false);
       setLabel('');
       setAmount('');
+      setTax('');
       setDueDate('');
       setMilestoneId('none');
       router.refresh();
@@ -366,6 +402,44 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
               placeholder="2500000"
             />
           </Field>
+          {rule.taxName && (
+            <Field
+              label={`${rule.taxName} ${t('on top')}`}
+              htmlFor="stage-tax"
+              optional
+              hint={t('Charged in addition to the amount; the client is asked for both.')}
+            >
+              <div className="flex gap-2">
+                <Input
+                  id="stage-tax"
+                  value={tax}
+                  onChange={(event) => setTax(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="125000"
+                />
+                {rate !== null && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      const net = toPaise(amount, currencyDigits);
+                      if (!net || net === '0') return setError(t('Enter the amount first'));
+                      setError(null);
+                      setTax(
+                        minorToAmountInput(
+                          taxOnTop(BigInt(net), rate).toString(),
+                          currencyDigits,
+                        ),
+                      );
+                    }}
+                  >
+                    {t('Add')} {rate / 100}%
+                  </Button>
+                )}
+              </div>
+            </Field>
+          )}
           <Field label={t('Triggered by')} hint={t('Optional. Links it to a stage on the timeline.')}>
             <Select value={milestoneId} onValueChange={setMilestoneId}>
               <SelectTrigger>
@@ -410,11 +484,12 @@ function StageDialog({ projectId, milestones }: { projectId: string; milestones:
 
 function ReceiptDialog({ projectId, stages }: { projectId: string; stages: PaymentStage[] }) {
   const { t } = useLanguage();
+  const { money, currencyDigits, todayIso, settings } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState('');
-  const [receivedOn, setReceivedOn] = useState(() => new Date().toISOString().slice(0, 10));
-  const [mode, setMode] = useState<'cash' | 'upi' | 'bank'>('bank');
+  const [receivedOn, setReceivedOn] = useState(() => todayIso());
+  const [mode, setMode] = useState<PaymentMode>('bank');
   const [stageId, setStageId] = useState('none');
   const [reference, setReference] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -423,7 +498,7 @@ function ReceiptDialog({ projectId, stages }: { projectId: string; stages: Payme
   const owing = stages.filter((stage) => BigInt(stage.outstanding) > 0n);
 
   function submit() {
-    const paise = toPaise(amount);
+    const paise = toPaise(amount, currencyDigits);
     if (!paise || paise === '0') return setError('Enter the amount in rupees, like 250000');
     setError(null);
 
@@ -484,9 +559,11 @@ function ReceiptDialog({ projectId, stages }: { projectId: string; stages: Payme
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bank">{t('Bank transfer')}</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="cash">{t('Cash')}</SelectItem>
+                  {paymentModesFor(settings.country).map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t(PAYMENT_MODE_LABELS[option])}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>

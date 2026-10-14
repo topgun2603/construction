@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { longDate, todayIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 
 /**
  * The day, over the site.
@@ -11,7 +11,7 @@ import { longDate, todayIso } from '@/lib/format';
  *
  * The same photograph the phone opens with, so the two halves of the product are recognisably one.
  */
-export function OverviewBanner({
+export async function OverviewBanner({
   name,
   siteCount,
   headcount,
@@ -20,8 +20,16 @@ export function OverviewBanner({
   siteCount: number;
   headcount: number;
 }) {
+  const { longDate, todayIso, settings } = await getFormat();
   const first = name.trim().split(' ')[0] ?? '';
-  const hour = new Date().getHours();
+  // The company's hour, not the server's: a Dubai owner at 9 am is not in the afternoon.
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      hourCycle: 'h23',
+      timeZone: settings.timezone,
+    }).format(new Date()),
+  );
   const part = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
@@ -40,7 +48,7 @@ export function OverviewBanner({
         opens the gap by lightening; this is a bright midday sky under white type, so it opens the
         other way. Stronger on the left, where the words are.
       */}
-      <div className="absolute inset-0 bg-gradient-to-r from-ink/85 via-ink/55 to-ink/20" />
+      <div className="absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l from-shade/85 via-shade/55 to-shade/20" />
       <div className="absolute inset-0 flex flex-col justify-center gap-0.5 px-6">
         <span className="text-[13px] text-white/70">{part},</span>
         <span className="text-[24px] font-bold leading-tight text-white">{first}</span>

@@ -83,7 +83,7 @@ export function HeroPanel() {
       {/* Accent bloom, anchored behind the headline */}
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -left-24 top-1/3 -z-10 size-[520px] rounded-full bg-accent/25 blur-[120px]"
+        className="pointer-events-none absolute -start-24 top-1/3 -z-10 size-[520px] rounded-full bg-accent/25 blur-[120px]"
         initial={{ opacity: 0.35, scale: 0.92 }}
         animate={
           reduceMotion
@@ -95,7 +95,7 @@ export function HeroPanel() {
 
       <header className="flex items-center justify-between gap-8">
         <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-[11px] bg-accent text-[17px] font-bold leading-none text-white shadow-[0_6px_18px_rgba(108,76,224,0.45)]">
+          <span className="flex size-10 items-center justify-center rounded-[11px] bg-accent text-[17px] font-bold leading-none text-white shadow-[0_6px_18px_rgb(var(--c-accent)/0.45)]">
             B
           </span>
           <span className="text-[19px] font-bold tracking-[-0.01em] text-white">BUILDR</span>

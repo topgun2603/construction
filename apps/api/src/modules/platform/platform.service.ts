@@ -12,7 +12,7 @@ import {
   permissionsForSystemRole,
   planStanding,
   systemRoleSeesAllProjects,
-  toE164Indian,
+  toE164,
   type CreateTenantPlatformInput,
   type PlanStanding,
   type UserRole,
@@ -41,6 +41,9 @@ export interface TenantRow {
   worker_count: number;
   /** The most recent sign-in by anyone in the tenant, or null if nobody ever has. */
   last_activity: string | null;
+  /** The company group it belongs to (Phase 2, module 11), or null. Read-only in the console. */
+  group_id: string | null;
+  group_name: string | null;
 }
 
 /**
@@ -210,7 +213,7 @@ export class PlatformService {
     if (tenants.length === 0) return { tenants: [] as TenantRow[] };
 
     const ids = tenants.map((tenant) => tenant.id);
-    const [users, projects, workers, owners, lastLogins] = await Promise.all([
+    const [users, projects, workers, owners, lastLogins, groupRows] = await Promise.all([
       prisma.user.groupBy({
         by: ['tenantId'],
         where: { tenantId: { in: ids }, deletedAt: null },
@@ -238,7 +241,12 @@ export class PlatformService {
         where: { tenantId: { in: ids }, deletedAt: null },
         _max: { lastLogin: true },
       }),
+      prisma.companyGroupMember.findMany({
+        where: { tenantId: { in: ids } },
+        select: { tenantId: true, group: { select: { id: true, name: true } } },
+      }),
     ]);
+    const groupByTenant = new Map(groupRows.map((row) => [row.tenantId, row.group]));
 
     // One instant for the whole list: rows judged against different `now`s could disagree about
     // where the same boundary falls, which is a confusing thing for a table to do.
@@ -274,6 +282,8 @@ export class PlatformService {
       project_count: projectCount.get(tenant.id) ?? 0,
       worker_count: workerCount.get(tenant.id) ?? 0,
       last_activity: lastByTenant.get(tenant.id)?.toISOString() ?? null,
+      group_id: groupByTenant.get(tenant.id)?.id ?? null,
+      group_name: groupByTenant.get(tenant.id)?.name ?? null,
     }));
 
     return { tenants: rows };
@@ -300,7 +310,7 @@ export class PlatformService {
     });
     if (!tenant) throw ApiError.notFound('Tenant');
 
-    const [team, projects, counts, audit] = await Promise.all([
+    const [team, projects, counts, audit, membership] = await Promise.all([
       prisma.user.findMany({
         where: { tenantId, deletedAt: null },
         select: { id: true, name: true, phone: true, role: true, status: true, lastLogin: true },
@@ -322,6 +332,26 @@ export class PlatformService {
         where: { tenantId },
         orderBy: { createdAt: 'desc' },
         take: 25,
+      }),
+      // The group this company is in and its sibling companies — read-only, for support calls
+      // about "why can my holding company see our figures".
+      prisma.companyGroupMember.findUnique({
+        where: { tenantId },
+        select: {
+          joinedAt: true,
+          group: {
+            select: {
+              id: true,
+              name: true,
+              baseCurrency: true,
+              createdAt: true,
+              members: {
+                select: { tenantId: true, joinedAt: true, tenant: { select: { name: true } } },
+                orderBy: { joinedAt: 'asc' },
+              },
+            },
+          },
+        },
       }),
     ]);
 
@@ -346,6 +376,20 @@ export class PlatformService {
         razorpay_customer_id: tenant.razorpayCustomerId,
       },
       usage: { workers, attendance_rows: attendanceRows, reports, expenses },
+      group: membership
+        ? {
+            id: membership.group.id,
+            name: membership.group.name,
+            base_currency: membership.group.baseCurrency,
+            created_at: membership.group.createdAt.toISOString(),
+            joined_at: membership.joinedAt.toISOString(),
+            companies: membership.group.members.map((member) => ({
+              tenant_id: member.tenantId,
+              name: member.tenant.name,
+              joined_at: member.joinedAt.toISOString(),
+            })),
+          }
+        : null,
       team: team.map((member) => ({
         id: member.id,
         name: member.name,
@@ -717,8 +761,8 @@ export class PlatformService {
    * takes.
    */
   async createTenant(actorPhone: string, input: CreateTenantPlatformInput) {
-    const phone = toE164Indian(input.owner_phone);
-    if (!phone) throw ApiError.validationFailed(undefined, 'That is not an Indian mobile number');
+    const phone = toE164(input.owner_phone);
+    if (!phone) throw ApiError.validationFailed(undefined, 'That is not a mobile number. Numbers outside India need their country code, like +971.');
 
     const prisma = this.db.client;
 

@@ -12,29 +12,21 @@ import {
   type ScanBillInput,
   type ScanBillResult,
   type UpdateExpenseInput,
+  currencyMinorDigits,
+  decimalToMinor,
+  taxRule,
+  validTaxIdOrNull,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
-import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { BillReader } from '../ai/bill-reader.service';
 import { UploadsService } from '../uploads/uploads.service';
 
 /** A photograph of a piece of paper. Anything bigger is not one. */
 const MAX_BILL_BYTES = 8_000_000;
-
-/**
- * "1250" or "1250.5" to integer paise, without a float in the middle.
- *
- * `Number(rupees) * 100` is wrong for exactly the amounts a bill carries: 1250.29 becomes
- * 125028.99999999999, and a rounding there is a rupee out on somebody's accounts.
- */
-function rupeeStringToPaise(rupees: string): bigint {
-  const [whole = '0', fraction = ''] = rupees.split('.');
-  const paise = (fraction + '00').slice(0, 2);
-  return BigInt(whole) * 100n + BigInt(paise);
-}
 
 const SELECT = {
   id: true,
@@ -44,6 +36,9 @@ const SELECT = {
   spentOn: true,
   billS3Key: true,
   note: true,
+  taxAmount: true,
+  supplierTaxId: true,
+  costCode: { select: { id: true, code: true, name: true } },
   status: true,
   approvedAt: true,
   createdAt: true,
@@ -81,9 +76,16 @@ export class ExpensesService {
       );
     }
 
-    const draft = await this.bills.read(file.body, file.contentType);
+    const draft = await this.bills.read(file.body, file.contentType, {
+      country: actor.country,
+      currency: actor.currency,
+      taxRegime: actor.taxRegime,
+    });
 
-    const amount = draft.amount === null ? null : rupeeStringToPaise(draft.amount);
+    // In the company's minor units: a KWD bill has three decimals, and reading it as paise would
+    // put every Kuwaiti expense out by a factor of ten.
+    const amount =
+      draft.amount === null ? null : decimalToMinor(draft.amount, currencyMinorDigits(actor.currency));
     // Transcribed by the model, interpreted here: a date is the field a vision model gets wrong
     // most quietly, and a month out is an expense in the wrong month's spend.
     const spentOn = draft.date_printed === null ? null : parseBillDate(draft.date_printed, new Date());
@@ -92,7 +94,13 @@ export class ExpensesService {
       vendor: draft.vendor,
       spent_on: spentOn,
       category: draft.category,
-      gstin: draft.gstin,
+      tax_amount:
+        draft.tax_amount === null
+          ? null
+          : (decimalToMinor(draft.tax_amount, currencyMinorDigits(actor.currency))?.toString() ?? null),
+      tax_id: draft.tax_id,
+      tax_id_label: taxRule(actor.taxRegime).idLabel,
+      gstin: actor.taxRegime === 'gst_in' ? draft.tax_id : null,
       summary: draft.summary,
       // Named rather than counted, so the form can mark the fields somebody still has to fill.
       unread: Object.entries({
@@ -162,6 +170,7 @@ export class ExpensesService {
         if (existing) return toView(existing);
       }
 
+      const costCodeId = await costCodeOn(tx, input.project_id, input.cost_code_id);
       const expense = await tx.expense.create({
         data: {
           tenantId: actor.tenantId,
@@ -171,6 +180,9 @@ export class ExpensesService {
           spentOn: isoDateToUtcDate(input.spent_on),
           billS3Key: input.bill_s3_key,
           note: input.note,
+          taxAmount: input.tax_amount ?? 0n,
+          supplierTaxId: supplierTaxId(actor, input.supplier_tax_id),
+          costCodeId,
           submittedBy: actor.userId,
           clientId: input.client_id,
         },
@@ -186,7 +198,7 @@ export class ExpensesService {
     return this.tenantDb.transaction(actor.tenantId, async (tx) => {
       const expense = await tx.expense.findFirst({
         where: { id, deletedAt: null },
-        select: { id: true, projectId: true, status: true, submittedBy: true },
+        select: { id: true, projectId: true, status: true, submittedBy: true, amount: true, taxAmount: true },
       });
       if (!expense) throw ApiError.notFound('Expense');
       await this.access.assertAccess(actor, expense.projectId);
@@ -201,14 +213,35 @@ export class ExpensesService {
         throw ApiError.forbidden('Only the person who recorded this can edit it');
       }
 
+      // The tax is part of the amount, so it can never be more than it — checked against whichever
+      // of the two this edit leaves unchanged.
+      const amount = input.amount ?? expense.amount;
+      const tax = input.tax_amount ?? expense.taxAmount;
+      if (tax > amount) {
+        throw ApiError.validationFailed(
+          { tax_amount: 'more than the amount' },
+          'The tax cannot be more than the amount it is part of',
+        );
+      }
+
+      const costCodeId =
+        input.cost_code_id === undefined
+          ? undefined
+          : await costCodeOn(tx, expense.projectId, input.cost_code_id);
+
       const updated = await tx.expense.update({
         where: { id },
         data: {
+          ...(costCodeId === undefined ? {} : { costCodeId }),
           ...(input.amount === undefined ? {} : { amount: input.amount }),
           ...(input.category === undefined ? {} : { category: input.category }),
           ...(input.spent_on === undefined ? {} : { spentOn: isoDateToUtcDate(input.spent_on) }),
           ...(input.bill_s3_key === undefined ? {} : { billS3Key: input.bill_s3_key }),
           ...(input.note === undefined ? {} : { note: input.note }),
+          ...(input.tax_amount === undefined ? {} : { taxAmount: input.tax_amount }),
+          ...(input.supplier_tax_id === undefined
+            ? {}
+            : { supplierTaxId: supplierTaxId(actor, input.supplier_tax_id) }),
         },
         select: SELECT,
       });
@@ -351,6 +384,9 @@ function toView(row: {
   spentOn: Date;
   billS3Key: string | null;
   note: string | null;
+  taxAmount: bigint;
+  supplierTaxId: string | null;
+  costCode: { id: string; code: string; name: string } | null;
   status: string;
   approvedAt: Date | null;
   createdAt: Date;
@@ -368,6 +404,11 @@ function toView(row: {
     spent_on: utcDateToIsoDate(row.spentOn),
     bill_s3_key: row.billS3Key,
     note: row.note,
+    tax_amount: row.taxAmount,
+    supplier_tax_id: row.supplierTaxId,
+    cost_code: row.costCode
+      ? { id: row.costCode.id, code: row.costCode.code, name: row.costCode.name }
+      : null,
     status: row.status,
     submitted_by: { id: row.submitter.id, name: row.submitter.name },
     approved_by: row.approver ? { id: row.approver.id, name: row.approver.name } : null,
@@ -378,3 +419,40 @@ function toView(row: {
 }
 
 export type ExpenseView = ReturnType<typeof toView>;
+
+/**
+ * A supplier's tax number in the company's regime's stored form. One that fails the regime's check
+ * is refused rather than stored: a wrong TRN on a VAT return is the accountant's problem in a year.
+ */
+function supplierTaxId(actor: RequestUser, raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const id = validTaxIdOrNull(actor.taxRegime, raw);
+  if (!id) {
+    const label = taxRule(actor.taxRegime).idLabel ?? 'tax number';
+    throw ApiError.validationFailed({ supplier_tax_id: 'invalid' }, `That is not a valid ${label}`);
+  }
+  return id;
+}
+
+/**
+ * A cost code to book this expense to: one of the site's own, or none. A code from another site is
+ * refused rather than accepted — it would put this site's spend on somebody else's budget report.
+ */
+async function costCodeOn(
+  tx: TenantTx,
+  projectId: string,
+  costCodeId: string | null | undefined,
+): Promise<string | null> {
+  if (!costCodeId) return null;
+  const code = await tx.costCode.findFirst({
+    where: { id: costCodeId, projectId },
+    select: { id: true },
+  });
+  if (!code) {
+    throw ApiError.validationFailed(
+      { cost_code_id: 'not a cost code on this site' },
+      'That cost code is not one of this site’s',
+    );
+  }
+  return code.id;
+}

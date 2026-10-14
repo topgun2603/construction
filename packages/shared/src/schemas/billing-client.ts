@@ -20,6 +20,8 @@ export const createPaymentStageSchema = z.object({
   /** Optional link to the milestone that triggers it. */
   milestone_id: uuidSchema.nullable().optional(),
   due_date: isoDateSchema.nullable().optional(),
+  /** VAT charged on top of the amount; the client owes both. */
+  tax_amount: positivePaiseSchema.optional(),
   client_id: clientIdSchema.optional(),
 });
 export type CreatePaymentStageInput = z.infer<typeof createPaymentStageSchema>;
@@ -28,6 +30,7 @@ export const updatePaymentStageSchema = z
   .object({
     label: z.string().trim().min(1).max(160).optional(),
     amount: positivePaiseSchema.refine((value) => value > 0n).optional(),
+    tax_amount: positivePaiseSchema.optional(),
     milestone_id: uuidSchema.nullable().optional(),
     due_date: isoDateSchema.nullable().optional(),
     /**

@@ -96,17 +96,18 @@ jobs:
             -c "ALTER ROLE sitebook_admin WITH PASSWORD 'sitebook'"
 
       # MinIO as a step rather than a service container: `services:` cannot override a command, and
-      # quay.io/minio/minio does nothing without `server /data`.
+      # the server image does nothing without `server /data`. pgsty, not quay.io: quay answers 401 to
+      # anonymous pulls (and Docker Hub's minio/* is gone) — see infra/docker-compose.yml.
       - name: Start object storage
         run: |
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=sitebook -e MINIO_ROOT_PASSWORD=sitebook123 \
-            quay.io/minio/minio:latest server /data
+            pgsty/minio:latest server /data
           for i in $(seq 1 30); do
             curl -sf http://localhost:9000/minio/health/ready && break
             sleep 1
           done
-          docker run --rm --network host --entrypoint sh quay.io/minio/mc:latest -c "
+          docker run --rm --network host --entrypoint sh pgsty/mc:latest -c "
             mc alias set ci http://localhost:9000 sitebook sitebook123 &&
             mc mb --ignore-existing ci/sitebook-media
           "

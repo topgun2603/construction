@@ -1,3 +1,6 @@
+import type { PayBasis, PaymentMode, WorkerDocumentKind } from '@sitebook/shared';
+import type { ClientChangeOrder } from './change-order-types';
+
 /**
  * Response shapes from the API.
  *
@@ -117,6 +120,9 @@ export interface Contractor {
   trade: string | null;
   phone: string | null;
   payment_terms: string;
+  /** GSTIN or TRN, printed on their RA bills when they work as a subcontractor. */
+  tax_id?: string | null;
+  address?: string | null;
   worker_count: number;
 }
 
@@ -133,6 +139,19 @@ export interface Worker {
   overtime_rate_per_hour: string;
   photo_s3_key: string | null;
   client_id: string | null;
+  /** `daily` is paid per day attended; `monthly` is paid the salary below, prorated for absences. */
+  pay_basis: PayBasis;
+  /** Monthly workers only. For them `daily_wage` is derived: fixed monthly pay over thirty. */
+  basic_salary: string | null;
+  housing_allowance: string;
+  transport_allowance: string;
+  food_allowance: string;
+  /** UAE WPS: the 14-digit MOL personal number on the labour card. */
+  wps_person_id: string | null;
+  /** UAE WPS: routing code of the worker's bank or exchange house. */
+  wps_agent_code: string | null;
+  /** UAE WPS: IBAN or salary card number. */
+  wps_account: string | null;
 }
 
 export interface AttendanceRow {
@@ -189,9 +208,29 @@ export interface WageLine {
   paid_amount: string;
   outstanding: string;
   note: string | null;
+  /** Salary and allowances for a monthly worker; zero for a daily one. */
+  fixed_amount: string;
+  /** Day wages and overtime. */
+  variable_amount: string;
+  /** Days of the period a monthly worker was absent, e.g. `'1.5'`. */
+  leave_days: string;
+  pay_basis: PayBasis;
 }
 
 export type WagePeriodDetail = WagePeriod & { lines: WageLine[] };
+
+/** `GET /wage-periods/:id/wps` — the UAE WPS salary file, or why it cannot be made yet. */
+export interface WpsFile {
+  ready: boolean;
+  /** Company- or period-level blockers; while any remain, `content` is null. */
+  problems: string[];
+  /** Workers left out of the file for want of their WPS details. */
+  missing: Array<{ worker_id: string; worker_name: string; missing: string[] }>;
+  file_name: string | null;
+  /** The SIF text, to save as `file_name`. */
+  content: string | null;
+  included: number;
+}
 
 export interface LabourPayment {
   id: string;
@@ -241,12 +280,37 @@ export interface Expense {
   spent_on: string;
   bill_s3_key: string | null;
   note: string | null;
+  /** VAT or GST included in `amount`, minor units; `0` when none was recorded. */
+  tax_amount: string;
+  /** The supplier's tax number (TRN, GSTIN), as checked by the API. */
+  supplier_tax_id: string | null;
+  /** The line of the site's breakdown it is booked to; null is unallocated. */
+  cost_code: { id: string; code: string; name: string } | null;
   status: 'pending' | 'approved' | 'rejected';
   submitted_by: { id: string; name: string };
   approved_by: { id: string; name: string } | null;
   approved_at: string | null;
   created_at: string;
   client_id: string | null;
+}
+
+/**
+ * `GET /reports/tax` — VAT or GST paid on expenses (input) and charged on raised instalments
+ * (output) over a range. Money is minor units; `net_tax` positive is owed, negative reclaimable.
+ */
+export interface TaxReport {
+  tax_name: string | null;
+  standard_rate_bp: number | null;
+  from: string;
+  to: string;
+  input_tax: string;
+  output_tax: string;
+  net_tax: string;
+  taxable_sales: string;
+  expenses_with_tax: number;
+  /** Expenses carrying tax but no supplier tax number — input tax a return cannot claim. */
+  missing_supplier_tax_id: number;
+  by_month: Array<{ month: string; input_tax: string; output_tax: string }>;
 }
 
 export interface ExpenseSummary {
@@ -431,6 +495,23 @@ export interface Milestone {
   planned_date: string | null;
   actual_date: string | null;
   sort_order: number;
+}
+
+/** `GET`/`PATCH /tenants/current` — the company and its locale settings. */
+export interface CompanySettings {
+  id: string;
+  name: string;
+  country: string;
+  currency: string;
+  timezone: string;
+  locale: string;
+  tax_regime: string;
+  /** True once any amount is stored in `currency`, which then cannot change. */
+  currency_locked: boolean;
+  /** UAE WPS: the 13-digit MOL establishment id printed on every salary file. */
+  wps_employer_id: string | null;
+  /** UAE WPS: routing code of the bank or exchange house that pays the salaries. */
+  wps_bank_code: string | null;
 }
 
 export interface Role {
@@ -646,6 +727,10 @@ export interface PaymentStage {
   label: string;
   /** Paise, as decimal strings. Parse with BigInt, never Number. */
   amount: string;
+  /** VAT charged on top of `amount`; `0` when none. `paid` and `outstanding` include it. */
+  tax_amount: string;
+  /** `amount + tax_amount` — what the client is asked for. */
+  total: string;
   paid: string;
   outstanding: string;
   due_date: string | null;
@@ -680,7 +765,7 @@ export interface ClientPayment {
   stage_label: string | null;
   amount: string;
   received_on: string;
-  mode: 'cash' | 'upi' | 'bank';
+  mode: PaymentMode;
   reference: string | null;
   note: string | null;
   recorded_by: { id: string; name: string };
@@ -706,6 +791,8 @@ export interface Approval {
   decided_at: string | null;
   decision_note: string | null;
   document: { id: string; title: string; version: number; url: string | null } | null;
+  /** Set when the question is a change order: its price and days, never its cost. */
+  change_order?: ClientChangeOrder | null;
 }
 
 /** A drawing, contract or approval — one revision of it. */
@@ -724,4 +811,93 @@ export interface SiteDocument {
   created_at: string;
   uploaded_by: { id: string; name: string };
   url: string | null;
+}
+
+/** `GET /forecasts`, `GET /projects/:id/forecast` — the overrun early warning for a site. */
+export interface SiteForecast {
+  project_id: string;
+  project_name: string;
+  as_of: string;
+  /** How the end cost was projected: from milestones, from the recent spend rate, or not at all. */
+  method: 'progress' | 'burn_rate' | 'spend_only';
+  spent: string;
+  budget: string | null;
+  forecast: string | null;
+  overrun_pct: number | null;
+  progress_pct: number | null;
+  elapsed_pct: number | null;
+  severity: 'ok' | 'watch' | 'warning' | 'critical';
+  drivers: ForecastDriverView[];
+  /** One or two sentences; reworded by a language model only when `explained_by` is `ai`. */
+  explanation: string;
+  explained_by: 'template' | 'ai';
+}
+
+export type ForecastDriverView =
+  | { kind: 'spend_trend'; line: string; recent: string; previous: string; changePct: number | null }
+  | { kind: 'material'; name: string; unit: string; usedPct: number; progressPct: number | null }
+  | { kind: 'schedule'; progressPct: number; elapsedPct: number }
+  | { kind: 'overdue'; daysPast: number };
+
+/** `GET /checks` — a leak or fraud finding for a person to confirm or dismiss. */
+export interface SiteCheck {
+  id: string;
+  project_id: string | null;
+  project_name: string | null;
+  kind:
+    | 'double_booked'
+    | 'never_off'
+    | 'headcount_gap'
+    | 'duplicate_expense'
+    | 'unusual_expense'
+    | 'unidentified_paid'
+    | 'fuel_outlier';
+  severity: 'high' | 'medium';
+  title: string;
+  details: Record<string, unknown>;
+  status: 'open' | 'confirmed' | 'dismissed';
+  note: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+/** `GET /workers/:id/documents` — a passport, visa, Emirates ID, Iqama or labour card. */
+export interface WorkerDocument {
+  id: string;
+  worker_id: string;
+  /** Present on the cross-worker `expiring` list. */
+  worker_name?: string;
+  kind: WorkerDocumentKind;
+  /** Last four characters; the whole number needs `revealWorkerDocument`. */
+  number_hint: string;
+  issued_on: string | null;
+  expires_on: string | null;
+  standing: 'valid' | 'expiring' | 'expired' | 'no_expiry';
+  has_scan: boolean;
+}
+
+/** `GET /camps` — a labour camp, its residents and where they went on the day asked for. */
+export interface Camp {
+  id: string;
+  name: string;
+  address: string | null;
+  capacity: number | null;
+  transport_note: string | null;
+  residents: number;
+  on_site: number;
+  by_site: Array<{ project_id: string; project_name: string; count: number }>;
+}
+
+export interface CampDay {
+  date: string;
+  camps: Camp[];
+  /** Workers on site that day who live in no camp — local hires, or someone not yet housed. */
+  unhoused_on_site: number;
+}
+
+export interface CampResident {
+  id: string;
+  name: string;
+  trade: string | null;
+  status: string;
 }

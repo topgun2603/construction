@@ -5,6 +5,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type {
   AskDocumentsResult,
+  PayBasis,
+  PaymentMode,
   ScanBillResult,
   TranslateInput,
   TranslateResult,
@@ -16,7 +18,11 @@ import type {
   Approval,
   AttendanceDay,
   Billing,
+  CampResident,
   ClientPayment,
+  CompanySettings,
+  SiteCheck,
+  SiteForecast,
   DailyReport,
   PaymentStage,
   SiteDocument,
@@ -29,7 +35,9 @@ import type {
   StartedSubscription,
   StockMovement,
   WagePeriodDetail,
+  WpsFile,
   Worker,
+  WorkerDocument,
 } from './api-types';
 
 /**
@@ -61,6 +69,19 @@ export async function linkGoogle(firebaseToken: string): Promise<ActionResult<{ 
   );
   if (result.ok) revalidatePath('/account');
   return result;
+}
+
+/**
+ * Links the verified address from an email-and-password Firebase sign-in.
+ *
+ * The same endpoint as `linkGoogle`: the API reads the address out of any Firebase token that says
+ * the address is verified, whichever provider issued it. Named for what the account page is doing,
+ * so the call reads right where it is made.
+ */
+export async function linkEmailSignIn(
+  firebaseToken: string,
+): Promise<ActionResult<{ email: string }>> {
+  return linkGoogle(firebaseToken);
 }
 
 export async function unlinkGoogle(): Promise<ActionResult<null>> {
@@ -118,17 +139,45 @@ export async function createWorker(input: {
   phone?: string;
   contractor_id?: string | null;
   skill_level: string;
-  daily_wage: string;
+  /** Required for a daily worker; omitted for a monthly one, whose day rate the API derives. */
+  daily_wage?: string;
   overtime_rate_per_hour: string;
   project_id?: string;
   from_date?: string;
-}): Promise<ActionResult<Worker>> {
+} & WorkerPayInput): Promise<ActionResult<Worker>> {
   const result = await runAction(() =>
     serverFetch<Worker>('/workers', { method: 'POST', body: input }),
   );
   if (result.ok) {
     revalidatePath('/labour/workers');
     revalidatePath('/labour/attendance');
+  }
+  return result;
+}
+
+/** Pay basis, salary and UAE WPS details — the fields a create and `updateWorkerPay` share. */
+type WorkerPayInput = {
+  pay_basis?: PayBasis;
+  basic_salary?: string;
+  housing_allowance?: string;
+  transport_allowance?: string;
+  food_allowance?: string;
+  wps_person_id?: string;
+  wps_agent_code?: string;
+  wps_account?: string;
+};
+
+/** How a worker is paid, and the WPS details a UAE salary file needs. Applies going forward. */
+export async function updateWorkerPay(
+  workerId: string,
+  input: WorkerPayInput & { daily_wage?: string },
+): Promise<ActionResult<Worker>> {
+  const result = await runAction(() =>
+    serverFetch<Worker>(`/workers/${workerId}`, { method: 'PATCH', body: input }),
+  );
+  if (result.ok) {
+    revalidatePath(`/labour/workers/${workerId}`);
+    revalidatePath('/labour/workers');
   }
   return result;
 }
@@ -306,6 +355,11 @@ export async function amendIndentReceipt(input: {
  * Both revalidate the list as well as the period: discarding removes a row from it, and
  * reopening changes the status badge the list shows.
  */
+/** The UAE WPS salary file for a period, or the reasons it cannot be made yet. Reads only. */
+export async function wpsFile(periodId: string): Promise<ActionResult<WpsFile>> {
+  return runAction(() => serverFetch<WpsFile>(`/wage-periods/${periodId}/wps`));
+}
+
 export async function discardWagePeriod(id: string): Promise<ActionResult> {
   const result = await runAction(() => serverFetch(`/wage-periods/${id}`, { method: 'DELETE' }));
   if (result.ok) revalidatePath('/labour/wage-periods');
@@ -354,6 +408,12 @@ export async function recordExpense(input: {
   spent_on: string;
   note?: string;
   bill_s3_key?: string;
+  /** VAT or GST included in `amount`, minor units. */
+  tax_amount?: string;
+  /** The supplier's TRN or GSTIN; the API checks it against the company's regime. */
+  supplier_tax_id?: string;
+  /** One of the site's cost codes; the API refuses a code from another site. */
+  cost_code_id?: string;
 }): Promise<ActionResult> {
   const result = await runAction(() => serverFetch('/expenses', { method: 'POST', body: input }));
   if (result.ok) {
@@ -398,6 +458,171 @@ export async function discardExpense(id: string): Promise<ActionResult> {
  * page: changing what a role may do changes what the team list should be showing about the
  * people on it.
  */
+
+export async function createCamp(input: {
+  name: string;
+  address?: string;
+  capacity?: number;
+  transport_note?: string;
+}): Promise<ActionResult> {
+  const result = await runAction(() => serverFetch('/camps', { method: 'POST', body: input }));
+  if (result.ok) revalidatePath('/labour/camps');
+  return result;
+}
+
+export async function archiveCamp(id: string): Promise<ActionResult> {
+  const result = await runAction(() => serverFetch(`/camps/${id}`, { method: 'DELETE' }));
+  if (result.ok) revalidatePath('/labour/camps');
+  return result;
+}
+
+export async function campResidents(id: string): Promise<ActionResult<CampResident[]>> {
+  return runAction(() => serverFetch<CampResident[]>(`/camps/${id}/residents`));
+}
+
+/** Move workers into a camp; each leaves whatever camp they were in. */
+export async function addCampResidents(id: string, workerIds: string[]): Promise<ActionResult> {
+  const result = await runAction(() =>
+    serverFetch(`/camps/${id}/residents`, { method: 'POST', body: { worker_ids: workerIds } }),
+  );
+  if (result.ok) revalidatePath('/labour/camps');
+  return result;
+}
+
+export async function removeCampResident(id: string, workerId: string): Promise<ActionResult> {
+  const result = await runAction(() =>
+    serverFetch(`/camps/${id}/residents/${workerId}`, { method: 'DELETE' }),
+  );
+  if (result.ok) revalidatePath('/labour/camps');
+  return result;
+}
+
+/** Record a worker's passport, visa, Emirates ID, Iqama or labour card. */
+export async function addWorkerDocument(input: {
+  workerId: string;
+  kind: string;
+  number: string;
+  issued_on?: string;
+  expires_on?: string;
+  s3_key?: string;
+}): Promise<ActionResult<WorkerDocument>> {
+  const { workerId, ...body } = input;
+  const result = await runAction(() =>
+    serverFetch<WorkerDocument>(`/workers/${workerId}/documents`, { method: 'POST', body }),
+  );
+  if (result.ok) {
+    revalidatePath(`/labour/workers/${workerId}`);
+    revalidatePath('/overview');
+  }
+  return result;
+}
+
+/** Renew a document: a new expiry date, which also re-arms its reminder. */
+export async function renewWorkerDocument(input: {
+  id: string;
+  workerId: string;
+  expires_on: string;
+}): Promise<ActionResult<WorkerDocument>> {
+  const result = await runAction(() =>
+    serverFetch<WorkerDocument>(`/worker-documents/${input.id}`, {
+      method: 'PATCH',
+      body: { expires_on: input.expires_on },
+    }),
+  );
+  if (result.ok) {
+    revalidatePath(`/labour/workers/${input.workerId}`);
+    revalidatePath('/overview');
+  }
+  return result;
+}
+
+export async function deleteWorkerDocument(id: string, workerId: string): Promise<ActionResult> {
+  const result = await runAction(() =>
+    serverFetch(`/worker-documents/${id}`, { method: 'DELETE' }),
+  );
+  if (result.ok) revalidatePath(`/labour/workers/${workerId}`);
+  return result;
+}
+
+/** The full number. The API writes down who looked. */
+export async function revealWorkerDocument(id: string): Promise<ActionResult<{ number: string }>> {
+  return runAction(() =>
+    serverFetch<{ number: string }>(`/worker-documents/${id}/reveal`, { method: 'POST' }),
+  );
+}
+
+export async function workerDocumentScanUrl(id: string): Promise<ActionResult<{ url: string | null }>> {
+  return runAction(() => serverFetch<{ url: string | null }>(`/worker-documents/${id}/scan`));
+}
+
+/** Confirm or dismiss a leak or fraud finding. Either way it leaves the open list for good. */
+export async function decideCheck(input: {
+  id: string;
+  decision: 'confirmed' | 'dismissed';
+  note?: string;
+}): Promise<ActionResult<SiteCheck>> {
+  const result = await runAction(() =>
+    serverFetch<SiteCheck>(`/checks/${input.id}`, {
+      method: 'PATCH',
+      body: { decision: input.decision, ...(input.note ? { note: input.note } : {}) },
+    }),
+  );
+  if (result.ok) {
+    revalidatePath('/overview');
+    revalidatePath('/checks');
+  }
+  return result;
+}
+
+/** Run the leak checks now rather than waiting for the night. */
+export async function runChecks(): Promise<ActionResult<{ found: number; added: number }>> {
+  const result = await runAction(() =>
+    serverFetch<{ found: number; added: number }>('/checks/run', { method: 'POST' }),
+  );
+  if (result.ok) {
+    revalidatePath('/overview');
+    revalidatePath('/checks');
+  }
+  return result;
+}
+
+/**
+ * Works a site's cost forecast out again now, rather than waiting for the night's run —
+ * after a big expense, say, when the owner wants to see what it did to the projection.
+ */
+export async function refreshForecast(projectId: string): Promise<ActionResult<SiteForecast>> {
+  const result = await runAction(() =>
+    serverFetch<SiteForecast>(`/projects/${projectId}/forecast/refresh`, { method: 'POST' }),
+  );
+  if (result.ok) {
+    revalidatePath(`/projects/${projectId}`);
+    revalidatePath('/overview');
+  }
+  return result;
+}
+
+/**
+ * The company's country, currency, time zone, display format and tax regime.
+ *
+ * Revalidates the whole layout, not one path: these settings change how every amount and date in
+ * the app is printed, so every cached page is now wrong.
+ */
+export async function updateCompanySettings(input: {
+  country: string;
+  currency: string;
+  timezone: string;
+  locale: string;
+  tax_regime: string;
+  /** UAE WPS ids; null clears one. Left out, they are not touched. */
+  wps_employer_id?: string | null;
+  wps_bank_code?: string | null;
+}): Promise<ActionResult<CompanySettings>> {
+  const result = await runAction(() =>
+    serverFetch<CompanySettings>('/tenants/current', { method: 'PATCH', body: input }),
+  );
+  if (result.ok) revalidatePath('/', 'layout');
+  return result;
+}
 
 export async function createRole(input: {
   name: string;
@@ -634,6 +859,8 @@ export async function createPaymentStage(input: {
   projectId: string;
   label: string;
   amount: string;
+  /** VAT charged on top of `amount`, minor units. */
+  tax_amount?: string;
   milestone_id?: string | null;
   due_date?: string | null;
 }): Promise<ActionResult<PaymentStage>> {
@@ -653,6 +880,7 @@ export async function updatePaymentStage(input: {
   projectId: string;
   label?: string;
   amount?: string;
+  tax_amount?: string;
   milestone_id?: string | null;
   due_date?: string | null;
   /** Marks it asked-for; the server stamps when, and re-raising does not move that. */
@@ -681,7 +909,7 @@ export async function recordClientPayment(input: {
   projectId: string;
   amount: string;
   received_on: string;
-  mode: 'cash' | 'upi' | 'bank';
+  mode: PaymentMode;
   stage_id?: string | null;
   reference?: string;
   note?: string;

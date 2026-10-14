@@ -19,6 +19,8 @@ export const TEMPLATES = {
   dprReminder: 'dpr_reminder',
   indentStatus: 'indent_status',
   wageSheetSummary: 'wage_sheet_summary',
+  /** {builder} {incident type} {site} {number and title} {when} — a lost-time injury or a death. */
+  safetyIncidentAlert: 'safety_incident_alert',
 } as const;
 
 export type TemplateName = (typeof TEMPLATES)[keyof typeof TEMPLATES];

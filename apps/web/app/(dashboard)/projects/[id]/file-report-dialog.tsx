@@ -9,6 +9,7 @@ import { fileDailyReport, presignUpload } from '@/lib/actions';
 import { VoiceNoteButton } from '@/components/voice-note-button';
 import { BilingualTextarea } from '@/components/bilingual-textarea';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -37,8 +38,6 @@ interface Spoken {
   activities: { activity: string; quantity?: string; unit?: string }[];
 }
 
-const TODAY = () => new Date().toISOString().slice(0, 10);
-
 /**
  * File a daily progress report from the web.
  *
@@ -56,6 +55,8 @@ export function FileReportDialog({
 }) {
   const router = useRouter();
   const { t } = useLanguage();
+  // The company's today, not UTC's: a report filed after 18:30 UTC belongs to the next day in Kolkata.
+  const { todayIso } = useFormat();
   const [open, setOpen] = useState(false);
   const [photos, setPhotos] = useState<Pending[]>([]);
   /*
@@ -66,7 +67,7 @@ export function FileReportDialog({
    * thing that ever writes these from outside is the voice draft.
    */
   const [fields, setFields] = useState({
-    report_date: TODAY(),
+    report_date: todayIso(),
     weather: '',
     work_done: '',
     issues: '',
@@ -196,7 +197,7 @@ export function FileReportDialog({
       toast.success(t('Report filed'));
       setPhotos([]);
       setSpoken(null);
-      setFields({ report_date: TODAY(), weather: '', work_done: '', issues: '', headcount: '' });
+      setFields({ report_date: todayIso(), weather: '', work_done: '', issues: '', headcount: '' });
       setOpen(false);
       router.refresh();
     });
@@ -271,7 +272,7 @@ export function FileReportDialog({
                 type="date"
                 required
                 defaultValue={fields.report_date}
-                max={TODAY()}
+                max={todayIso()}
               />
             </Field>
             <Field label={t('Weather')} htmlFor="weather" hint={t('Optional')}>
@@ -348,7 +349,7 @@ export function FileReportDialog({
                     type="button"
                     onClick={() => removePhoto(index)}
                     aria-label={`Remove ${photo.file.name}`}
-                    className="absolute right-1 top-1 grid size-6 min-h-0 place-items-center rounded-full bg-ink/70 text-white transition hover:bg-ink"
+                    className="absolute end-1 top-1 grid size-6 min-h-0 place-items-center rounded-full bg-shade/70 text-white transition hover:bg-shade"
                   >
                     <X className="size-3.5" />
                   </button>

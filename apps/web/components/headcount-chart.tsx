@@ -5,6 +5,8 @@ import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
+import type { Format } from '@/lib/format';
 
 /**
  * Headcount over the last week (design artboard 3a).
@@ -24,6 +26,7 @@ export function HeadcountChart({
   className?: string;
 }) {
   const { t } = useLanguage();
+  const fmt = useFormat();
   const max = Math.max(...series.map((point) => point.count), 1);
   const total = series.reduce((sum, point) => sum + point.count, 0);
   const worked = series.filter((point) => point.count > 0);
@@ -77,7 +80,7 @@ export function HeadcountChart({
                   isToday ? 'font-semibold text-ink' : 'text-ink-faint',
                 )}
               >
-                {weekday(point.date)}
+                {weekday(point.date, fmt)}
               </span>
             </div>
           );
@@ -87,19 +90,17 @@ export function HeadcountChart({
       <p className="text-[12.5px] leading-snug text-ink-muted">
         {total === 0
           ? 'No attendance recorded this week.'
-          : `Busiest was ${weekday(busiest.date)} with ${busiest.count} on site.`}
+          : `Busiest was ${weekday(busiest.date, fmt)} with ${busiest.count} on site.`}
       </p>
     </Card>
   );
 }
 
 /** `2026-09-09` → `We`. */
-function weekday(iso: string): string {
+function weekday(iso: string, fmt: Format): string {
   const date = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('en-IN', { weekday: 'short', timeZone: 'UTC' })
-    .format(date)
-    .slice(0, 2);
+  return fmt.weekday(iso).slice(0, 2);
 }
 
 /**

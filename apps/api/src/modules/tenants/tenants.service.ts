@@ -12,13 +12,19 @@ import {
   type UserRole,
 } from '@sitebook/shared';
 import { TenantCache } from '../../common/auth/tenant-cache.service';
-import { TokenService } from '../../common/auth/token.service';
+import { TokenService, identityClaim } from '../../common/auth/token.service';
 import { ApiError } from '../../common/errors/api-error';
 import { PlansService } from '../plans/plans.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import type { RequestUser } from '../../common/auth/request-user';
 import { AuthService } from '../auth/auth.service';
+import {
+  selectTenantLocale,
+  tenantLocaleData,
+  tenantLocaleView,
+  type TenantLocaleRow,
+} from '../../common/tenant-locale';
 
 export interface TenantView {
   id: string;
@@ -27,6 +33,15 @@ export interface TenantView {
   plan: string;
   enabled_modules: string[];
   status: string;
+  country: string;
+  currency: string;
+  timezone: string;
+  locale: string;
+  tax_regime: string;
+  /** True once any amount is stored in `currency`; the settings page then shows it read-only. */
+  currency_locked: boolean;
+  wps_employer_id: string | null;
+  wps_bank_code: string | null;
 }
 
 @Injectable()
@@ -85,6 +100,8 @@ export class TenantsService {
           planStartedOn: new Date(),
           planExpiresOn: expiryAfterMonths(months, new Date()),
           enabledModules: defaultModulesForPlan(plan),
+          // Only what the body carried; the column defaults are India's.
+          ...tenantLocaleData(input),
         },
         select: selectTenant,
       });
@@ -133,32 +150,56 @@ export class TenantsService {
       userId: ownerId,
       deviceId: context.deviceId,
       userAgent: context.userAgent,
+      // The onboarding token is signed proof this phone passed OTP, so the session carries it as
+      // its verified identity — company switching works from the very first session.
+      identity: identityClaim({ kind: 'phone', phone }),
     });
 
     return { tenant: toView(tenant), tokens };
   }
 
   async get(tenantId: string): Promise<TenantView> {
-    const tenant = await this.tenantDb
-      .clientFor(tenantId)
-      .tenant.findUnique({ where: { id: tenantId }, select: selectTenant });
-    if (!tenant) throw ApiError.notFound('Tenant');
-    return toView(tenant);
+    return this.tenantDb.transaction(tenantId, async (tx) => {
+      const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: selectTenant });
+      if (!tenant) throw ApiError.notFound('Tenant');
+      return toView(tenant, await currencyLocked(tx));
+    });
   }
 
   async update(tenantId: string, input: UpdateTenantInput): Promise<TenantView> {
-    const tenant = await this.tenantDb.clientFor(tenantId).tenant.update({
-      where: { id: tenantId },
-      data: {
-        ...(input.name === undefined ? {} : { name: input.name }),
-        ...(input.logo_url === undefined ? {} : { logoUrl: input.logo_url }),
-      },
-      select: selectTenant,
+    const tenant = await this.tenantDb.transaction(tenantId, async (tx) => {
+      const current = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { currency: true },
+      });
+      if (!current) throw ApiError.notFound('Tenant');
+
+      // Checked inside the same transaction as the write, so a worker added in between cannot
+      // slip past it. Sending the currency the company already has is not a change.
+      const locked = await currencyLocked(tx);
+      if (input.currency !== undefined && input.currency !== current.currency && locked) {
+        throw ApiError.conflict(
+          'The currency cannot change once sites, workers or payments are recorded — every amount is stored in it.',
+        );
+      }
+
+      const updated = await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.logo_url === undefined ? {} : { logoUrl: input.logo_url }),
+          ...(input.wps_employer_id === undefined ? {} : { wpsEmployerId: input.wps_employer_id }),
+          ...(input.wps_bank_code === undefined ? {} : { wpsBankCode: input.wps_bank_code }),
+          ...tenantLocaleData(input),
+        },
+        select: selectTenant,
+      });
+      return toView(updated, locked);
     });
     // Name and logo are not cached, but plan changes land here later; keeping the
     // invalidation next to every tenant write means it cannot be forgotten then.
     this.tenantCache.invalidate(tenantId);
-    return toView(tenant);
+    return tenant;
   }
 
   /**
@@ -323,18 +364,23 @@ const selectTenant = {
   plan: true,
   enabledModules: true,
   status: true,
+  wpsEmployerId: true,
+  wpsBankCode: true,
+  ...selectTenantLocale,
 } as const;
 
-type TenantRow = {
+type TenantRow = TenantLocaleRow & {
   id: string;
   name: string;
   logoUrl: string | null;
   plan: string;
   enabledModules: string[];
   status: string;
+  wpsEmployerId: string | null;
+  wpsBankCode: string | null;
 };
 
-function toView(tenant: TenantRow): TenantView {
+function toView(tenant: TenantRow, currencyLocked = false): TenantView {
   return {
     id: tenant.id,
     name: tenant.name,
@@ -342,7 +388,28 @@ function toView(tenant: TenantRow): TenantView {
     plan: tenant.plan,
     enabled_modules: tenant.enabledModules,
     status: tenant.status,
+    ...tenantLocaleView(tenant),
+    currency_locked: currencyLocked,
+    wps_employer_id: tenant.wpsEmployerId,
+    wps_bank_code: tenant.wpsBankCode,
   };
+}
+
+/**
+ * Whether the company has recorded any amount in its currency.
+ *
+ * Every tenant money column hangs off one of these four: attendance and wage lines need a worker,
+ * client payments and stages need a project. Deleted rows count — their amounts are still stored,
+ * and a restore would bring them back in the wrong currency. RLS scopes each count to the tenant.
+ */
+async function currencyLocked(tx: TenantTx): Promise<boolean> {
+  const [projects, workers, expenses, payments] = await Promise.all([
+    tx.project.count({ take: 1 }),
+    tx.worker.count({ take: 1 }),
+    tx.expense.count({ take: 1 }),
+    tx.labourPayment.count({ take: 1 }),
+  ]);
+  return projects + workers + expenses + payments > 0;
 }
 
 /**

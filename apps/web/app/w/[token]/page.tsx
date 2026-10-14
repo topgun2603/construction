@@ -1,12 +1,19 @@
 import { apiFetch } from '@/lib/api';
-import { money, shortDate, titleCase } from '@/lib/format';
+import { createFormat, INDIA_FORMAT_LOCALE, titleCase } from '@/lib/format';
 import { getT } from '@/lib/i18n-server';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Your work and pay' };
 
 interface WorkerSummary {
-  company: { name: string; logo_url: string | null };
+  company: {
+    name: string;
+    logo_url: string | null;
+    // Optional: an older API sends only the name and logo, and the page falls back to India.
+    currency?: string;
+    locale?: string;
+    timezone?: string;
+  };
   worker: {
     name: string;
     trade: string | null;
@@ -67,6 +74,11 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
   }
 
   const { company, worker, totals, days, payments } = summary;
+  const fmt = createFormat({
+    currency: company.currency ?? INDIA_FORMAT_LOCALE.currency,
+    locale: company.locale ?? INDIA_FORMAT_LOCALE.locale,
+    timezone: company.timezone ?? INDIA_FORMAT_LOCALE.timezone,
+  });
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-[520px] flex-col gap-5 px-5 py-7">
@@ -87,16 +99,16 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
       <section className="rounded-panel border border-line bg-surface px-5 py-5">
         <span className="text-[13px] text-ink-muted">{t('Still owed to you')}</span>
         <p className="mt-1 font-mono text-[34px] font-bold leading-none">
-          {money(totals.balance)}
+          {fmt.money(totals.balance)}
         </p>
         <dl className="mt-4 grid grid-cols-2 gap-3 text-[14px]">
           <div className="flex flex-col">
             <dt className="text-ink-muted">{t('Earned')}</dt>
-            <dd className="font-mono font-semibold">{money(totals.earned)}</dd>
+            <dd className="font-mono font-semibold">{fmt.money(totals.earned)}</dd>
           </div>
           <div className="flex flex-col">
             <dt className="text-ink-muted">{t('Already paid')}</dt>
-            <dd className="font-mono font-semibold">{money(totals.drawn)}</dd>
+            <dd className="font-mono font-semibold">{fmt.money(totals.drawn)}</dd>
           </div>
           <div className="flex flex-col">
             <dt className="text-ink-muted">{t('Full days')}</dt>
@@ -108,7 +120,7 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
           </div>
         </dl>
         <p className="mt-4 text-[12.5px] text-ink-faint">
-          {t('Since')} {shortDate(totals.since)}. Your daily wage is {money(worker.daily_wage)}.
+          {t('Since')} {fmt.shortDate(totals.since)}. Your daily wage is {fmt.money(worker.daily_wage)}.
         </p>
       </section>
 
@@ -126,15 +138,15 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
               {days.map((day) => (
                 <li key={`${day.date}-${day.site}`} className="flex items-center gap-3 px-4 py-3">
                   <div className="flex min-w-0 flex-col">
-                    <span className="text-[15px] font-medium">{shortDate(day.date)}</span>
+                    <span className="text-[15px] font-medium">{fmt.shortDate(day.date)}</span>
                     <span className="truncate text-[12.5px] text-ink-muted">
                       {t(titleCase(day.status))}
                       {Number(day.overtime_hours) > 0 ? ` · ${day.overtime_hours}h extra` : ''} ·{' '}
                       {day.site}
                     </span>
                   </div>
-                  <span className="ml-auto font-mono text-[14px] font-semibold">
-                    {money(day.earned)}
+                  <span className="ms-auto font-mono text-[14px] font-semibold">
+                    {fmt.money(day.earned)}
                   </span>
                 </li>
               ))}
@@ -156,13 +168,13 @@ export default async function WorkerLinkPage({ params }: { params: Promise<{ tok
                   className="flex items-center gap-3 px-4 py-3"
                 >
                   <div className="flex min-w-0 flex-col">
-                    <span className="text-[15px] font-medium">{shortDate(payment.date)}</span>
+                    <span className="text-[15px] font-medium">{fmt.shortDate(payment.date)}</span>
                     <span className="text-[12.5px] text-ink-muted">
                       {t(titleCase(payment.type))} · {t(titleCase(payment.mode))}
                     </span>
                   </div>
-                  <span className="ml-auto font-mono text-[14px] font-semibold">
-                    {money(payment.amount)}
+                  <span className="ms-auto font-mono text-[14px] font-semibold">
+                    {fmt.money(payment.amount)}
                   </span>
                 </li>
               ))}

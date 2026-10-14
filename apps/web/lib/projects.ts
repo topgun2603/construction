@@ -81,10 +81,14 @@ export function schedule(project: ProjectSummary, today: IsoDate = todayInIst())
  */
 const TROUBLE_ORDER = ['on_hold', 'active', 'planning', 'completed'];
 
-export function byTrouble(a: ProjectSummary, b: ProjectSummary): number {
+export function byTrouble(
+  a: ProjectSummary,
+  b: ProjectSummary,
+  today: IsoDate = todayInIst(),
+): number {
   const rank = (p: ProjectSummary) => {
     const base = TROUBLE_ORDER.indexOf(p.status);
-    const overdue = schedule(p)?.daysRemaining ?? Number.MAX_SAFE_INTEGER;
+    const overdue = schedule(p, today)?.daysRemaining ?? Number.MAX_SAFE_INTEGER;
     // Within a status, the most overdue comes first.
     return (base < 0 ? TROUBLE_ORDER.length : base) * 1_000_000 + Math.min(overdue, 999_999);
   };

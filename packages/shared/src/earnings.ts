@@ -70,6 +70,14 @@ export interface WageLineTotals {
   /** `numeric(4,1)` string for `wage_lines.overtime_hours`. */
   overtimeHours: string;
   grossAmount: bigint;
+  /**
+   * Gross split the way a salary file wants it: the fixed part (day wages, or salary and
+   * allowances) and the variable part (overtime). They always add up to `grossAmount`.
+   */
+  fixedAmount: bigint;
+  variableAmount: bigint;
+  /** `numeric(4,1)` string: days marked absent, for the WPS "days on leave" field. */
+  leaveDays: string;
 }
 
 /** Roll a worker's attendance rows for a period into one wage line. */
@@ -77,18 +85,88 @@ export function wageLineTotals(rows: readonly AttendanceEarningInput[]): WageLin
   let dayTenths = 0n;
   let otTenths = 0n;
   let gross = 0n;
+  let overtime = 0n;
+  let leaveTenths = 0n;
 
   for (const row of rows) {
     const earning = attendanceEarning(row);
     dayTenths += earning.dayTenths;
     otTenths += decimalToTenths(row.overtimeHours);
     gross += earning.totalPaise;
+    overtime += earning.overtimePaise;
+    leaveTenths += 10n - earning.dayTenths;
   }
 
   return {
     daysPresent: tenths(dayTenths),
     overtimeHours: tenths(otTenths),
     grossAmount: gross,
+    fixedAmount: gross - overtime,
+    variableAmount: overtime,
+    leaveDays: tenths(leaveTenths),
+  };
+}
+
+/** A monthly-salaried worker's pay: basic plus allowances (roadmap Phase 1, item 2). */
+export interface MonthlyPay {
+  basic: bigint;
+  housing: bigint;
+  transport: bigint;
+  food: bigint;
+}
+
+/**
+ * Days of salary one absent day costs: the 30-day month most Gulf payrolls use. A convention to
+ * confirm with the company's accountant, kept in one place so changing it is one line.
+ */
+export const SALARY_DAYS_PER_MONTH = 30n;
+
+/**
+ * One monthly-salaried worker's line for a period.
+ *
+ * Fixed pay (basic + allowances) is due for the month whether or not the roll call recorded every
+ * day — a Friday off is not a lost day's pay. What reduces it is a day the roll call marked
+ * absent: one thirtieth of the fixed pay each, half that for a half day. A period shorter than its
+ * month gets that share of the month. Overtime is paid on top from the hours the roll call
+ * recorded, at the rate frozen on each row.
+ */
+export function monthlyWageLine(
+  pay: MonthlyPay,
+  period: { start: string; end: string },
+  rows: readonly AttendanceEarningInput[],
+): WageLineTotals {
+  const fixed = pay.basic + pay.housing + pay.transport + pay.food;
+
+  const start = new Date(`${period.start}T00:00:00Z`);
+  const end = new Date(`${period.end}T00:00:00Z`);
+  const periodDays = BigInt(Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
+  const monthDays = BigInt(
+    new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate(),
+  );
+  const due = periodDays >= monthDays ? fixed : (fixed * periodDays) / monthDays;
+
+  let dayTenths = 0n;
+  let otTenths = 0n;
+  let leaveTenths = 0n;
+  let overtime = 0n;
+  for (const row of rows) {
+    const worked = dayTenthsFor(row.status);
+    dayTenths += worked;
+    leaveTenths += 10n - worked;
+    otTenths += decimalToTenths(row.overtimeHours);
+    overtime += overtimeAmount(row.overtimeHours, row.overtimeRateSnapshot);
+  }
+
+  const deduction = (fixed * leaveTenths) / (SALARY_DAYS_PER_MONTH * 10n);
+  const fixedAmount = deduction > due ? 0n : due - deduction;
+
+  return {
+    daysPresent: tenths(dayTenths),
+    overtimeHours: tenths(otTenths),
+    grossAmount: fixedAmount + overtime,
+    fixedAmount,
+    variableAmount: overtime,
+    leaveDays: tenths(leaveTenths),
   };
 }
 

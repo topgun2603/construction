@@ -2,6 +2,7 @@
 
 import { motion, useInView, useMotionValue, useSpring } from 'framer-motion';
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useFormat } from '@/components/format-provider';
 
 /*
  * Motion is used to explain change, not to decorate. Everything here is short
@@ -82,13 +83,15 @@ export function StaggerItem({ children, className }: { children: ReactNode; clas
  */
 export function AnimatedNumber({
   value,
-  format = (n) => Math.round(n).toLocaleString('en-IN'),
+  format: formatProp,
   className,
 }: {
   value: number;
   format?: (value: number) => string;
   className?: string;
 }) {
+  const { count } = useFormat();
+  const format = formatProp ?? ((n: number) => count(Math.round(n)));
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true, margin: '-40px' });
   const motionValue = useMotionValue(0);

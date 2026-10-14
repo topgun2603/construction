@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   isoDateToUtcDate,
   MAX_UPLOAD_BYTES,
-  todayInIst,
+  todayIn,
   utcDateToIsoDate,
   type CreateDprInput,
   type ListDprQuery,
@@ -19,6 +19,7 @@ import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import { VoiceReader } from '../ai/voice-reader.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { ScopeCreepService } from '../change-orders/scope-creep.service';
 
 const SELECT = {
   id: true,
@@ -45,6 +46,7 @@ export class DprService {
     private readonly jobs: JobQueueService,
     private readonly voice: VoiceReader,
     private readonly uploads: UploadsService,
+    private readonly scopeCreep: ScopeCreepService,
   ) {}
 
   async list(actor: RequestUser, query: ListDprQuery): Promise<Page<ReturnType<typeof toView>>> {
@@ -93,7 +95,7 @@ export class DprService {
     await this.access.assertAccess(actor, input.project_id);
     const reportDate = isoDateToUtcDate(input.report_date);
 
-    return this.tenantDb.transaction(actor.tenantId, async (tx) => {
+    const view = await this.tenantDb.transaction(actor.tenantId, async (tx) => {
       if (input.client_id) {
         const existing = await tx.dailyReport.findFirst({
           where: { clientId: input.client_id },
@@ -149,6 +151,10 @@ export class DprService {
       });
       return toView(full);
     });
+
+    // Filed straight in as submitted (the mobile app does): the same scope-creep check as `submit`.
+    if (input.status === 'submitted') await this.scopeCreep.fromDailyReport(actor, view.id);
+    return view;
   }
 
   async update(actor: RequestUser, id: string, input: UpdateDprInput) {
@@ -244,6 +250,8 @@ export class DprService {
     // submitted must not push the owner a second time.
     if (result.changed) {
       await this.jobs.dprSubmitted({ tenantId: actor.tenantId, dailyReportId: id });
+      // Extra work written into the day's report is a change order nobody has priced. Never throws.
+      await this.scopeCreep.fromDailyReport(actor, id);
     }
     return result.view;
   }
@@ -385,7 +393,7 @@ export class DprService {
       transcript: text,
       language,
       draft: {
-        report_date: input.report_date ?? todayInIst(),
+        report_date: input.report_date ?? todayIn(actor.timezone),
         weather: speech.weather,
         work_done: speech.work_done,
         issues: speech.issues,

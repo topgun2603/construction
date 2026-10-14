@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { createProject } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
+import { BlockingOverlay } from '@/components/ui/blocking-overlay';
 import {
   Dialog,
   DialogContent,
@@ -17,12 +18,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/label';
-import { rupeesToPaiseString } from '@/lib/money-input';
+import { amountToMinorString } from '@/lib/money-input';
 import { LocationField } from '@/components/location-field';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 export function NewProjectDialog() {
   const { t } = useLanguage();
+  const { currencyDigits, currencySymbol } = useFormat();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +52,9 @@ export function NewProjectDialog() {
         address: optional(formData.get('address')),
         start_date: optional(formData.get('start_date')),
         target_end_date: optional(formData.get('target_end_date')),
-        ...(budget ? { budget_amount: rupeesToPaiseString(budget) } : {}),
+        ...(budget
+          ? { budget_amount: amountToMinorString(budget, currencyDigits, currencySymbol) }
+          : {}),
         ...(hasLocation ? { lat, lng } : {}),
       });
 
@@ -58,80 +63,93 @@ export function NewProjectDialog() {
         return;
       }
       toast.success('Site created');
-      setOpen(false);
+      // The dialog stays open, and the transition stays pending, until the new page is on screen.
+      // Closing first left several seconds of the old page with nothing saying anything was
+      // happening — the push runs inside this transition, which suppresses the route's loader.
       if (result.data?.id) router.push(`/projects/${result.data.id}`);
+      else setOpen(false);
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus /> {t('New site')}
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('New site')}</DialogTitle>
-          <DialogDescription>
-            {t('You can add the team, milestones and budget later.')}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <BlockingOverlay open={pending} label={t('Creating site…')} />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <Plus /> {t('New site')}
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('New site')}</DialogTitle>
+            <DialogDescription>
+              {t('You can add the team, milestones and budget later.')}
+            </DialogDescription>
+          </DialogHeader>
 
-        <form action={onSubmit} className="flex flex-col gap-4">
-          <Field label={t('Site name')} htmlFor="name">
-            <Input id="name" name="name" required minLength={2} placeholder="Lakeview Tower" />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('Client')} htmlFor="client_name">
-              <Input id="client_name" name="client_name" placeholder={t('Optional')} />
+          <form action={onSubmit} className="flex flex-col gap-4">
+            <Field label={t('Site name')} htmlFor="name">
+              <Input id="name" name="name" required minLength={2} placeholder="Lakeview Tower" />
             </Field>
-            <Field label={t('Budget (₹)')} htmlFor="budget" hint={t('Whole rupees')}>
-              <Input id="budget" name="budget" inputMode="numeric" placeholder="42000000" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t('Client')} htmlFor="client_name">
+                <Input id="client_name" name="client_name" placeholder={t('Optional')} />
+              </Field>
+              <Field
+                label={t('Budget (₹)').replace('₹', currencySymbol)}
+                htmlFor="budget"
+                hint={t('Whole rupees')}
+              >
+                <Input id="budget" name="budget" inputMode="numeric" placeholder="42000000" />
+              </Field>
+            </div>
+            <Field label={t('Address')} htmlFor="address">
+              <Input id="address" name="address" ref={addressBox} placeholder={t('Optional')} />
             </Field>
-          </div>
-          <Field label={t('Address')} htmlFor="address">
-            <Input id="address" name="address" ref={addressBox} placeholder={t('Optional')} />
-          </Field>
 
-          <LocationField
-            lat={location.lat}
-            lng={location.lng}
-            onChange={setLocation}
-            // Only when it is empty: somebody who typed "Plot 14, behind the mill" meant that, and
-            // a geocoder's idea of the nearest named road is not an improvement on it.
-            onAddress={(address) => {
-              if (addressBox.current && addressBox.current.value.trim() === '') {
-                addressBox.current.value = address;
-              }
-            }}
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('Start date')} htmlFor="start_date">
-              <Input id="start_date" name="start_date" type="date" />
-            </Field>
-            <Field label={t('Target handover')} htmlFor="target_end_date">
-              <Input id="target_end_date" name="target_end_date" type="date" />
-            </Field>
-          </div>
+            <LocationField
+              lat={location.lat}
+              lng={location.lng}
+              onChange={setLocation}
+              // Only when it is empty: somebody who typed "Plot 14, behind the mill" meant that, and
+              // a geocoder's idea of the nearest named road is not an improvement on it.
+              onAddress={(address) => {
+                if (addressBox.current && addressBox.current.value.trim() === '') {
+                  addressBox.current.value = address;
+                }
+              }}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t('Start date')} htmlFor="start_date">
+                <Input id="start_date" name="start_date" type="date" />
+              </Field>
+              <Field label={t('Target handover')} htmlFor="target_end_date">
+                <Input id="target_end_date" name="target_end_date" type="date" />
+              </Field>
+            </div>
 
-          {error && (
-            <p role="alert" className="rounded-btn bg-blocked-bg px-3 py-2 text-[13px] text-blocked-fg">
-              {error}
-            </p>
-          )}
+            {error && (
+              <p
+                role="alert"
+                className="rounded-btn bg-blocked-bg px-3 py-2 text-[13px] text-blocked-fg"
+              >
+                {error}
+              </p>
+            )}
 
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              {t('Cancel')}
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? 'Creating…' : 'Create site'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <DialogFooter>
+              <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+                {t('Cancel')}
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? 'Creating…' : 'Create site'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -3,8 +3,10 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, HardHat } from 'lucide-react';
 import { ApiRequestError } from '@/lib/api';
 import { serverFetch } from '@/lib/server-api';
-import type { WorkerLedger } from '@/lib/api-types';
-import { money, shortDate, titleCase } from '@/lib/format';
+import type { WorkerDocument, WorkerLedger } from '@/lib/api-types';
+import { requireSelf } from '@/lib/session';
+import { titleCase } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -12,6 +14,8 @@ import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { LedgerRange } from './ledger-range';
 import { SelfServiceLink } from './self-service-link';
+import { WorkerPapers } from './worker-papers';
+import { WorkerPay } from './worker-pay';
 import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Worker · BUILDR' };
@@ -35,6 +39,7 @@ export default async function WorkerPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const t = await getT();
+  const { money } = await getFormat();
   const { id } = await params;
   const { from, to } = await searchParams;
 
@@ -54,6 +59,11 @@ export default async function WorkerPage({
   }
 
   const { worker } = ledger;
+
+  const [me, papers] = await Promise.all([
+    requireSelf(),
+    serverFetch<{ configured: boolean; items: WorkerDocument[] }>(`/workers/${id}/documents`),
+  ]);
   const outstanding = BigInt(ledger.outstanding);
 
   return (
@@ -91,6 +101,15 @@ export default async function WorkerPage({
         workerId={id}
         workerName={worker.name}
         phone={worker.phone ?? null}
+      />
+
+      <WorkerPay worker={worker} canManage={me.permissions.includes('workers.manage')} />
+
+      <WorkerPapers
+        workerId={id}
+        documents={papers.items}
+        canManage={me.permissions.includes('workers.manage')}
+        unavailable={!papers.configured}
       />
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
@@ -140,6 +159,7 @@ export default async function WorkerPage({
  */
 async function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
   const t = await getT();
+  const { money, shortDate } = await getFormat();
   return (
     <Card className="flex flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
@@ -155,11 +175,11 @@ async function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
         <table className="w-full text-[13.5px]">
           <thead>
             <tr className="border-b border-line-soft text-[12px] uppercase tracking-[0.06em] text-ink-muted">
-              <th className="px-4 py-2.5 text-left font-semibold">{t('Date')}</th>
-              <th className="px-3 py-2.5 text-left font-semibold">{t('Entry')}</th>
-              <th className="px-3 py-2.5 text-right font-semibold">{t('Earned')}</th>
-              <th className="px-3 py-2.5 text-right font-semibold">{t('Paid')}</th>
-              <th className="px-4 py-2.5 text-right font-semibold">{t('Balance')}</th>
+              <th className="px-4 py-2.5 text-start font-semibold">{t('Date')}</th>
+              <th className="px-3 py-2.5 text-start font-semibold">{t('Entry')}</th>
+              <th className="px-3 py-2.5 text-end font-semibold">{t('Earned')}</th>
+              <th className="px-3 py-2.5 text-end font-semibold">{t('Paid')}</th>
+              <th className="px-4 py-2.5 text-end font-semibold">{t('Balance')}</th>
             </tr>
           </thead>
           <tbody>
@@ -189,14 +209,14 @@ async function LedgerTable({ ledger }: { ledger: WorkerLedger }) {
                         )}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono">
+                  <td className="px-3 py-2.5 text-end font-mono">
                     {earned > 0n ? money(entry.earned) : <span className="text-ink-faint">—</span>}
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono">
+                  <td className="px-3 py-2.5 text-end font-mono">
                     {paid > 0n ? money(entry.paid) : <span className="text-ink-faint">—</span>}
                   </td>
                   <td
-                    className={`px-4 py-2.5 text-right font-mono font-semibold ${
+                    className={`px-4 py-2.5 text-end font-mono font-semibold ${
                       balance < 0n ? 'text-blocked-fg' : ''
                     }`}
                   >

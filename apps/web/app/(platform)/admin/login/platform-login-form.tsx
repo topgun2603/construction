@@ -10,14 +10,14 @@ import {
   signInWithPopup,
   type ConfirmationResult,
 } from 'firebase/auth';
-import { toE164Indian } from '@sitebook/shared';
+import { phoneCountry, toE164 } from '@sitebook/shared';
 import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { platformLogin } from '@/lib/platform-actions';
 import { Button } from '@/components/ui/button';
 import { GoogleMark } from '@/components/ui/google-mark';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/components/language-provider';
-
+import { CallingCodeSelect } from '@/components/phone-input';
 
 /**
  * Whether to skip Firebase and post a `dev:<phone>` token straight to the API.
@@ -34,7 +34,11 @@ import { useLanguage } from '@/components/language-provider';
  * sign-in token", which describes the wrong half of the problem.
  */
 const DEV_AUTH_BYPASS =
-  process.env.NODE_ENV !== 'production' && process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true';
+  process.env['NEXT_PUBLIC_DEV_AUTH_BYPASS'] === 'true' &&
+  (process.env.NODE_ENV !== 'production' ||
+    // Command line only (`NEXT_PUBLIC_DEV_AUTH_IN_BUILD=true next build`) for a fast local demo;
+    // never in an env file, which is how this leaked into a Docker build once already.
+    process.env['NEXT_PUBLIC_DEV_AUTH_IN_BUILD'] === 'true');
 
 /**
  * Phone OTP for the console.
@@ -50,6 +54,7 @@ export function PlatformLoginForm() {
   const { t } = useLanguage();
   const router = useRouter();
   const [phone, setPhone] = useState('');
+  const [phoneCode, setPhoneCode] = useState('IN');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [error, setError] = useState<string | null>(null);
@@ -73,8 +78,8 @@ export function PlatformLoginForm() {
     setError(null);
     setBusy(true);
     try {
-      const e164 = toE164Indian(phone);
-      if (!e164) throw new Error('Enter a 10-digit mobile number');
+      const e164 = toE164(phone, phoneCode);
+      if (!e164) throw new Error('Enter a mobile number for the country selected');
 
       if (DEV_AUTH_BYPASS || !isFirebaseConfigured()) {
         await exchange(`dev:${e164}`);
@@ -184,15 +189,20 @@ export function PlatformLoginForm() {
             {/*
               The country code sits inside the field rather than beside it. `prefixText` on an
               input is invisible until the field has focus, which had people typing +91 again in
-              front of it — the mobile app hit the same thing and fixed it the same way.
+              front of it — the mobile app hit the same thing and fixed it the same way. A picker
+              now, since an operator's number need not be Indian.
             */}
             <div className="flex items-center gap-2.5 rounded-control border border-line-strong bg-surface px-3.5 transition focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/10">
               <Smartphone className="size-[18px] flex-none text-accent" />
-              <span className="font-mono text-[14px] text-ink-muted">+91</span>
+              <CallingCodeSelect
+                value={phoneCode}
+                onChange={setPhoneCode}
+                className="h-12 border-e-0 px-0"
+              />
               <input
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
-                placeholder="98765 43210"
+                placeholder={phoneCountry(phoneCode)?.example}
                 inputMode="numeric"
                 autoComplete="tel"
                 autoFocus
@@ -280,7 +290,9 @@ export function PlatformLoginForm() {
       */}
       <p className="flex items-start gap-2.5 rounded-btn bg-accent-soft px-3.5 py-3 text-[12.5px] leading-relaxed text-ink-soft">
         <ShieldCheck className="mt-px size-4 flex-none text-accent" />
-        {t('Every action you take here is written to the platform audit trail against your number.')}
+        {t(
+          'Every action you take here is written to the platform audit trail against your number.',
+        )}
       </p>
 
       <div id="platform-recaptcha" ref={recaptchaHost} />

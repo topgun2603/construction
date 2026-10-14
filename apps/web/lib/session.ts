@@ -27,6 +27,12 @@ export interface SelfResponse {
     plan_expires_on: string | null;
     /** `active`, `grace` or `expired` — computed by the API against the same grace window it enforces. */
     plan_standing: string;
+    /** The company's locale settings. Display goes through `getFormat()` / `useFormat()`. */
+    country: string;
+    currency: string;
+    timezone: string;
+    locale: string;
+    tax_regime: string;
   };
   enabled_modules: string[];
   /** What this person may do. Gate UI on these, never on the role name. */

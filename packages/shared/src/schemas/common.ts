@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isIsoDate } from '../dates';
+import { toE164 } from '../phone';
 
 export const uuidSchema = z.string().uuid();
 
@@ -34,20 +35,25 @@ export function toE164Indian(input: string): string | null {
   return `91${subscriber}`;
 }
 
-/** Indian mobile number, stored E.164 without the `+`. */
+/**
+ * A mobile number in any supported country, stored E.164 without the `+`.
+ *
+ * Bare digits are read as Indian, so a client sending ten Indian digits works as it always has; any
+ * other country must arrive with its `+` code, which the web app always sends. See `toE164`.
+ */
 export const phoneSchema = z
   .string()
   .trim()
   .superRefine((value, ctx) => {
-    if (toE164Indian(value) === null) {
+    if (toE164(value) === null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'expected a 10-digit Indian mobile number',
+        message: 'expected a mobile number: 10 digits for India, or with its country code (+971 …)',
       });
     }
   })
   // Safe: superRefine has already rejected anything that would return null.
-  .transform((value) => toE164Indian(value) as string);
+  .transform((value) => toE164(value) as string);
 
 /** Money on the wire: an integer string of paise, so JSON never sees a float. */
 export const paiseSchema = z

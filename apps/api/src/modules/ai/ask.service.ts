@@ -8,7 +8,9 @@ import {
   isoDateToUtcDate,
   quantityToThousandths,
   thousandthsToQuantity,
-  todayInIst,
+  formatMoney,
+
+  todayIn,
   type AskIntent,
   type AskResult,
 } from '@sitebook/shared';
@@ -56,7 +58,7 @@ export class AskService {
       throw ApiError.conflict('Asking questions is not configured on this deployment');
     }
 
-    const today = todayInIst();
+    const today = todayIn(actor.timezone);
     const db = this.tenantDb.clientFor(actor.tenantId);
 
     // The sites this person may see, by name, so the model's "Lakeview" can become an id — and so
@@ -155,7 +157,7 @@ export class AskService {
         const total = rows.reduce((sum, row) => sum + row.amount, 0n);
         const what = category ? `${category.replace(/_/g, ' ')} expenses` : 'expenses';
         return {
-          answer: `${formatInr(total)} on ${what}${place} ${when}, across ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}.`,
+          answer: `${formatMoney(total, actor)} on ${what}${place} ${when}, across ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}.`,
           value: total.toString(),
           unit: 'paise',
           understood,
@@ -190,7 +192,7 @@ export class AskService {
           0n,
         );
         return {
-          answer: `${formatInr(total)} of wages earned${place} ${when}, from ${rows.length} ${rows.length === 1 ? 'day' : 'days'} of attendance.`,
+          answer: `${formatMoney(total, actor)} of wages earned${place} ${when}, from ${rows.length} ${rows.length === 1 ? 'day' : 'days'} of attendance.`,
           value: total.toString(),
           unit: 'paise',
           understood,
@@ -310,12 +312,6 @@ export class AskService {
   }
 }
 
-/** Rupees from paise, the way the answer should read it. */
-function formatInr(paise: bigint): string {
-  const rupees = paise / 100n;
-  const paisePart = (paise % 100n).toString().padStart(2, '0');
-  return `₹${new Intl.NumberFormat('en-IN').format(rupees)}.${paisePart}`;
-}
 
 /**
  * The site a person meant.

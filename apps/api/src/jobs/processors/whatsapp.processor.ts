@@ -1,7 +1,16 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job, Queue } from 'bullmq';
-import { formatInrCompact, isoDateToUtcDate, todayInIst, utcDateToIsoDate } from '@sitebook/shared';
+import {
+  SAFETY_INCIDENT_TYPE_LABELS,
+  formatMoneyCompact,
+  isoDateToUtcDate,
+  safetyInstantToLocal,
+  safetyNumber,
+  utcDateToIsoDate,
+  type SafetyIncidentType,
+} from '@sitebook/shared';
+import { env } from '../../config/env';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { TEMPLATES, WhatsappService, type TemplateMessage } from '../../integrations/whatsapp.service';
 import {
@@ -10,6 +19,7 @@ import {
   type DailySummaryJob,
   type DprReminderJob,
   type FanOutJob,
+  type SafetyIncidentReportedJob,
   type WagePeriodFinalisedJob,
 } from '../job-types';
 import { TenantRoster } from '../tenant-roster.service';
@@ -46,26 +56,51 @@ export class WhatsappProcessor extends WorkerHost {
         return this.dprReminder(job.data as DprReminderJob);
       case 'wage-period-finalised':
         return this.wagePeriodFinalised(job.data as WagePeriodFinalisedJob);
+      case 'safety-incident':
+        return this.safetyIncident(job.data as SafetyIncidentReportedJob);
       default:
         this.logger.warn({ name: job.name }, 'Unknown whatsapp job');
         return null;
     }
   }
 
+  /**
+   * Runs every 15 minutes and queues the job for each company whose own clock just reached the
+   * configured time (tenant-clock.ts). The job id is per company and local day, so a retried or
+   * overlapping tick cannot send the same summary twice.
+   *
+   * A run carrying `date` is a manual re-run for that day, and goes to every company as before.
+   */
   private async fanOut(data: FanOutJob, jobName: 'daily-summary' | 'dpr-reminder') {
-    const date = data.date ?? todayInIst();
-    const tenantIds = await this.roster.activeTenantIds();
+    if (data.date) {
+      const tenantIds = await this.roster.activeTenantIds();
+      await this.queue.addBulk(
+        tenantIds.map((tenantId) => ({
+          name: jobName,
+          data: { tenantId, date: data.date },
+          opts: DEFAULT_JOB_OPTIONS,
+        })),
+      );
+      this.logger.log({ jobName, date: data.date, tenants: tenantIds.length }, 'Fanned out');
+      return { queued: tenantIds.length, date: data.date };
+    }
+
+    const config = env();
+    const cron =
+      jobName === 'daily-summary' ? config.WHATSAPP_SUMMARY_CRON : config.WHATSAPP_DPR_REMINDER_CRON;
+    const due = await this.roster.dueTenants(cron);
+    if (due.length === 0) return { queued: 0 };
 
     await this.queue.addBulk(
-      tenantIds.map((tenantId) => ({
+      due.map((tenant) => ({
         name: jobName,
-        data: { tenantId, date },
-        opts: DEFAULT_JOB_OPTIONS,
+        data: { tenantId: tenant.id, date: tenant.localDate },
+        opts: { ...DEFAULT_JOB_OPTIONS, jobId: `${jobName}:${tenant.id}:${tenant.localDate}` },
       })),
     );
 
-    this.logger.log({ jobName, date, tenants: tenantIds.length }, 'Fanned out');
-    return { queued: tenantIds.length, date };
+    this.logger.log({ jobName, tenants: due.length }, 'Fanned out on company clocks');
+    return { queued: due.length };
   }
 
   /**
@@ -178,19 +213,65 @@ export class WhatsappProcessor extends WorkerHost {
     return { ...result, nudged: messages.length };
   }
 
+  /**
+   * A lost-time injury or a fatality, to every owner's phone. The in-app notification and push went
+   * out with the report itself; this is the channel an owner on a plane or at a wedding still reads.
+   */
+  private async safetyIncident(data: SafetyIncidentReportedJob) {
+    const db = this.tenantDb.clientFor(data.tenantId);
+    const [tenant, owners, incident] = await Promise.all([
+      db.tenant.findUnique({ where: { id: data.tenantId }, select: { name: true, timezone: true } }),
+      db.user.findMany({
+        where: { role: 'owner', status: 'active', deletedAt: null },
+        select: { phone: true },
+      }),
+      db.safetyIncident.findFirst({
+        where: { id: data.incidentId },
+        select: {
+          number: true,
+          type: true,
+          title: true,
+          occurredAt: true,
+          project: { select: { name: true } },
+        },
+      }),
+    ]);
+    if (!tenant || !incident) return { skipped: 'incident gone' };
+
+    // Template safety_incident_alert: {builder} {type} {site} {number and title} {when}
+    const params = [
+      tenant.name,
+      SAFETY_INCIDENT_TYPE_LABELS[incident.type as SafetyIncidentType],
+      incident.project.name,
+      `${safetyNumber('INC', incident.number)} ${incident.title}`,
+      safetyInstantToLocal(incident.occurredAt, tenant.timezone).replace('T', ' '),
+    ];
+    return this.whatsapp.sendMany(
+      owners
+        .filter((owner) => Boolean(owner.phone))
+        .map((owner) => ({ to: owner.phone, template: TEMPLATES.safetyIncidentAlert, params })),
+    );
+  }
+
   /** Contractor gets the totals the moment accounts freeze their period. */
   private async wagePeriodFinalised(data: WagePeriodFinalisedJob) {
     const db = this.tenantDb.clientFor(data.tenantId);
 
-    const period = await db.wagePeriod.findUnique({
-      where: { id: data.wagePeriodId },
-      select: {
-        periodStart: true,
-        periodEnd: true,
-        contractor: { select: { name: true, phone: true } },
-        lines: { select: { netPayable: true } },
-      },
-    });
+    const [tenant, period] = await Promise.all([
+      db.tenant.findUnique({
+        where: { id: data.tenantId },
+        select: { currency: true, locale: true },
+      }),
+      db.wagePeriod.findUnique({
+        where: { id: data.wagePeriodId },
+        select: {
+          periodStart: true,
+          periodEnd: true,
+          contractor: { select: { name: true, phone: true } },
+          lines: { select: { netPayable: true } },
+        },
+      }),
+    ]);
     if (!period?.contractor?.phone) return { skipped: 'direct labour or no phone' };
 
     const net = period.lines.reduce((sum, line) => sum + line.netPayable, 0n);
@@ -204,7 +285,8 @@ export class WhatsappProcessor extends WorkerHost {
         utcDateToIsoDate(period.periodStart),
         utcDateToIsoDate(period.periodEnd),
         String(period.lines.length),
-        formatInrCompact(net),
+        // In the company's currency: a Dubai contractor is paid in dirhams.
+        formatMoneyCompact(net, tenant ?? undefined),
       ],
     });
   }

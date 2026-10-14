@@ -57,6 +57,13 @@ export class WagePeriodsController {
     return this.periods.get(user, id);
   }
 
+  /** The UAE WPS salary file (SIF) for a finalised period, with whoever cannot be paid yet. */
+  @RequiresPermission('wages.pay')
+  @Get(':id/wps')
+  wps(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.periods.wpsFile(user, id);
+  }
+
   @RequiresPermission('wages.finalise')
   @Post(':id/finalise')
   @ApiOperation({ summary: 'Freeze the lines and lock attendance for the range' })
@@ -97,5 +104,4 @@ export class WagePeriodsController {
   reopen(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.periods.reopen(user, id);
   }
-
 }

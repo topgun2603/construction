@@ -4,14 +4,22 @@ import type { Job, Queue } from 'bullmq';
 import {
   addDays,
   attendanceEarning,
+  INDIA_LOCALE,
   isoDateToUtcDate,
   permissionsForSystemRole,
-  todayInIst,
 } from '@sitebook/shared';
+import { env } from '../../config/env';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { BillingService } from '../../modules/billing/billing.service';
 import { WagePeriodsService } from '../../modules/wage-periods/wage-periods.service';
+import { ForecastsService } from '../../modules/forecasts/forecasts.service';
+import { ChecksService } from '../../modules/checks/checks.service';
+import { WorkerDocumentsService } from '../../modules/worker-documents/worker-documents.service';
+import { QualityTestsService } from '../../modules/quality/quality-tests.service';
+import { SafetyPermitsService } from '../../modules/safety/safety-permits.service';
+import { RfiRemindersService } from '../../modules/rfis/rfi-reminders.service';
+import { EquipmentMaintenanceService } from '../../modules/equipment/equipment-maintenance.service';
 import {
   DEFAULT_JOB_OPTIONS,
   QUEUE,
@@ -20,6 +28,7 @@ import {
   type WagePeriodDraftJob,
 } from '../job-types';
 import { TenantRoster } from '../tenant-roster.service';
+import { tickWindow } from '../tenant-clock';
 import { isPeriodEnd, periodStartFor } from '../pay-cycle';
 import type { RequestUser } from '../../common/auth/request-user';
 
@@ -38,6 +47,13 @@ export class ReportsProcessor extends WorkerHost {
     private readonly notifications: NotificationsService,
     private readonly wagePeriods: WagePeriodsService,
     private readonly billing: BillingService,
+    private readonly forecasts: ForecastsService,
+    private readonly checks: ChecksService,
+    private readonly workerDocuments: WorkerDocumentsService,
+    private readonly qualityTests: QualityTestsService,
+    private readonly safetyPermits: SafetyPermitsService,
+    private readonly rfiReminders: RfiRemindersService,
+    private readonly equipmentMaintenance: EquipmentMaintenanceService,
   ) {
     super();
   }
@@ -52,6 +68,34 @@ export class ReportsProcessor extends WorkerHost {
         return this.labourRollup(job.data as LabourRollupJob);
       case 'wage-period-draft':
         return this.wagePeriodDraft(job.data as WagePeriodDraftJob);
+      case 'fan-out-site-forecast':
+        return this.fanOutNightly('site-forecast', env().SITE_FORECAST_CRON);
+      case 'fan-out-leak-checks':
+        return this.fanOutNightly('leak-checks', env().LEAK_CHECK_CRON);
+      case 'fan-out-document-expiry':
+        return this.fanOutNightly('document-expiry', env().DOCUMENT_EXPIRY_CRON);
+      case 'document-expiry':
+        return this.workerDocuments.remindTenant((job.data as { tenantId: string }).tenantId);
+      case 'fan-out-quality-tests-due':
+        return this.fanOutNightly('quality-tests-due', env().QUALITY_TEST_DUE_CRON);
+      case 'quality-tests-due':
+        return this.qualityTests.remindTenant((job.data as { tenantId: string }).tenantId);
+      case 'fan-out-safety-permit-expiry':
+        return this.fanOutPermitExpiry();
+      case 'safety-permit-expiry':
+        return this.safetyPermits.alertExpired((job.data as { tenantId: string }).tenantId);
+      case 'fan-out-rfi-reminders':
+        return this.fanOutNightly('rfi-reminders', env().RFI_REMINDER_CRON);
+      case 'rfi-reminders':
+        return this.rfiReminders.remindTenant((job.data as { tenantId: string }).tenantId);
+      case 'fan-out-equipment-reminders':
+        return this.fanOutNightly('equipment-reminders', env().EQUIPMENT_REMINDER_CRON);
+      case 'equipment-reminders':
+        return this.equipmentMaintenance.remindTenant((job.data as { tenantId: string }).tenantId);
+      case 'leak-checks':
+        return this.checks.runTenant((job.data as { tenantId: string }).tenantId);
+      case 'site-forecast':
+        return this.forecasts.refreshTenant((job.data as { tenantId: string }).tenantId);
       case 'drop-lapsed-subscriptions':
         return this.billing.dropLapsedSubscriptions();
       default:
@@ -60,21 +104,88 @@ export class ReportsProcessor extends WorkerHost {
     }
   }
 
+  /**
+   * Runs every 15 minutes and queues the job for each company whose own clock just passed the
+   * configured time (tenant-clock.ts) — after *its* midnight, for *its* day that just ended. The
+   * job id is per company and day, so a retried or overlapping tick cannot draft twice.
+   *
+   * A run carrying `date` is a manual re-run for that day, and goes to every company as before.
+   */
   private async fanOut(data: FanOutJob, jobName: 'labour-rollup' | 'wage-period-draft') {
-    // Runs after midnight for the day that just ended, not the one minutes old.
-    const date = data.date ?? addDays(todayInIst(), -1);
-    const tenantIds = await this.roster.activeTenantIds();
+    if (data.date) {
+      const tenantIds = await this.roster.activeTenantIds();
+      await this.queue.addBulk(
+        tenantIds.map((tenantId) => ({
+          name: jobName,
+          data: { tenantId, date: data.date },
+          opts: DEFAULT_JOB_OPTIONS,
+        })),
+      );
+      this.logger.log({ jobName, date: data.date, tenants: tenantIds.length }, 'Fanned out');
+      return { queued: tenantIds.length, date: data.date };
+    }
+
+    const config = env();
+    const cron =
+      jobName === 'labour-rollup' ? config.REPORTS_ROLLUP_CRON : config.WAGE_PERIOD_DRAFT_CRON;
+    const due = await this.roster.dueTenants(cron);
+    if (due.length === 0) return { queued: 0 };
 
     await this.queue.addBulk(
-      tenantIds.map((tenantId) => ({
-        name: jobName,
-        data: { tenantId, date },
-        opts: DEFAULT_JOB_OPTIONS,
-      })),
+      due.map((tenant) => {
+        // The day that just ended on the company's clock, not the one minutes old.
+        const date = addDays(tenant.localDate, -1);
+        return {
+          name: jobName,
+          data: { tenantId: tenant.id, date },
+          opts: { ...DEFAULT_JOB_OPTIONS, jobId: `${jobName}:${tenant.id}:${date}` },
+        };
+      }),
     );
 
-    this.logger.log({ jobName, date, tenants: tenantIds.length }, 'Fanned out');
-    return { queued: tenantIds.length, date };
+    this.logger.log({ jobName, tenants: due.length }, 'Fanned out on company clocks');
+    return { queued: due.length };
+  }
+
+  /**
+   * A per-company nightly job (forecasts, leak checks) for each company whose own clock just
+   * reached `cron` — one job per company and local day, so a retried tick cannot run it twice.
+   */
+  private async fanOutNightly(
+    name: 'site-forecast' | 'leak-checks' | 'document-expiry' | 'quality-tests-due' | 'rfi-reminders' | 'equipment-reminders',
+    cron: string,
+  ) {
+    const due = await this.roster.dueTenants(cron);
+    if (due.length === 0) return { queued: 0 };
+    await this.queue.addBulk(
+      due.map((tenant) => ({
+        name,
+        data: { tenantId: tenant.id },
+        opts: { ...DEFAULT_JOB_OPTIONS, jobId: `${name}:${tenant.id}:${tenant.localDate}` },
+      })),
+    );
+    this.logger.log({ name, tenants: due.length }, 'Fanned out on company clocks');
+    return { queued: due.length };
+  }
+
+  /**
+   * Expired permits to work, checked for every company whose clock the configured cron fires on —
+   * every quarter-hour by default, so on every company's clock at once. Unlike the nightly jobs the
+   * id is per tick, not per day: a permit lapsing at 14:10 is alerted on the 14:15 tick, not
+   * tomorrow. The alert itself is claimed per permit, so a retried tick cannot send it twice.
+   */
+  private async fanOutPermitExpiry() {
+    const due = await this.roster.dueTenants(env().SAFETY_PERMIT_EXPIRY_CRON);
+    if (due.length === 0) return { queued: 0 };
+    const tick = tickWindow(new Date()).end.getTime();
+    await this.queue.addBulk(
+      due.map((tenant) => ({
+        name: 'safety-permit-expiry',
+        data: { tenantId: tenant.id },
+        opts: { ...DEFAULT_JOB_OPTIONS, jobId: `safety-permit-expiry-${tenant.id}-${tick}` },
+      })),
+    );
+    return { queued: due.length };
   }
 
   /**
@@ -149,10 +260,16 @@ export class ReportsProcessor extends WorkerHost {
     const db = this.tenantDb.clientFor(data.tenantId);
     const periodEnd = data.date;
 
-    const contractors = await db.contractor.findMany({
-      where: { deletedAt: null },
-      select: { id: true, name: true, paymentTerms: true },
-    });
+    const [contractors, tenant] = await Promise.all([
+      db.contractor.findMany({
+        where: { deletedAt: null },
+        select: { id: true, name: true, paymentTerms: true },
+      }),
+      db.tenant.findUnique({
+        where: { id: data.tenantId },
+        select: { timezone: true, currency: true, locale: true, taxRegime: true, country: true },
+      }),
+    ]);
 
     const due = contractors.filter((contractor) => isPeriodEnd(contractor.paymentTerms, periodEnd));
     if (due.length === 0) return { skipped: 'no contractor cycle ends today', date: periodEnd };
@@ -171,6 +288,11 @@ export class ReportsProcessor extends WorkerHost {
       seesAllProjects: true,
       plan: 'one_year',
       enabledModules: ['labour'],
+      timezone: tenant?.timezone ?? INDIA_LOCALE.timezone,
+      currency: tenant?.currency ?? INDIA_LOCALE.currency,
+      locale: tenant?.locale ?? INDIA_LOCALE.locale,
+      taxRegime: tenant?.taxRegime ?? INDIA_LOCALE.taxRegime,
+      country: tenant?.country ?? INDIA_LOCALE.country,
     };
 
     const drafted: Array<{ contractor: string; lines: number }> = [];

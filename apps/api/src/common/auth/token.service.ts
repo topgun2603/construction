@@ -16,6 +16,17 @@ export interface AccessTokenClaims extends JwtPayload {
    */
   role_id?: string | null;
   project_ids: string[];
+  /**
+   * The identity that was *verified* when this session began — `phone:<e164>` or
+   * `email:<address>` — carried forward on every refresh and company switch.
+   *
+   * Switching company looks this up in `auth_identities`, never the phone on the caller's `users`
+   * row: that row belongs to the company and is editable there, so trusting it would let whoever
+   * administers one company point a user at somebody else's number and switch into *their*
+   * companies. Absent on sessions issued before switching existed; those can still do everything
+   * except switch, and get it on their next sign-in.
+   */
+  idn?: string;
 }
 
 export interface RefreshTokenClaims extends JwtPayload {
@@ -23,6 +34,8 @@ export interface RefreshTokenClaims extends JwtPayload {
   tenant_id: string;
   /** Identifies the stored `refresh_tokens` row. */
   jti: string;
+  /** See `AccessTokenClaims.idn`. Signed into the refresh token so rotation can carry it forward. */
+  idn?: string;
 }
 
 /**
@@ -47,6 +60,23 @@ export interface WorkerLinkClaims extends JwtPayload {
   tenantId: string;
   workerId: string;
   purpose: 'worker_link';
+}
+
+/**
+ * A link an outside designer or consultant was sent to answer one RFI, or to review one submittal
+ * revision (roadmap Phase 2, module 9).
+ *
+ * Names the tenant, which kind of record and its id, and the record's link version when it was
+ * signed. Nothing else: the reader can see that one record and write that one answer. Bumping the
+ * version on the record withdraws every link sent so far without a table of issued tokens.
+ */
+export interface RfiLinkClaims extends JwtPayload {
+  tenantId: string;
+  kind: 'rfi' | 'submittal';
+  /** The RFI id, or the submittal *revision* id — a new revision needs a new link. */
+  recordId: string;
+  version: number;
+  purpose: 'rfi_link';
 }
 
 /** Short-lived ticket proving a phone passed OTP but has no tenant yet. */
@@ -76,6 +106,7 @@ export class TokenService {
     role: UserRole;
     roleId?: string | null;
     projectIds: string[];
+    identity?: string | null;
   }): string {
     return jwt.sign(
       {
@@ -83,6 +114,7 @@ export class TokenService {
         role: input.role,
         role_id: input.roleId ?? null,
         project_ids: input.projectIds,
+        ...(input.identity ? { idn: input.identity } : {}),
       },
       this.config.JWT_SECRET,
       {
@@ -104,14 +136,18 @@ export class TokenService {
    * the row can be read. The signature carries it. Only the hash is stored, so a
    * leaked database still cannot mint a session.
    */
-  signRefreshToken(input: { userId: string; tenantId: string }): {
+  signRefreshToken(input: { userId: string; tenantId: string; identity?: string | null }): {
     token: string;
     jti: string;
     tokenHash: string;
     expiresAt: Date;
   } {
     const jti = randomUUID();
-    const token = jwt.sign({ tenant_id: input.tenantId }, this.config.JWT_REFRESH_SECRET, {
+    const payload = {
+      tenant_id: input.tenantId,
+      ...(input.identity ? { idn: input.identity } : {}),
+    };
+    const token = jwt.sign(payload, this.config.JWT_REFRESH_SECRET, {
       subject: input.userId,
       jwtid: jti,
       issuer: ISSUER,
@@ -195,6 +231,38 @@ export class TokenService {
     return claims;
   }
 
+  /**
+   * Signs an RFI or submittal responder's link. Thirty days, like the worker link and for the same
+   * reason: it travels by email and WhatsApp and must stop working on its own. The endpoint also
+   * refuses it once the record is closed, voided or decided, or the link was withdrawn.
+   */
+  signRfiLink(input: { tenantId: string; kind: 'rfi' | 'submittal'; recordId: string; version: number }): string {
+    return jwt.sign(
+      {
+        tenantId: input.tenantId,
+        kind: input.kind,
+        recordId: input.recordId,
+        version: input.version,
+        purpose: 'rfi_link',
+      },
+      this.config.JWT_SECRET,
+      // Its own audience, so a responder link can never be presented as a session or a worker link.
+      { issuer: ISSUER, audience: 'rfi_link', expiresIn: RFI_LINK_TTL_SECONDS },
+    );
+  }
+
+  verifyRfiLink(token: string): RfiLinkClaims {
+    const claims = this.verify<RfiLinkClaims>(token, this.config.JWT_SECRET, 'rfi_link');
+    if (claims.purpose !== 'rfi_link' || (claims.kind !== 'rfi' && claims.kind !== 'submittal')) {
+      throw ApiError.invalidToken('Not an RFI link');
+    }
+    return claims;
+  }
+
+  get rfiLinkTtlSeconds(): number {
+    return RFI_LINK_TTL_SECONDS;
+  }
+
   get workerLinkTtlSeconds(): number {
     return WORKER_LINK_TTL_SECONDS;
   }
@@ -213,8 +281,38 @@ export class TokenService {
   }
 }
 
+/**
+ * The identity claim for a verified sign-in: `phone:919876543210` or `email:a@b.com`.
+ *
+ * One string rather than two claims so a token can never assert both, and so the switch path has a
+ * single thing to look up.
+ */
+export function identityClaim(
+  proof: { kind: 'phone'; phone: string } | { kind: 'email'; email: string },
+): string {
+  return proof.kind === 'phone' ? `phone:${proof.phone}` : `email:${proof.email}`;
+}
+
+/** The inverse of `identityClaim`; null for a missing or malformed claim. */
+export function parseIdentityClaim(
+  claim: string | null | undefined,
+): { kind: 'phone'; phone: string } | { kind: 'email'; email: string } | null {
+  if (!claim) return null;
+  const colon = claim.indexOf(':');
+  if (colon <= 0) return null;
+  const kind = claim.slice(0, colon);
+  const value = claim.slice(colon + 1);
+  if (!value) return null;
+  if (kind === 'phone') return { kind, phone: value };
+  if (kind === 'email') return { kind, email: value };
+  return null;
+}
+
 /** Thirty days. See `signWorkerLink` for why it is not indefinite. */
 const WORKER_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+/** Thirty days. See `signRfiLink`. */
+const RFI_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /** Stored so a database dump cannot be replayed as a session. */
 export function hashToken(token: string): string {

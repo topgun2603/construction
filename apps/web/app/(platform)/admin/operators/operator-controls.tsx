@@ -109,7 +109,7 @@ export function OperatorControls({
                       .join(' · ')}
                   </span>
                 </div>
-                <span className="ml-4">
+                <span className="ms-4">
                   <EmailLink
                     phone={operator.phone}
                     email={operator.email}
@@ -121,7 +121,7 @@ export function OperatorControls({
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="ml-auto size-8 text-ink-faint hover:text-blocked-fg"
+                    className="ms-auto size-8 text-ink-faint hover:text-blocked-fg"
                     onClick={() => revoke(operator)}
                     disabled={pending}
                     aria-label={`Withdraw access for ${operator.phone}`}

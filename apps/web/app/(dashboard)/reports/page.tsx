@@ -3,7 +3,8 @@ import { PieChart } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { LabourCostReport } from '@/lib/api-types';
-import { addDaysIso, money, moneyShort, shortDate, todayIso } from '@/lib/format';
+import { addDaysIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { Card } from '@/components/ui/card';
 import { ProgressBar } from '@/components/ui/meter';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -11,6 +12,7 @@ import { FadeIn, Stagger, StaggerItem } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { ReportFilters } from './report-filters';
 import { ReportsNav } from './reports-nav';
+import { canSeeTaxReport } from './tax/access';
 import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Reports · BUILDR' };
@@ -29,6 +31,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ group_by?: string; from?: string; to?: string }>;
 }) {
   const t = await getT();
+  const { money, moneyShort, shortDate, todayIso } = await getFormat();
   const params = await searchParams;
   const to = params.to ?? todayIso();
   const from = params.from ?? addDaysIso(to, -29);
@@ -53,6 +56,7 @@ export default async function ReportsPage({
         from={from}
         to={to}
         isOwnerOrAccounts={['owner', 'accounts'].includes(me.user.role)}
+        showTax={canSeeTaxReport(me)}
         extraParams={{ group_by: groupBy }}
       />
       <ReportFilters groupBy={groupBy} from={from} to={to} />

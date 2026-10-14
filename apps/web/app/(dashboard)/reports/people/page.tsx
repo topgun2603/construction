@@ -2,11 +2,13 @@ import { UserCog } from 'lucide-react';
 import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { PersonLedger } from '@/lib/api-types';
-import { addDaysIso, moneyShort, todayIso } from '@/lib/format';
+import { addDaysIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { ReportsNav } from '../reports-nav';
+import { canSeeTaxReport } from '../tax/access';
 import { PeopleTable } from './people-table';
 import { getT } from '@/lib/i18n-server';
 
@@ -27,6 +29,7 @@ export default async function PeopleReportPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const t = await getT();
+  const { moneyShort, todayIso } = await getFormat();
   const params = await searchParams;
   const to = params.to ?? todayIso();
   const from = params.from ?? addDaysIso(to, -29);
@@ -40,7 +43,7 @@ export default async function PeopleReportPage({
 
   return (
     <FadeIn className="flex flex-col gap-5">
-      <ReportsNav from={from} to={to} isOwnerOrAccounts />
+      <ReportsNav from={from} to={to} isOwnerOrAccounts showTax={canSeeTaxReport(me)} />
 
       <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile

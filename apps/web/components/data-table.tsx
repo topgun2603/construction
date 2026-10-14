@@ -84,12 +84,12 @@ export function DataTable<TData, TValue>({
         <div className="flex flex-wrap items-center gap-2">
           {searchPlaceholder && (
             <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
+              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" />
               <Input
                 value={globalFilter}
                 onChange={(event) => setGlobalFilter(event.target.value)}
                 placeholder={searchPlaceholder}
-                className="pl-9"
+                className="ps-9"
                 aria-label={searchPlaceholder}
               />
             </div>
@@ -112,7 +112,7 @@ export function DataTable<TData, TValue>({
                       style={header.column.columnDef.meta ? undefined : undefined}
                       className={cn(
                         (header.column.columnDef.meta as { align?: string } | undefined)?.align ===
-                          'right' && 'text-right',
+                          'right' && 'text-end',
                       )}
                     >
                       {header.isPlaceholder ? null : sortable ? (
@@ -192,7 +192,7 @@ export function DataTable<TData, TValue>({
                       key={cell.id}
                       className={cn(
                         (cell.column.columnDef.meta as { align?: string } | undefined)?.align ===
-                          'right' && 'text-right',
+                          'right' && 'text-end',
                       )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

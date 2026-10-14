@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { platformFetch } from '@/lib/platform-session';
-import { longDate, titleCase } from '@/lib/format';
+// The console is the platform's own view, read in Indian format rather than a tenant's.
+import { indiaFormat, titleCase } from '@/lib/format';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { getT } from '@/lib/i18n-server';
+
+const { longDate } = indiaFormat;
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Support · BUILDR platform' };
@@ -144,7 +147,7 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
                   {t(titleCase(user.status))}
                 </Badge>
               )}
-              <span className="ml-auto text-[12.5px] text-ink-faint">
+              <span className="ms-auto text-[12.5px] text-ink-faint">
                 {user.last_login
                   ? `Last in ${longDate(user.last_login.slice(0, 10))}`
                   : t('Never signed in')}
@@ -167,7 +170,7 @@ export default async function SupportPage({ params }: { params: Promise<{ id: st
             {projects.map((project) => (
               <li key={project.id} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="text-[14px]">{project.name}</span>
-                <Badge tone="neutral" className="ml-auto">
+                <Badge tone="neutral" className="ms-auto">
                   {t(titleCase(project.status))}
                 </Badge>
               </li>

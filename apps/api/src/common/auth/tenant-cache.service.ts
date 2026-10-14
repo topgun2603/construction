@@ -10,6 +10,11 @@ export interface TenantGateInfo {
   enabledModules: string[];
   /** Null for a lifetime plan, which never runs out. */
   planExpiresOn: Date | null;
+  timezone: string;
+  currency: string;
+  locale: string;
+  taxRegime: string;
+  country: string;
 }
 
 interface CacheEntry {
@@ -41,7 +46,18 @@ export class TenantCache {
 
     const tenant = await this.tenantDb.clientFor(tenantId).tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, status: true, plan: true, enabledModules: true, planExpiresOn: true },
+      select: {
+        id: true,
+        status: true,
+        plan: true,
+        enabledModules: true,
+        planExpiresOn: true,
+        timezone: true,
+        currency: true,
+        locale: true,
+        taxRegime: true,
+        country: true,
+      },
     });
     if (!tenant) {
       this.entries.delete(tenantId);
@@ -55,6 +71,11 @@ export class TenantCache {
       plan: tenant.plan,
       // Resolve plan defaults here so every caller sees the same effective list.
       enabledModules: effectiveModules(tenant.plan, tenant.enabledModules),
+      timezone: tenant.timezone,
+      currency: tenant.currency,
+      locale: tenant.locale,
+      taxRegime: tenant.taxRegime,
+      country: tenant.country,
     };
     this.entries.set(tenantId, { value, expiresAt: Date.now() + this.ttlMs });
     return value;

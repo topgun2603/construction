@@ -4,17 +4,28 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  Tent,
+  ShieldAlert,
+  ShieldCheck,
   Banknote,
   Receipt,
   Building2,
   FolderOpen,
   CalendarCheck,
   ClipboardCheck,
+  ClipboardList,
+  FileDiff,
+  FileStack,
+  HelpCircle,
+  Network,
+  Truck,
+  FileSignature,
   HardHat,
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
   PieChart,
+  ShoppingCart,
   Settings,
   Wallet,
   Warehouse,
@@ -44,6 +55,8 @@ interface NavItem {
   icon: LucideIcon;
   module?: ModuleName;
   roles?: string[];
+  /** Shown only to group admins who may read the consolidated reports. */
+  groupReports?: boolean;
   /**
    * Any one of these is enough, matching how the API reads a `@RequiresPermission` list.
    *
@@ -97,6 +110,13 @@ const GROUPS: NavGroup[] = [
         permission: 'workers.view',
       },
       {
+        href: '/labour/camps',
+        label: 'Camps',
+        icon: Tent,
+        module: 'labour',
+        permission: 'workers.view',
+      },
+      {
         href: '/labour/attendance',
         label: 'Attendance',
         icon: CalendarCheck,
@@ -133,7 +153,98 @@ const GROUPS: NavGroup[] = [
         module: 'expenses',
         permission: 'expenses.view',
       },
-      { href: '/stock', label: 'Stock', icon: Warehouse, module: 'stock', permission: 'stock.view' },
+      {
+        href: '/stock',
+        label: 'Stock',
+        icon: Warehouse,
+        module: 'stock',
+        permission: 'stock.view',
+      },
+      // Buying for the sites. Receivers see it too: a store keeper signs for deliveries here.
+      {
+        href: '/procurement',
+        label: 'Procurement',
+        icon: ShoppingCart,
+        module: 'materials',
+        permission: [
+          'procurement.view',
+          'procurement.manage',
+          'procurement.receive',
+          'procurement.invoices',
+          'vendors.manage',
+        ],
+      },
+      // A supervisor measures work for a bill without seeing what it is worth.
+      {
+        href: '/subcontracts',
+        label: 'Subcontracts',
+        icon: FileSignature,
+        module: 'projects',
+        permission: ['subcontracts.view', 'subcontracts.measure'],
+      },
+      // Variations to the client's contract; a client sees theirs through the site's approvals.
+      {
+        href: '/change-orders',
+        label: 'Change orders',
+        icon: FileDiff,
+        module: 'projects',
+        permission: 'change_orders.view',
+      },
+      // Questions to the designers, answered through a link they need no account for.
+      {
+        href: '/rfis',
+        label: 'RFIs',
+        icon: HelpCircle,
+        module: 'projects',
+        permission: 'rfis.view',
+      },
+      {
+        href: '/submittals',
+        label: 'Submittals',
+        icon: FileStack,
+        module: 'projects',
+        permission: 'submittals.view',
+      },
+      // Plant and machines. Whoever logs the hours sees the machines, not what they cost.
+      {
+        href: '/equipment',
+        label: 'Equipment',
+        icon: Truck,
+        module: 'projects',
+        permission: ['equipment.view', 'equipment.log', 'equipment.manage'],
+      },
+      // The group's consolidated figures, for group admins only.
+      {
+        href: '/group',
+        label: 'Group overview',
+        icon: Network,
+        module: 'dashboard',
+        groupReports: true,
+      },
+      // Inspections, tests and snags. Supervisors inspect without the library or the sign-off.
+      {
+        href: '/quality',
+        label: 'Quality',
+        icon: ClipboardList,
+        module: 'projects',
+        permission: ['quality.view', 'quality.inspect'],
+      },
+      // Anyone on site may report; the dashboard and registers need safety.view.
+      {
+        href: '/safety',
+        label: 'Safety',
+        icon: ShieldCheck,
+        module: 'projects',
+        permission: ['safety.view', 'safety.report'],
+      },
+      // Leak and fraud findings: money people can see, so the same gate as expenses.
+      {
+        href: '/checks',
+        label: 'Checks',
+        icon: ShieldAlert,
+        module: 'dashboard',
+        permission: 'expenses.view',
+      },
     ],
   },
   {
@@ -168,6 +279,7 @@ export function SideNav({
   permissions,
   activeSiteCount,
   pendingApprovals,
+  groupReports = false,
 }: {
   tenantName: string;
   logoUrl: string | null;
@@ -176,6 +288,8 @@ export function SideNav({
   permissions: string[];
   activeSiteCount: number;
   pendingApprovals: number;
+  /** The reader holds `group.view_reports` in their company's group. */
+  groupReports?: boolean;
 }) {
   const pathname = usePathname();
   const { t } = useLanguage();
@@ -209,6 +323,7 @@ export function SideNav({
       (item) =>
         (!item.module || enabledModules.includes(item.module)) &&
         (!item.roles || item.roles.includes(role)) &&
+        (!item.groupReports || groupReports) &&
         (!item.permission ||
           [item.permission].flat().some((needed) => permissions.includes(needed))),
     ),
@@ -218,7 +333,7 @@ export function SideNav({
     <nav
       aria-label={t('Main')}
       className={cn(
-        'relative isolate hidden shrink-0 flex-col overflow-hidden bg-gradient-to-b from-nav via-[#282150] to-[#3A2A72] transition-[width] duration-200 md:flex',
+        'relative isolate hidden shrink-0 flex-col overflow-hidden bg-gradient-to-b from-nav via-nav-tint to-nav-glow transition-[width] duration-200 md:flex',
         collapsed ? 'w-[76px]' : 'w-[260px]',
       )}
     >
@@ -234,7 +349,7 @@ export function SideNav({
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-64 bg-gradient-to-t from-[#3A2A72] via-[#3A2A72]/70 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-64 bg-gradient-to-t from-nav-glow via-nav-glow/70 to-transparent"
       />
       {/*
        * Header. Taller than the 56px top bar on purpose — the two columns are no longer trying to
@@ -257,7 +372,7 @@ export function SideNav({
             className="size-10 flex-none rounded-[12px] bg-white object-contain"
           />
         ) : (
-          <span className="flex size-10 flex-none items-center justify-center rounded-[12px] bg-accent text-[14px] font-bold text-white shadow-[0_6px_16px_rgba(108,76,224,0.5)]">
+          <span className="flex size-10 flex-none items-center justify-center rounded-[12px] bg-accent text-[14px] font-bold text-white shadow-[0_6px_16px_rgb(var(--c-accent)/0.5)]">
             {initials(tenantName)}
           </span>
         )}
@@ -316,7 +431,7 @@ export function SideNav({
                     'group relative flex items-center gap-3 rounded-[12px] py-2.5 transition',
                     collapsed ? 'justify-center px-0' : 'px-3',
                     active
-                      ? 'bg-accent shadow-[0_8px_20px_-6px_rgba(108,76,224,0.8)]'
+                      ? 'bg-accent shadow-[0_8px_20px_-6px_rgb(var(--c-accent)/0.8)]'
                       : 'hover:bg-white/[0.07]',
                   )}
                 >
@@ -341,7 +456,7 @@ export function SideNav({
                     (collapsed ? (
                       // A dot, not a number: at 72px a two-digit count would overlap
                       // the icon.
-                      <span className="absolute right-3 top-2 size-2 rounded-full bg-accent ring-2 ring-nav" />
+                      <span className="absolute end-3 top-2 size-2 rounded-full bg-accent ring-2 ring-nav" />
                     ) : (
                       <span className="flex-none rounded-full bg-accent px-1.5 font-mono text-[11.5px] font-semibold leading-[1.5] text-white">
                         {pendingApprovals}

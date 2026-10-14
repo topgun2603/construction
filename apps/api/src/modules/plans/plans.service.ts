@@ -100,6 +100,7 @@ export class PlansService {
         name: input.name,
         months: input.months,
         pricePaise: BigInt(input.price),
+        prices: input.prices ?? {},
         description: input.description ?? null,
         badge: input.badge ?? null,
         highlights: input.highlights,
@@ -120,6 +121,7 @@ export class PlansService {
         ...(input.name === undefined ? {} : { name: input.name }),
         ...(input.months === undefined ? {} : { months: input.months }),
         ...(input.price === undefined ? {} : { pricePaise: BigInt(input.price) }),
+        ...(input.prices === undefined ? {} : { prices: input.prices }),
         ...(input.description === undefined ? {} : { description: input.description }),
         ...(input.badge === undefined ? {} : { badge: input.badge }),
         ...(input.highlights === undefined ? {} : { highlights: input.highlights }),
@@ -165,6 +167,7 @@ function toView(row: {
   name: string;
   months: number | null;
   pricePaise: bigint;
+  prices: unknown;
   description: string | null;
   badge: string | null;
   highlights: string[];
@@ -179,6 +182,12 @@ function toView(row: {
     // Paise as a string, like every other amount on the wire. A JSON number loses precision above
     // 2^53, and a price is money.
     price: row.pricePaise.toString(),
+    prices: Object.fromEntries(
+      Object.entries((row.prices ?? {}) as Record<string, unknown>).map(([currency, amount]) => [
+        currency,
+        String(amount),
+      ]),
+    ),
     description: row.description,
     badge: row.badge,
     highlights: row.highlights,

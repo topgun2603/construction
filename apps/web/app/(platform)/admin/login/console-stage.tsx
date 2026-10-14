@@ -74,7 +74,7 @@ export function ConsoleStage({ children }: { children: ReactNode }) {
       */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-r from-[#0E0A1E] via-[#0E0A1E]/80 to-[#0E0A1E]/25"
+        className="absolute inset-0 bg-gradient-to-r rtl:bg-gradient-to-l from-[#0E0A1E] via-[#0E0A1E]/80 to-[#0E0A1E]/25"
       />
       <div
         aria-hidden
@@ -84,7 +84,7 @@ export function ConsoleStage({ children }: { children: ReactNode }) {
       {/* A single accent bloom, kept from the old stage. Slow enough to read as light. */}
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -left-40 top-[18%] size-[560px] rounded-full bg-accent/30 blur-[150px]"
+        className="pointer-events-none absolute -start-40 top-[18%] size-[560px] rounded-full bg-accent/30 blur-[150px]"
         initial={{ opacity: 0.3, scale: 0.94 }}
         animate={
           reduceMotion ? { opacity: 0.3 } : { opacity: [0.2, 0.45, 0.2], scale: [0.94, 1.06, 0.94] }

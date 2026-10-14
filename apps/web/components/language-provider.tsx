@@ -1,8 +1,9 @@
 'use client';
 
+import { DirectionProvider } from '@radix-ui/react-direction';
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import type { LanguageCode } from '@sitebook/shared';
-import { LANGUAGE_COOKIE, translate, type Translator } from '@/lib/i18n';
+import { directionOf, LANGUAGE_COOKIE, translate, type Translator } from '@/lib/i18n';
 
 interface LanguageContextValue {
   language: LanguageCode;
@@ -51,7 +52,13 @@ export function LanguageProvider({
     [language, setLanguage],
   );
 
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+  // Radix reads direction from context, not from the page: without this its menus, selects and
+  // tabs would still open and arrow-key left to right on an Arabic page.
+  return (
+    <LanguageContext.Provider value={value}>
+      <DirectionProvider dir={directionOf(language)}>{children}</DirectionProvider>
+    </LanguageContext.Provider>
+  );
 }
 
 export function useLanguage(): LanguageContextValue {

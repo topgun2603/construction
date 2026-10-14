@@ -2,8 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import {
   billDraftSchema,
+  currencyMinorDigits,
   EXPENSE_CATEGORIES,
-  isValidGstin,
+  presetFor,
+  taxRule,
+  validTaxIdOrNull,
   type BillDraft,
 } from '@sitebook/shared';
 import { env } from '../../config/env';
@@ -37,7 +40,11 @@ export class BillReader {
     return Boolean(this.config.OPENAI_API_KEY);
   }
 
-  async read(file: Buffer, contentType: string): Promise<BillDraft> {
+  /**
+   * `company` says whose bill it is: which country's suppliers, which tax number they print, and
+   * how many decimals the currency has. An Indian bill and a Dubai one differ in all three.
+   */
+  async read(file: Buffer, contentType: string, company: BillCompany): Promise<BillDraft> {
     if (!this.enabled) {
       throw ApiError.conflict('Bill scanning is not configured on this deployment');
     }
@@ -53,8 +60,7 @@ export class BillReader {
      * The first page only. An invoice's total is on page one; later pages are terms and conditions,
      * and sending them is paying to read the small print.
      */
-    const image =
-      contentType === 'application/pdf' ? await this.firstPageAsImage(file) : file;
+    const image = contentType === 'application/pdf' ? await this.firstPageAsImage(file) : file;
     const imageType = contentType === 'application/pdf' ? 'image/png' : contentType;
 
     // A data URL rather than a public link: the bucket is private, and handing a vendor a signed
@@ -70,7 +76,7 @@ export class BillReader {
         max_tokens: 400,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt(company) },
           {
             role: 'user',
             content: [
@@ -87,14 +93,14 @@ export class BillReader {
       throw ApiError.conflict('Could not read that bill. Enter it by hand.');
     }
 
-    return this.parse(raw);
+    return this.parse(raw, company);
   }
 
   /**
    * Validates the reply. A model that answers in prose, or with a category nobody defined, or with
    * an amount containing a currency symbol, must not take the form down with it.
    */
-  private parse(raw: string): BillDraft {
+  private parse(raw: string, company: BillCompany): BillDraft {
     let json: unknown;
     try {
       json = JSON.parse(raw);
@@ -103,7 +109,7 @@ export class BillReader {
       throw ApiError.conflict('Could not read that bill. Enter it by hand.');
     }
 
-    const parsed = billDraftSchema.safeParse(normalise(json));
+    const parsed = billDraftSchema.safeParse(normalise(json, company));
     if (!parsed.success) {
       this.logger.warn({ issues: parsed.error.issues }, 'Bill scan returned an unusable shape');
       throw ApiError.conflict('Could not read that bill. Enter it by hand.');
@@ -149,7 +155,7 @@ export class BillReader {
  * total. Refusing the whole reply because one field came back as "N/A" would throw away the part
  * that worked, which is most of the value.
  */
-function normalise(value: unknown): Record<string, unknown> {
+function normalise(value: unknown, company: BillCompany): Record<string, unknown> {
   const input = (value ?? {}) as Record<string, unknown>;
   const field = (name: string): string | null => {
     const raw = input[name];
@@ -162,42 +168,58 @@ function normalise(value: unknown): Record<string, unknown> {
   // The amount arrives as printed — "₹1,250.00", "Rs 1250/-" — and the symbols and separators are
   // the vendor's formatting, not the number.
   const amount = field('amount')?.replace(/[^\d.]/g, '') ?? null;
+  const tax = field('tax_amount')?.replace(/[^\d.]/g, '') ?? null;
   const category = field('category');
+  // As many decimals as the currency has: two for rupees and dirhams, three for Kuwaiti dinars.
+  const decimal = new RegExp(`^\\d{1,9}(\\.\\d{1,${currencyMinorDigits(company.currency)}})?$`);
 
   return {
-    amount: amount && /^\d{1,9}(\.\d{1,2})?$/.test(amount) ? amount : null,
+    amount: amount && decimal.test(amount) ? amount : null,
+    // The VAT or GST printed on the bill, read the same way. Never worked out from the total: a bill
+    // with no tax line may be exempt, and a guessed figure would end up on a VAT return.
+    tax_amount: tax && decimal.test(tax) ? tax : null,
     vendor: field('vendor'),
     date_printed: field('date_printed'),
     category:
       category && (EXPENSE_CATEGORIES as readonly string[]).includes(category) ? category : null,
     /*
-     * Checked, not just shaped.
+     * Checked, not just shaped — by the company's own regime (TAX_RULES in @sitebook/shared).
      *
-     * A GSTIN's last character is a check digit over the other fourteen, which makes this one of
-     * the few fields on a bill that can be verified rather than merely pattern-matched. It earned
-     * its place immediately: the first real scan returned fifteen plausible characters that were
-     * nobody's GSTIN — an `S` read as a `J` — and the shape alone could not tell. A failed
-     * checksum becomes null, so the form asks rather than files a wrong number against a supplier.
+     * A GSTIN's last character is a check digit over the other fourteen, which makes it one of the
+     * few fields on a bill that can be verified rather than merely pattern-matched. It earned its
+     * place immediately: the first real scan returned fifteen plausible characters that were
+     * nobody's GSTIN — an `S` read as a `J` — and the shape alone could not tell. A UAE TRN or a
+     * Saudi VAT number has no published check digit and gets the shape check its regime defines.
+     * A failure becomes null, so the form asks rather than files a wrong number against a supplier.
      */
-    gstin: gstinOrNull(field('gstin')),
+    tax_id: validTaxIdOrNull(company.taxRegime, field('tax_id')),
     summary: field('summary'),
   };
 }
 
-function gstinOrNull(candidate: string | null): string | null {
-  if (!candidate) return null;
-  const gstin = candidate.toUpperCase().replace(/\s+/g, '');
-  return isValidGstin(gstin) ? gstin : null;
+/** Whose bill it is, as far as reading it goes. */
+export interface BillCompany {
+  country: string;
+  currency: string;
+  taxRegime: string;
 }
 
-const SYSTEM_PROMPT = `You read photographs of Indian supplier bills, invoices and cash receipts for a construction company, and return JSON.
+/** The prompt for one company: its country's suppliers, their tax number, its currency's decimals. */
+function systemPrompt(company: BillCompany): string {
+  const country = presetFor(company.country)?.name ?? company.country;
+  const digits = currencyMinorDigits(company.currency);
+  const taxId = taxRule(company.taxRegime).idLabel;
+  const taxName = taxRule(company.taxRegime).taxName;
+  return `You read photographs of supplier bills, invoices and cash receipts for a construction company in ${country}, and return JSON.
 
 Return exactly these keys, and nothing else:
-  amount    - the final payable total as printed, digits and at most two decimals, no symbols. Not a subtotal, not a line item.
+  amount    - the final payable total as printed, digits and at most ${digits} decimals, no symbols. Not a subtotal, not a line item.
   vendor    - the supplier's name as printed.
   date_printed - the bill's own date copied exactly as it is printed, character for character: "25/09/2026", "25 Sep 2026". Do not convert it to another format and do not reorder it.
   category  - one of: ${EXPENSE_CATEGORIES.join(', ')}.
-  gstin     - the 15-character GSTIN if one is printed.
+  tax_id    - ${taxId ? `the supplier's ${taxId} if one is printed, exactly as printed.` : 'always null.'}
+  tax_amount - ${taxName ? `the ${taxName} amount printed on the bill, digits and at most ${digits} decimals, no symbols. Null if the bill shows none.` : 'always null.'}
   summary   - up to 15 words on what was bought, in the bill's own words.
 
 Use null for anything you cannot read with confidence. Do not guess, do not infer a date from the photograph, and do not calculate a total that is not printed. A null is useful; a wrong number is not.`;
+}

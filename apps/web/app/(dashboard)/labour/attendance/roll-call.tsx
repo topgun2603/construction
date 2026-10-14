@@ -13,10 +13,10 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EmptyState } from '@/components/ui/empty-state';
-import { money, longDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { AttendanceDay, ProjectSummary, Worker } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 type Status = 'present' | 'half_day' | 'absent';
 
@@ -45,6 +45,7 @@ export function RollCall({
   recorded: AttendanceDay;
 }) {
   const { t } = useLanguage();
+  const { money, longDate } = useFormat();
   const router = useRouter();
   const [pending, start] = useTransition();
 

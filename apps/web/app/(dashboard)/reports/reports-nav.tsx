@@ -3,10 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
-import { CalendarRange, PieChart, UserCog, Warehouse, type LucideIcon } from 'lucide-react';
+import { taxRule } from '@sitebook/shared';
+import {
+  CalendarRange,
+  PieChart,
+  Receipt,
+  UserCog,
+  Warehouse,
+  type LucideIcon,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /**
  * The reports sub-nav and the date range, shared by every report.
@@ -22,6 +31,8 @@ interface Tab {
   icon: LucideIcon;
   /** People is a judgement on individuals, so it is owner and accounts only. */
   ownerOnly?: boolean;
+  /** The VAT or GST worksheet: only under a regime with a tax, for people who can see expenses. */
+  taxOnly?: boolean;
 }
 
 const TABS: Tab[] = [
@@ -29,6 +40,7 @@ const TABS: Tab[] = [
   { href: '/reports/attendance', label: 'Attendance register', icon: CalendarRange },
   { href: '/reports/overrun', label: 'Material overrun', icon: Warehouse },
   { href: '/reports/people', label: 'People', icon: UserCog, ownerOnly: true },
+  { href: '/reports/tax', label: 'Tax', icon: Receipt, taxOnly: true },
 ];
 
 export function ReportsNav({
@@ -37,10 +49,13 @@ export function ReportsNav({
   isOwnerOrAccounts,
   maxDays,
   extraParams,
+  showTax = false,
 }: {
   from: string;
   to: string;
   isOwnerOrAccounts: boolean;
+  /** From `canSeeTaxReport(self)` on the page. */
+  showTax?: boolean;
   /** Params this report owns (the labour cost grouping) that must survive a range change. */
   extraParams?: Record<string, string>;
   /**
@@ -50,6 +65,9 @@ export function ReportsNav({
   maxDays?: number;
 }) {
   const { t } = useLanguage();
+  const { settings } = useFormat();
+  // The tab is called what the tax is called: VAT, GST.
+  const taxName = taxRule(settings.taxRegime ?? 'none').taxName;
   const pathname = usePathname();
   const router = useRouter();
 
@@ -83,7 +101,10 @@ export function ReportsNav({
   const fromMin = maxDays ? addDays(to, -(maxDays - 1)) : undefined;
   const toMax = maxDays ? addDays(from, maxDays - 1) : undefined;
 
-  const tabs = TABS.filter((tab) => !tab.ownerOnly || isOwnerOrAccounts);
+  const tabs = TABS.filter(
+    (tab) =>
+      (!tab.ownerOnly || isOwnerOrAccounts) && (!tab.taxOnly || (showTax && taxName !== null)),
+  );
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -104,7 +125,7 @@ export function ReportsNav({
               )}
             >
               <Icon className="size-4" />
-              {t(tab.label)}
+              {tab.taxOnly && taxName ? taxName : t(tab.label)}
             </Link>
           );
         })}

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { APP_TIMEZONE } from '@sitebook/shared';
+import type { RequestUser } from '../../common/auth/request-user';
 import { env } from '../../config/env';
+import { nextRun } from '../../jobs/tenant-clock';
 
 export interface ScheduledJobView {
   key: string;
@@ -33,7 +34,7 @@ export interface ScheduledJobView {
 export class AutomationService {
   private readonly config = env();
 
-  list(): { timezone: string; jobs_enabled: boolean; jobs: ScheduledJobView[] } {
+  list(actor: RequestUser): { timezone: string; jobs_enabled: boolean; jobs: ScheduledJobView[] } {
     const enabled = this.config.JOBS_ENABLED;
 
     const jobs: ScheduledJobView[] = [
@@ -69,15 +70,48 @@ export class AutomationService {
           'Creates open wage periods marked “drafted automatically”. Nothing is finalised or paid — every figure still waits for you.',
         cron: this.config.WAGE_PERIOD_DRAFT_CRON,
       },
+      {
+        key: 'site_forecast',
+        name: 'Cost forecasts',
+        description:
+          'Projects what each active site will cost by the end, and flags the ones heading over budget with the reason.',
+        effect: null,
+        cron: this.config.SITE_FORECAST_CRON,
+      },
+      {
+        key: 'leak_checks',
+        name: 'Leak and fraud checks',
+        description:
+          'Looks for workers marked on two sites at once, rolls with no day off, bills entered twice and expenses far above the usual, and lists them for you to confirm or dismiss.',
+        effect: null,
+        cron: this.config.LEAK_CHECK_CRON,
+      },
+      {
+        key: 'document_expiry',
+        name: 'Papers about to lapse',
+        description:
+          'Tells owners and accounts, once per paper, when a worker’s passport, visa, Emirates ID or labour card lapses within 30 days.',
+        effect: null,
+        cron: this.config.DOCUMENT_EXPIRY_CRON,
+      },
+      {
+        key: 'safety_permit_expiry',
+        name: 'Expired permits to work',
+        description:
+          'Tells whoever requested and signed a permit to work, and the site’s managers, once its time runs out while it is still open.',
+        effect: null,
+        cron: this.config.SAFETY_PERMIT_EXPIRY_CRON,
+      },
     ].map((job) => ({
       ...job,
-      timezone: APP_TIMEZONE,
+      // Each job runs on the company's own clock (jobs/tenant-clock.ts), so that is the zone shown.
+      timezone: actor.timezone,
       readable: readableDaily(job.cron),
-      next_run: enabled ? nextDailyRun(job.cron) : null,
+      next_run: enabled ? nextRun(job.cron, actor.timezone) : null,
       enabled,
     }));
 
-    return { timezone: APP_TIMEZONE, jobs_enabled: enabled, jobs };
+    return { timezone: actor.timezone, jobs_enabled: enabled, jobs };
   }
 }
 
@@ -105,45 +139,4 @@ function readableDaily(cron: string): string | null {
   const hour12 = parsed.hour % 12 === 0 ? 12 : parsed.hour % 12;
   const minutes = parsed.minute.toString().padStart(2, '0');
   return `${hour12}:${minutes} ${suffix} every day`;
-}
-
-/**
- * The next time this cron fires, as an ISO instant.
- *
- * Computed against the app's own timezone rather than the server's. A schedule that says
- * 7:00 pm means 7:00 pm on the site, and a deployment in another zone must not shift it — the
- * same reason the queue registers its repeatables with `tz: Asia/Kolkata`.
- */
-function nextDailyRun(cron: string): string | null {
-  const parsed = parseDaily(cron);
-  if (!parsed) return null;
-
-  const now = new Date();
-  // Today's date *in the app timezone*, which is not necessarily the server's today.
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: APP_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(now);
-  const field = (type: string) => parts.find((part) => part.type === type)?.value ?? '00';
-
-  // IST is a fixed +05:30 with no daylight saving, so the offset is written literally and a
-  // day is exactly 24 hours. Any zone with DST would need a real tz library here.
-  const todaysRun = new Date(
-    `${field('year')}-${field('month')}-${field('day')}T` +
-      `${String(parsed.hour).padStart(2, '0')}:${String(parsed.minute).padStart(2, '0')}:00+05:30`,
-  );
-  if (Number.isNaN(todaysRun.getTime())) return null;
-
-  // Adding a day in epoch milliseconds rather than incrementing the date field: "the 31st of
-  // September" is an invalid date, so on the last day of a month the naive version would
-  // silently show no next run at all.
-  const passed = Number(field('hour')) * 60 + Number(field('minute')) >=
-    parsed.hour * 60 + parsed.minute;
-  const next = passed ? new Date(todaysRun.getTime() + 86_400_000) : todaysRun;
-  return next.toISOString();
 }

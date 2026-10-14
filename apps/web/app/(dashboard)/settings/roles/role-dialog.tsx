@@ -139,7 +139,7 @@ export function RoleDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[55vh] flex-col gap-4 overflow-y-auto pr-1">
+        <div className="flex max-h-[55vh] flex-col gap-4 overflow-y-auto pe-1">
           <Field label={t('Name')} hint={t('What you would call this job on site')}>
             <Input
               value={name}
@@ -232,7 +232,7 @@ export function RoleDialog({
         )}
 
         <DialogFooter>
-          <span className="mr-auto self-center font-mono text-[12.5px] text-ink-muted">
+          <span className="me-auto self-center font-mono text-[12.5px] text-ink-muted">
             {chosen.size} selected
           </span>
           <Button variant="secondary" onClick={() => setOpen(false)} disabled={pending}>

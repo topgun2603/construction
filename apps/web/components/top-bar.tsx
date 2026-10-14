@@ -3,11 +3,13 @@
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
-import { APP_TIMEZONE } from '@sitebook/shared';
 import { SearchCommand } from '@/components/search-command';
 import { NotificationBell, type NotificationRow } from '@/components/notification-bell';
 import { UserMenu } from '@/components/user-menu';
+import { CompanySwitcher } from '@/components/company-switcher';
+import type { CompanyMembership } from '@/lib/company-group-types';
 import { useLanguage } from '@/components/language-provider';
+import { useFormat } from '@/components/format-provider';
 
 /*
  * The header bar: who is here, what they are looking at, when it is, and the three controls that
@@ -35,6 +37,7 @@ const TITLES: Array<[prefix: string, title: string]> = [
   ['/reports/wage-sheet', 'Wage sheet'],
   ['/reports', 'Reports'],
   ['/settings', 'Settings'],
+  ['/group', 'Group overview'],
 ];
 
 export function TopBar({
@@ -42,11 +45,14 @@ export function TopBar({
   userPhone,
   userRole,
   notifications,
+  memberships = [],
 }: {
   userName: string;
   userPhone: string;
   userRole: string;
   notifications: NotificationRow[];
+  /** Every company this person belongs to; the switcher shows itself only when there are two+. */
+  memberships?: CompanyMembership[];
 }) {
   const { t } = useLanguage();
   const pathname = usePathname();
@@ -69,6 +75,7 @@ export function TopBar({
         </div>
       </div>
 
+      <CompanySwitcher memberships={memberships} />
       <SearchCommand />
       <NotificationBell items={notifications} />
       <UserMenu
@@ -82,23 +89,24 @@ export function TopBar({
 }
 
 /**
- * Rendered after mount, not on the server: the site clock must read in
- * Asia/Kolkata regardless of where the app is deployed, and a server-rendered
- * timestamp would hydrate stale and mismatch.
+ * Rendered after mount, not on the server: the site clock must read in the
+ * company's own time zone regardless of where the app is deployed, and a
+ * server-rendered timestamp would hydrate stale and mismatch.
  */
 function Clock() {
+  const { locale, timezone } = useFormat().settings;
   const [now, setNow] = useState<string | null>(null);
 
   useEffect(() => {
     const format = () =>
-      new Intl.DateTimeFormat('en-IN', {
+      new Intl.DateTimeFormat(locale, {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
-        timeZone: APP_TIMEZONE,
+        timeZone: timezone,
       })
         .format(new Date())
         .replace(',', ' ·');
@@ -106,7 +114,7 @@ function Clock() {
     setNow(format());
     const timer = setInterval(() => setNow(format()), 30_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [locale, timezone]);
 
   // Nothing at all until it has mounted: an empty pill with a calendar icon in it reads as a
   // control that failed to load.

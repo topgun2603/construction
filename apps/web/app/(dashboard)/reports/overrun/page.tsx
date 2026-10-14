@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { OverrunFilters } from './overrun-filters';
+import { canSeeTaxReport } from '../tax/access';
 import { getT } from '@/lib/i18n-server';
 
 export const metadata = { title: 'Material overrun · BUILDR' };
@@ -53,6 +54,7 @@ export default async function OverrunPage({
         projectId={projectId}
         showAll={showAll}
         isOwnerOrAccounts={['owner', 'accounts'].includes(me.user.role)}
+        showTax={canSeeTaxReport(me)}
       />
 
       <div className="grid gap-3.5 sm:grid-cols-3">
@@ -102,11 +104,11 @@ export default async function OverrunPage({
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="border-b border-line-soft text-[12px] uppercase tracking-[0.06em] text-ink-muted">
-                  <th className="px-4 py-2.5 text-left font-semibold">{t('Material')}</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">{t('Should take')}</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">{t('Used')}</th>
-                  <th className="px-3 py-2.5 text-right font-semibold">{t('Delivered')}</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">{t('Variance')}</th>
+                  <th className="px-4 py-2.5 text-start font-semibold">{t('Material')}</th>
+                  <th className="px-3 py-2.5 text-end font-semibold">{t('Should take')}</th>
+                  <th className="px-3 py-2.5 text-end font-semibold">{t('Used')}</th>
+                  <th className="px-3 py-2.5 text-end font-semibold">{t('Delivered')}</th>
+                  <th className="px-4 py-2.5 text-end font-semibold">{t('Variance')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -121,20 +123,20 @@ export default async function OverrunPage({
                         <span className="text-[12px] text-ink-muted">{row.unit}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-ink-muted">
+                    <td className="px-3 py-2.5 text-end font-mono text-ink-muted">
                       {Number(row.estimated) > 0 ? (
                         row.estimated
                       ) : (
                         <span className="text-ink-faint">not set</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono font-semibold">
+                    <td className="px-3 py-2.5 text-end font-mono font-semibold">
                       {row.consumed}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-ink-muted">
+                    <td className="px-3 py-2.5 text-end font-mono text-ink-muted">
                       {row.received}
                     </td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-2.5 text-end">
                       <div className="flex flex-col items-end gap-1">
                         {row.over ? (
                           <Badge tone="blocked">+{row.variance}</Badge>

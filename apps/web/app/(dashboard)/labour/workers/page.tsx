@@ -2,7 +2,7 @@ import { serverFetch } from '@/lib/server-api';
 import type { Contractor, Page, ProjectSummary, Worker } from '@/lib/api-types';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
-import { money } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { AddWorkerDialog } from './add-worker-dialog';
 import { WorkersTable } from './workers-table';
 import { getT } from '@/lib/i18n-server';
@@ -11,6 +11,7 @@ export const metadata = { title: 'Workers · BUILDR' };
 
 export default async function WorkersPage() {
   const t = await getT();
+  const { money } = await getFormat();
   const [workers, contractors, projects] = await Promise.all([
     serverFetch<Page<Worker>>('/workers?limit=500'),
     serverFetch<Page<Contractor>>('/contractors?limit=200'),

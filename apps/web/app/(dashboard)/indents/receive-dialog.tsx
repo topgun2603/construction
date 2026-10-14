@@ -120,7 +120,7 @@ export function ReceiveDialog({ indent, amend = false }: { indent: Indent; amend
                         }))
                       }
                       inputMode="decimal"
-                      className="h-9 w-[100px] text-right font-mono"
+                      className="h-9 w-[100px] text-end font-mono"
                       aria-label={`Received ${item.material_name}`}
                     />
                     <span className="w-10 text-[12.5px] text-ink-muted">{item.unit}</span>

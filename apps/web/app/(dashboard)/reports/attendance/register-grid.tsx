@@ -6,7 +6,7 @@ import type { AttendanceRegister } from '@/lib/api-types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { money } from '@/lib/format';
+import { useFormat } from '@/components/format-provider';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/language-provider';
 
@@ -30,6 +30,7 @@ const CELL: Record<string, { label: string; className: string; title: string }> 
 
 export function RegisterGrid({ register }: { register: AttendanceRegister }) {
   const { t } = useLanguage();
+  const { money, weekday, settings, currencyDigits } = useFormat();
   const [query, setQuery] = useState('');
 
   const workers = useMemo(() => {
@@ -50,7 +51,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
       ...register.dates,
       'Days present',
       'Overtime hours',
-      'Earned (INR)',
+      `Earned (${settings.currency})`,
     ];
     const rows = workers.map((worker) => [
       worker.worker_name,
@@ -63,15 +64,15 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
       }),
       worker.days_present,
       worker.overtime_hours,
-      // Rupees with two decimals for a spreadsheet, which has no concept of paise.
-      (Number(BigInt(worker.earned)) / 100).toFixed(2),
+      // Whole units with the currency's decimals for a spreadsheet, which has no concept of minor units.
+      (Number(BigInt(worker.earned)) / 10 ** currencyDigits).toFixed(currencyDigits),
     ]);
 
     const csv = [header, ...rows]
       .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
       .join('\r\n');
 
-    // A BOM so Excel on Windows reads the rupee figures and Indian names as UTF-8
+    // A BOM so Excel on Windows reads the currency figures and Indian names as UTF-8
     // rather than mangling them into the system codepage.
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -106,7 +107,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
         <table className="w-full border-separate border-spacing-0 text-[13px]">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 min-w-[200px] border-b border-line-soft bg-surface px-4 py-2.5 text-left font-semibold">
+              <th className="sticky start-0 z-20 min-w-[200px] border-b border-line-soft bg-surface px-4 py-2.5 text-start font-semibold">
                 {t('Worker')}
               </th>
               {register.dates.map((date) => {
@@ -123,18 +124,18 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                   >
                     <span className="block">{date.slice(8)}</span>
                     <span className="block text-[9.5px] uppercase">
-                      {day.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'UTC' })}
+                      {weekday(date)}
                     </span>
                   </th>
                 );
               })}
-              <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-right font-semibold">
+              <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-end font-semibold">
                 {t('Days')}
               </th>
-              <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-right font-semibold">
+              <th className="border-b border-line-soft bg-surface px-3 py-2.5 text-end font-semibold">
                 OT
               </th>
-              <th className="border-b border-line-soft bg-surface px-4 py-2.5 text-right font-semibold">
+              <th className="border-b border-line-soft bg-surface px-4 py-2.5 text-end font-semibold">
                 {t('Earned')}
               </th>
             </tr>
@@ -142,7 +143,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
           <tbody>
             {workers.map((worker) => (
               <tr key={worker.worker_id} className="group">
-                <td className="sticky left-0 z-10 border-b border-line-soft bg-surface px-4 py-2 group-hover:bg-raised">
+                <td className="sticky start-0 z-10 border-b border-line-soft bg-surface px-4 py-2 group-hover:bg-raised">
                   <div className="flex flex-col">
                     <span className="font-medium">{worker.worker_name}</span>
                     <span className="text-[11.5px] text-ink-muted">
@@ -179,7 +180,7 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                           {/* A dot rather than the number: at 24px the hours would not
                               fit, and the figure is in the tooltip and the CSV. */}
                           {overtime && (
-                            <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-accent" />
+                            <span className="absolute -end-0.5 -top-0.5 size-1.5 rounded-full bg-accent" />
                           )}
                         </span>
                       ) : (
@@ -188,13 +189,13 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
                     </td>
                   );
                 })}
-                <td className="border-b border-line-soft px-3 py-2 text-right font-mono group-hover:bg-raised">
+                <td className="border-b border-line-soft px-3 py-2 text-end font-mono group-hover:bg-raised">
                   {worker.days_present}
                 </td>
-                <td className="border-b border-line-soft px-3 py-2 text-right font-mono text-ink-muted group-hover:bg-raised">
+                <td className="border-b border-line-soft px-3 py-2 text-end font-mono text-ink-muted group-hover:bg-raised">
                   {worker.overtime_hours}
                 </td>
-                <td className="border-b border-line-soft px-4 py-2 text-right font-mono font-semibold group-hover:bg-raised">
+                <td className="border-b border-line-soft px-4 py-2 text-end font-mono font-semibold group-hover:bg-raised">
                   {money(worker.earned)}
                 </td>
               </tr>
@@ -202,17 +203,17 @@ export function RegisterGrid({ register }: { register: AttendanceRegister }) {
           </tbody>
           <tfoot>
             <tr>
-              <td className="sticky left-0 z-10 bg-raised px-4 py-2.5 font-semibold">
+              <td className="sticky start-0 z-10 bg-raised px-4 py-2.5 font-semibold">
                 {workers.length} {workers.length === 1 ? 'worker' : 'workers'}
               </td>
               <td className="bg-raised" colSpan={register.dates.length} />
-              <td className="bg-raised px-3 py-2.5 text-right font-mono font-semibold">
+              <td className="bg-raised px-3 py-2.5 text-end font-mono font-semibold">
                 {register.totals.days_present}
               </td>
-              <td className="bg-raised px-3 py-2.5 text-right font-mono font-semibold">
+              <td className="bg-raised px-3 py-2.5 text-end font-mono font-semibold">
                 {register.totals.overtime_hours}
               </td>
-              <td className="bg-raised px-4 py-2.5 text-right font-mono font-semibold">
+              <td className="bg-raised px-4 py-2.5 text-end font-mono font-semibold">
                 {money(register.totals.earned)}
               </td>
             </tr>

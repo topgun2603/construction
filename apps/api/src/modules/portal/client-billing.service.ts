@@ -16,11 +16,14 @@ const STAGE_SELECT = {
   milestoneId: true,
   label: true,
   amount: true,
+  taxAmount: true,
   dueDate: true,
   sortOrder: true,
   raisedAt: true,
   createdAt: true,
   milestone: { select: { id: true, name: true, actualDate: true } },
+  // The BOQ running bill this instalment was raised from, if any (Phase 2, module 5).
+  boqBill: { select: { id: true, number: true } },
   receipts: {
     where: { deletedAt: null },
     select: { id: true, amount: true, receivedOn: true },
@@ -82,7 +85,8 @@ export class ClientBillingService {
     ]);
 
     const items = stages.map((stage) => view(stage));
-    const scheduled = stages.reduce((sum, stage) => sum + stage.amount, 0n);
+    // What the client owes includes the VAT on each instalment.
+    const scheduled = stages.reduce((sum, stage) => sum + stage.amount + stage.taxAmount, 0n);
     const allocated = stages.reduce(
       (sum, stage) => sum + stage.receipts.reduce((paid, r) => paid + r.amount, 0n),
       0n,
@@ -136,6 +140,7 @@ export class ClientBillingService {
         milestoneId: input.milestone_id ?? null,
         label: input.label,
         amount: input.amount,
+        taxAmount: input.tax_amount ?? 0n,
         dueDate: input.due_date ? new Date(input.due_date) : null,
         sortOrder: (last._max.sortOrder ?? -1) + 1,
         clientId: input.client_id ?? null,
@@ -149,10 +154,18 @@ export class ClientBillingService {
     const db = this.tenantDb.clientFor(actor.tenantId);
     const existing = await db.paymentStage.findFirst({
       where: { id: stageId, deletedAt: null },
-      select: { id: true, projectId: true, raisedAt: true },
+      select: { id: true, projectId: true, raisedAt: true, boqBill: { select: { number: true } } },
     });
     if (!existing) throw ApiError.notFound('That instalment');
     await this.access.assertAccess(actor, existing.projectId);
+
+    // An instalment raised from a certified BOQ bill is that bill's figures; changing them here would
+    // leave the bill saying one amount and the schedule another.
+    if (existing.boqBill && (input.amount !== undefined || input.tax_amount !== undefined)) {
+      throw ApiError.conflict(
+        `This instalment is BOQ bill RA-${existing.boqBill.number}; its amount is what the client certified`,
+      );
+    }
 
     if (input.milestone_id) {
       await this.assertMilestoneOnProject(actor, existing.projectId, input.milestone_id);
@@ -163,6 +176,7 @@ export class ClientBillingService {
       data: {
         ...(input.label === undefined ? {} : { label: input.label }),
         ...(input.amount === undefined ? {} : { amount: input.amount }),
+        ...(input.tax_amount === undefined ? {} : { taxAmount: input.tax_amount }),
         ...(input.milestone_id === undefined ? {} : { milestoneId: input.milestone_id }),
         ...(input.due_date === undefined
           ? {}
@@ -196,10 +210,17 @@ export class ClientBillingService {
         id: true,
         projectId: true,
         _count: { select: { receipts: { where: { deletedAt: null } } } },
+        boqBill: { select: { number: true } },
       },
     });
     if (!stage) throw ApiError.notFound('That instalment');
     await this.access.assertAccess(actor, stage.projectId);
+
+    if (stage.boqBill) {
+      throw ApiError.conflict(
+        `This instalment is BOQ bill RA-${stage.boqBill.number}. It stays while the bill does.`,
+      );
+    }
 
     if (stage._count.receipts > 0) {
       throw ApiError.conflict(
@@ -324,21 +345,27 @@ function view(stage: {
   milestoneId: string | null;
   label: string;
   amount: bigint;
+  taxAmount: bigint;
   dueDate: Date | null;
   sortOrder: number;
   raisedAt: Date | null;
   createdAt: Date;
   milestone: { id: string; name: string; actualDate: Date | null } | null;
+  boqBill: { id: string; number: number } | null;
   receipts: Array<{ id: string; amount: bigint; receivedOn: Date }>;
 }) {
   const paid = stage.receipts.reduce((sum, receipt) => sum + receipt.amount, 0n);
-  const outstanding = stage.amount > paid ? stage.amount - paid : 0n;
+  // The client owes the instalment and the VAT on it together.
+  const due = stage.amount + stage.taxAmount;
+  const outstanding = due > paid ? due - paid : 0n;
 
   return {
     id: stage.id,
     project_id: stage.projectId,
     label: stage.label,
     amount: stage.amount.toString(),
+    tax_amount: stage.taxAmount.toString(),
+    total: due.toString(),
     paid: paid.toString(),
     outstanding: outstanding.toString(),
     due_date: stage.dueDate ? stage.dueDate.toISOString().slice(0, 10) : null,
@@ -357,7 +384,9 @@ function view(stage: {
      * `paid` wins over `overdue` deliberately: an instalment settled after its due date is settled,
      * and a screen that keeps shouting about it is a screen people stop reading.
      */
-    status: settled(stage, paid),
+    status: settled({ ...stage, amount: due }, paid),
+    /** Set when this instalment is a certified BOQ bill; its amount is then not editable here. */
+    boq_bill: stage.boqBill,
     created_at: stage.createdAt.toISOString(),
   };
 }

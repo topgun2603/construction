@@ -3,11 +3,13 @@ import { serverFetch } from '@/lib/server-api';
 import { requireSelf } from '@/lib/session';
 import type { AttendanceRegister } from '@/lib/api-types';
 import { ATTENDANCE_REGISTER_MAX_DAYS } from '@sitebook/shared';
-import { addDaysIso, moneyShort, shortDate, todayIso } from '@/lib/format';
+import { addDaysIso } from '@/lib/format';
+import { getFormat } from '@/lib/format-server';
 import { EmptyState } from '@/components/ui/empty-state';
 import { FadeIn } from '@/components/motion';
 import { StatTile } from '@/components/stat-tile';
 import { ReportsNav } from '../reports-nav';
+import { canSeeTaxReport } from '../tax/access';
 import { RegisterGrid } from './register-grid';
 import { getT } from '@/lib/i18n-server';
 
@@ -27,6 +29,7 @@ export default async function AttendanceRegisterPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const t = await getT();
+  const { moneyShort, shortDate, todayIso } = await getFormat();
   const params = await searchParams;
   const to = params.to ?? todayIso();
 
@@ -57,6 +60,7 @@ export default async function AttendanceRegisterPage({
         from={from}
         to={to}
         isOwnerOrAccounts={isOwnerOrAccounts}
+        showTax={canSeeTaxReport(me)}
         maxDays={ATTENDANCE_REGISTER_MAX_DAYS}
       />
 
