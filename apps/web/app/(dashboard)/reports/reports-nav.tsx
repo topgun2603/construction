@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { taxRule } from '@sitebook/shared';
 import {
   CalendarRange,
+  FileOutput,
   PieChart,
   Receipt,
   UserCog,
@@ -33,6 +34,8 @@ interface Tab {
   ownerOnly?: boolean;
   /** The VAT or GST worksheet: only under a regime with a tax, for people who can see expenses. */
   taxOnly?: boolean;
+  /** Export to accounts: only for people with `accounting.export`. */
+  accountingOnly?: boolean;
 }
 
 const TABS: Tab[] = [
@@ -41,6 +44,7 @@ const TABS: Tab[] = [
   { href: '/reports/overrun', label: 'Material overrun', icon: Warehouse },
   { href: '/reports/people', label: 'People', icon: UserCog, ownerOnly: true },
   { href: '/reports/tax', label: 'Tax', icon: Receipt, taxOnly: true },
+  { href: '/reports/accounts-export', label: 'Export to accounts', icon: FileOutput, accountingOnly: true },
 ];
 
 export function ReportsNav({
@@ -50,12 +54,15 @@ export function ReportsNav({
   maxDays,
   extraParams,
   showTax = false,
+  showAccounting = false,
 }: {
   from: string;
   to: string;
   isOwnerOrAccounts: boolean;
   /** From `canSeeTaxReport(self)` on the page. */
   showTax?: boolean;
+  /** Whether the person may export to the accounting system (`accounting.export`). */
+  showAccounting?: boolean;
   /** Params this report owns (the labour cost grouping) that must survive a range change. */
   extraParams?: Record<string, string>;
   /**
@@ -103,7 +110,9 @@ export function ReportsNav({
 
   const tabs = TABS.filter(
     (tab) =>
-      (!tab.ownerOnly || isOwnerOrAccounts) && (!tab.taxOnly || (showTax && taxName !== null)),
+      (!tab.ownerOnly || isOwnerOrAccounts) &&
+      (!tab.taxOnly || (showTax && taxName !== null)) &&
+      (!tab.accountingOnly || showAccounting),
   );
 
   return (

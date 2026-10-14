@@ -58,6 +58,7 @@ export default async function ReportsPage({
         to={to}
         isOwnerOrAccounts={['owner', 'accounts'].includes(me.user.role)}
         showTax={canSeeTaxReport(me)}
+        showAccounting={me.permissions.includes('accounting.export')}
         extraParams={{ group_by: groupBy }}
       />
       <div className="flex flex-wrap items-end justify-between gap-3">

@@ -54,6 +54,7 @@ import { M365Module } from './modules/m365/m365.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
 import { PublicApiModule } from './modules/public-api/public-api.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { AccountingModule } from './modules/accounting/accounting.module';
 import { SecurityPolicyGuard } from './modules/security/security-policy.guard';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { QualityModule } from './modules/quality/quality.module';
@@ -153,6 +154,7 @@ import { ExcelModule } from './modules/excel/excel.module';
     // The public REST API and signed webhooks. Webhooks register their own queue, like JobsModule.
     PublicApiModule,
     WebhooksModule.register(),
+    AccountingModule,
     AuditModule,
     ReportsModule,
     StockModule,

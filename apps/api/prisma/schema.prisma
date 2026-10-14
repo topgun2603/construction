@@ -425,6 +425,13 @@ model Tenant {
   webhookDeliveries  WebhookDelivery[]
   webhookAttempts    WebhookDeliveryAttempt[]
 
+  // Accounting exports
+  accountingSettings      AccountingSettings?
+  accountingAccountMaps   AccountingAccountMap[]
+  accountingExportBatches AccountingExportBatch[]
+  accountingExportItems   AccountingExportItem[]
+  accountingExportFiles   AccountingExportFile[]
+
   @@map("tenants")
 }
 
@@ -5609,4 +5616,130 @@ model WebhookDeliveryAttempt {
   @@index([deliveryId, attempt])
   @@index([tenantId, createdAt])
   @@map("webhook_delivery_attempts")
+}
+
+// ---------------------------------------------------------------------------
+// Accounting exports (roadmap Phase 3: Tally, QuickBooks, Xero, SAP Business One, NetSuite)
+// ---------------------------------------------------------------------------
+//
+// Export files only, no live connection yet. Which system a company keeps its books in, which of
+// its ledger accounts each kind of money posts to, and a record of every export — so the same
+// transaction is not handed to the accountant twice. The vouchers themselves are worked out from
+// the transactions at export time (`accountingBuildVouchers` in @sitebook/shared), never stored.
+
+/// The company's accounting system and the few details its files need. At most one per company.
+model AccountingSettings {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String   @unique @map("tenant_id") @db.Uuid
+  /// One of ACCOUNTING_SYSTEMS.
+  system                String   @default("tally")
+  /// Two-digit GST state code of the company's own registration: IGST or CGST + SGST.
+  gstHomeState          String?  @map("gst_home_state")
+  /// Tally: the company name the import file addresses.
+  tallyCompany          String?  @map("tally_company")
+  /// QuickBooks Online: the site goes in as a `class` or a `location`.
+  qboSiteDimension      String   @default("class") @map("qbo_site_dimension")
+  /// Xero: the tracking category whose options are the sites.
+  xeroTrackingName      String?  @map("xero_tracking_name")
+  netsuiteSubsidiary    String?  @map("netsuite_subsidiary")
+  /// NetSuite: `department`, `class` or `location`.
+  netsuiteSiteDimension String   @default("department") @map("netsuite_site_dimension")
+  updatedByUserId       String?  @map("updated_by_user_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("accounting_settings")
+}
+
+/// One mapping row: a SiteBook key (`expense:fuel`, `wages_payable`, `input_cgst`, `site:<id>`, …)
+/// to an account — or for `tax_code:` keys a tax code — in one system. Kept per system, so a company
+/// moving from Tally to Xero does not lose its Tally ledger names.
+model AccountingAccountMap {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  system          String
+  key             String
+  /// Account number or tax code; empty where the system goes by name.
+  code            String   @default("")
+  name            String
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, system, key])
+  @@map("accounting_account_maps")
+}
+
+/// One export: the period, the system, what it carried and who made it. Numbered per company.
+model AccountingExportBatch {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  number          Int
+  system          String
+  periodFrom      DateTime @map("period_from") @db.Date
+  periodTo        DateTime @map("period_to") @db.Date
+  /// The sites asked for; empty means every site.
+  projectIds      String[] @default([]) @map("project_ids") @db.Uuid
+  /// Which of ACCOUNTING_CATEGORIES it covered.
+  include         String[] @default([])
+  includeExported Boolean  @default(false) @map("include_exported")
+  voucherCount    Int      @default(0) @map("voucher_count")
+  /// Vouchers per category, and debit and credit totals in minor units (as strings).
+  summary         Json     @default("{}") @db.JsonB
+  /// People are bare ids, as in subcontracts: the audit log names whoever made it.
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  AccountingExportItem[]
+  files  AccountingExportFile[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, createdAt])
+  @@map("accounting_export_batches")
+}
+
+/// Which transaction went out in which batch. The next export leaves out anything listed here unless
+/// "include previously exported" is ticked, and the preview marks each row with its last batch.
+model AccountingExportItem {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  batchId    String   @map("batch_id") @db.Uuid
+  /// One of ACCOUNTING_SOURCE_TYPES; `sourceId` is that row's id. Not a foreign key: the row may be
+  /// deleted later, and the record that it was exported must outlive it.
+  sourceType String   @map("source_type")
+  sourceId   String   @map("source_id") @db.Uuid
+  externalId String   @map("external_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batch  AccountingExportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, sourceType, sourceId])
+  @@index([tenantId, sourceType, sourceId])
+  @@map("accounting_export_items")
+}
+
+/// The files a batch produced, kept as written so a re-download is the same file the accountant
+/// imported — not a fresh render of transactions that may have changed since.
+model AccountingExportFile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  batchId     String   @map("batch_id") @db.Uuid
+  name        String
+  contentType String   @map("content_type")
+  content     String
+  sizeBytes   Int      @map("size_bytes")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batch  AccountingExportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([tenantId])
+  @@map("accounting_export_files")
 }

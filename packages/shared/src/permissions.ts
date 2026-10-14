@@ -199,6 +199,15 @@ export const PERMISSIONS = [
   'reports.view',
   'reports.people',
 
+  /*
+   * Accounting exports (roadmap Phase 3): the files that carry the books into Tally, QuickBooks,
+   * Xero, SAP Business One or NetSuite. Exporting reads every bill, wage and receipt in the company —
+   * the whole ledger — so it is its own permission rather than riding on `reports.view`. Managing is
+   * the account mapping: which ledger each kind of money posts to, which decides what the books say.
+   */
+  'accounting.export',
+  'accounting.manage',
+
   // Running the account
   'team.manage',
   'roles.manage',
@@ -595,6 +604,21 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
     ],
   },
   {
+    group: 'Accounting',
+    items: [
+      {
+        permission: 'accounting.export',
+        label: 'Export transactions to the accounting system',
+        note: 'Bills, wages, receipts and payments for every site, as Tally, QuickBooks, Xero, SAP or NetSuite files',
+      },
+      {
+        permission: 'accounting.manage',
+        label: 'Set which ledger accounts transactions post to',
+        note: 'The account mapping in Settings → Accounting',
+      },
+    ],
+  },
+  {
     group: 'Account',
     items: [
       { permission: 'team.manage', label: 'Invite and remove people' },
@@ -822,6 +846,10 @@ const SYSTEM_ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     'client_payments.manage',
     'reports.view',
     'reports.people',
+    // The books are accounts' to keep: carrying them into the accounting system, and deciding which
+    // ledger each kind of money lands in.
+    'accounting.export',
+    'accounting.manage',
   ],
 
   /*

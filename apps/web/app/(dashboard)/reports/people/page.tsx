@@ -44,7 +44,13 @@ export default async function PeopleReportPage({
 
   return (
     <FadeIn className="flex flex-col gap-5">
-      <ReportsNav from={from} to={to} isOwnerOrAccounts showTax={canSeeTaxReport(me)} />
+      <ReportsNav
+        from={from}
+        to={to}
+        isOwnerOrAccounts
+        showTax={canSeeTaxReport(me)}
+        showAccounting={me.permissions.includes('accounting.export')}
+      />
       <div className="flex justify-end">
         <ExportMenu kind="person_ledger" filters={{ from, to }} />
       </div>

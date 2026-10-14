@@ -68,6 +68,7 @@ export default async function TaxReportPage({
         to={to}
         isOwnerOrAccounts={['owner', 'accounts'].includes(me.user.role)}
         showTax
+        showAccounting={me.permissions.includes('accounting.export')}
       />
 
       <p className="rounded-btn bg-neutral-bg px-3.5 py-2.5 text-[13px] leading-snug text-ink-soft">
