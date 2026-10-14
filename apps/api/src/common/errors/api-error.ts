@@ -160,4 +160,28 @@ export class ApiError extends HttpException {
       'That phone number is already on the team',
     );
   }
+
+  /**
+   * The company is waiting out its deletion grace period. With the date when it is known (sign-in
+   * reads the request); the per-request guard has only the cached tenant and says it without one.
+   */
+  static tenantPendingDeletion(purgeAfter?: Date | null): ApiError {
+    const when = purgeAfter ? ` on ${purgeAfter.toISOString().slice(0, 10)}` : '';
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.TENANT_PENDING_DELETION,
+      `This company is scheduled for deletion${when}. Only its owner can sign in, to cancel the deletion.`,
+      purgeAfter ? { purge_after: purgeAfter.toISOString() } : undefined,
+    );
+  }
+
+  /** A fresh sign-in is needed first (deleting the company). The web app sends them to sign in. */
+  static reauthRequired(minutes: number): ApiError {
+    return new ApiError(
+      HttpStatus.FORBIDDEN,
+      ERROR_CODES.REAUTH_REQUIRED,
+      `For your security, sign out and sign in again, then do this within ${minutes} minutes.`,
+      { within_minutes: minutes },
+    );
+  }
 }

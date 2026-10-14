@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useTransition } from 'react';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Building2, LogOut, ShieldCheck, Tag } from 'lucide-react';
+import { BarChart3, Building2, CalendarX2, LogOut, ShieldCheck, Tag } from 'lucide-react';
 import { platformSignOut } from '@/lib/platform-actions';
 import { BlockingOverlay } from '@/components/ui/blocking-overlay';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,8 @@ const TABS = [
   { href: '/admin/tenants', label: 'Tenants', icon: Building2, exact: false },
   { href: '/admin/plans', label: 'Plans', icon: Tag, exact: false },
   { href: '/admin/operators', label: 'Operators', icon: ShieldCheck, exact: false },
+  // Companies waiting out their deletion grace period, and the certificates of those deleted.
+  { href: '/admin/deletions', label: 'Deletions', icon: CalendarX2, exact: false },
 ];
 
 export function PlatformNav() {

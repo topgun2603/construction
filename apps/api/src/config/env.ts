@@ -334,6 +334,15 @@ const envSchema = z
     // Machines due for a service and machine papers about to lapse, on each company's clock: early,
     // so the fitter is booked before the machine starts work.
     EQUIPMENT_REMINDER_CRON: z.string().default('30 7 * * *'),
+    // Data export and deletion (roadmap Phase 3, compliance). The version string of the data
+    // processing agreement companies are asked to accept, and where its text is published. Legal
+    // text is not shipped in the app: change the version here when the document changes, and every
+    // company is asked to accept the new one.
+    DPA_VERSION: z.string().trim().min(1).default('2026-10'),
+    DPA_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+    // How often the worker looks for companies past their deletion grace period and for expired
+    // exports to remove. Hourly: a deletion is due on a day, not a minute.
+    DELETION_SWEEP_CRON: z.string().default('15 * * * *'),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;

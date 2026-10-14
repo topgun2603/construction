@@ -446,6 +446,11 @@ export class PlatformService {
       select: { id: true, name: true, plan: true, status: true, enabledModules: true },
     });
     if (!before) throw ApiError.notFound('Tenant');
+    // A company waiting to be deleted leaves that state only by its deletion being cancelled (or
+    // carried out), which keeps the request row, the sign-outs and both audit logs in step.
+    if (input.status && before.status === 'pending_deletion') {
+      throw ApiError.conflict('This company is scheduled for deletion. Cancel the deletion to change its status.');
+    }
 
     const modules =
       input.enabled_modules ??

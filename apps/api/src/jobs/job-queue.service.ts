@@ -5,6 +5,7 @@ import { env } from '../config/env';
 import {
   DEFAULT_JOB_OPTIONS,
   QUEUE,
+  type DataExportJob,
   type DocumentTextJob,
   type DprSubmittedJob,
   type IndentStatusJob,
@@ -32,6 +33,7 @@ export class JobQueueService {
     @Optional() @Inject(getQueueToken(QUEUE.notifications)) private readonly notifications?: Queue,
     @Optional() @Inject(getQueueToken(QUEUE.whatsapp)) private readonly whatsapp?: Queue,
     @Optional() @Inject(getQueueToken(QUEUE.media)) private readonly media?: Queue,
+    @Optional() @Inject(getQueueToken(QUEUE.compliance)) private readonly compliance?: Queue,
   ) {}
 
   async indentStatusChanged(job: IndentStatusJob): Promise<void> {
@@ -78,6 +80,16 @@ export class JobQueueService {
    */
   async extractDocumentText(job: DocumentTextJob): Promise<void> {
     await this.add(this.media, QUEUE.media, 'document-text', job, `doctext-${job.documentId}`);
+  }
+
+  /**
+   * Builds a company's full export in the background, keyed on the export so a double click is one
+   * job. Answers whether a queue took it: without one (no Redis), the caller runs it in-process.
+   */
+  async dataExportRequested(job: DataExportJob): Promise<boolean> {
+    if (!this.enabled || !this.compliance) return false;
+    await this.add(this.compliance, QUEUE.compliance, 'data-export', job, `data-export-${job.exportId}`);
+    return true;
   }
 
   private async add(

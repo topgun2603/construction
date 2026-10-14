@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { DataPortabilityModule } from '../data-portability/data-portability.module';
+import { PlatformDeletions } from './platform-deletions.service';
 import { PlatformAdmins } from './platform-admins.service';
 import { PlatformAnalytics } from './platform-analytics.service';
 import { PlatformAuthService } from './platform-auth.service';
@@ -17,7 +19,8 @@ import { PlatformService } from './platform.service';
  * the application role being unable to read across tenants.
  */
 @Module({
-  imports: [AuthModule],
+  // Data portability for cancelling and expediting company deletions (PlatformDeletions).
+  imports: [AuthModule, DataPortabilityModule],
   controllers: [PlatformController],
   providers: [
     PlatformDb,
@@ -27,6 +30,7 @@ import { PlatformService } from './platform.service';
     PlatformAnalytics,
     PlatformAuthService,
     PlatformGuard,
+    PlatformDeletions,
   ],
 })
 export class PlatformModule {}

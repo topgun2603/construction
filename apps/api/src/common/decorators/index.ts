@@ -32,6 +32,16 @@ export const AllowWithoutMfa = (): MethodDecorator & ClassDecorator =>
 /** Reachable from outside the company's IP allow-list. Only signing out: it gives nothing away. */
 export const AllowAnyIp = (): MethodDecorator & ClassDecorator => SetMetadata(ALLOW_ANY_IP_KEY, true);
 
+export const ALLOW_DURING_DELETION_KEY = 'sitebook:allow-during-deletion';
+
+/**
+ * Reachable by the company's owner while the company is scheduled for deletion — seeing when it goes,
+ * cancelling, and signing out. Everything else answers `TENANT_PENDING_DELETION` (JwtAuthGuard), and
+ * so does this for anybody who is not an owner.
+ */
+export const AllowDuringDeletion = (): MethodDecorator & ClassDecorator =>
+  SetMetadata(ALLOW_DURING_DELETION_KEY, true);
+
 /** Restricts a route to specific roles (spec §2). */
 export const Roles = (...roles: UserRole[]): MethodDecorator & ClassDecorator =>
   SetMetadata(ROLES_KEY, roles);

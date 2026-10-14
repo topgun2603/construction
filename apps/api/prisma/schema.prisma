@@ -67,6 +67,8 @@ enum TenantStatus {
   active
   suspended
   cancelled
+  /// The owner asked for the company to be deleted; the grace period is running.
+  pending_deletion
 
   @@map("tenant_status")
 }
@@ -400,6 +402,12 @@ model Tenant {
   // Company AI controls
   aiSettings   AiSettings?
   aiUsageDaily AiUsageDaily[]
+
+  // Data export and deletion
+  dataExports             DataExport[]
+  companyDeletionRequests CompanyDeletionRequest[]
+  companyDeletionSchedule CompanyDeletionSchedule?
+  legalAcceptances        LegalAcceptance[]
 
   @@map("tenants")
 }
@@ -5186,4 +5194,119 @@ model AiUsageDaily {
 
   @@id([tenantId, day, feature])
   @@map("ai_usage_daily")
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Data export and deletion per company (roadmap Phase 3, compliance)
+// ---------------------------------------------------------------------------------------------------
+
+/// A full export of one company: every tenant table, a workbook of the main registers and every
+/// uploaded file, zipped into storage by the background worker. People are plain uuids rather than
+/// foreign keys, like the audit log, so the row outlives the person who asked.
+model DataExport {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  requestedByUserId String    @map("requested_by_user_id") @db.Uuid
+  /// queued | running | ready | failed | expired — see DATA_EXPORT_STATUSES.
+  status            String    @default("queued")
+  /// Where the ZIP is, always under the company's own prefix. Null until ready and after expiry.
+  s3Key             String?   @map("s3_key")
+  sizeBytes         BigInt?   @map("size_bytes")
+  /// The manifest written into the ZIP: rows per table, files, schema version.
+  manifest          Json?
+  error             String?
+  startedAt         DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt        DateTime? @map("finished_at") @db.Timestamptz(6)
+  /// When the download link stops working and the file is removed.
+  expiresAt         DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("data_exports")
+}
+
+/// An owner's request to delete the company, and its fate. One `pending` per company at a time is a
+/// partial unique index in the migration SQL (Prisma cannot express it). A request that runs to
+/// completion goes with the company; `deletion_certificates` is what is left.
+model CompanyDeletionRequest {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  requestedByUserId String    @map("requested_by_user_id") @db.Uuid
+  requestedAt       DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  /// When the deletion becomes permanent: thirty days after the request, or sooner if an operator
+  /// expedites it.
+  purgeAfter        DateTime  @map("purge_after") @db.Timestamptz(6)
+  /// pending | cancelled — see DELETION_REQUEST_STATUSES.
+  status            String    @default("pending")
+  cancelledAt       DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelledByUserId String?   @map("cancelled_by_user_id") @db.Uuid
+  /// `cancelled` or `expedited` when an operator acted from the console (their phone is in the
+  /// platform audit log, not here).
+  platformAction    String?   @map("platform_action")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("company_deletion_requests")
+}
+
+/// Which companies are waiting to be deleted, and from when: a trigger-maintained mirror of the
+/// pending requests with no RLS, so the background sweep can find them without a connection that
+/// reads across companies (the same pattern as `sso_domain_directory`).
+model CompanyDeletionSchedule {
+  tenantId   String   @id @map("tenant_id") @db.Uuid
+  purgeAfter DateTime @map("purge_after") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([purgeAfter])
+  @@map("company_deletion_schedule")
+}
+
+/// Proof that a company was deleted, kept after it is gone. Platform-level and deliberately free of
+/// personal data: the company's id, a hash of its name (to answer "was X deleted?" when asked with
+/// the name, without storing it), when, how many rows each table lost, and who asked by user id.
+/// No foreign key and no `tenant_id` column — it must outlive the tenant and never be swept up by
+/// anything that deletes "everything with this tenant id".
+model DeletionCertificate {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  /// SHA-256 of the company name, trimmed and lower-cased.
+  nameHash          String    @map("name_hash")
+  requestedByUserId String?   @map("requested_by_user_id") @db.Uuid
+  requestedAt       DateTime? @map("requested_at") @db.Timestamptz(6)
+  /// grace_period | platform — whether the thirty days ran out or an operator expedited it.
+  trigger           String    @default("grace_period")
+  deletedAt         DateTime  @map("deleted_at") @db.Timestamptz(6)
+  /// `{ table: rows }` for every tenant table that had rows.
+  tableCounts       Json      @map("table_counts")
+  objectCount       Int       @default(0) @map("object_count")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId])
+  @@map("deletion_certificates")
+}
+
+/// Which version of a legal document (the data processing agreement) a company accepted, by whom
+/// and when. The text itself lives wherever `DPA_URL` points; only the version string is stored.
+model LegalAcceptance {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  /// dpa — see DATA_EXPORT_LEGAL_DOCUMENTS.
+  document         String   @default("dpa")
+  version          String
+  acceptedByUserId String   @map("accepted_by_user_id") @db.Uuid
+  /// The name as it was when they accepted, so the record still reads after the person leaves.
+  acceptedByName   String   @map("accepted_by_name")
+  acceptedAt       DateTime @default(now()) @map("accepted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, document, version])
+  @@map("legal_acceptances")
 }

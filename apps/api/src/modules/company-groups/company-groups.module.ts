@@ -12,5 +12,7 @@ import { CompanyGroupsService } from './company-groups.service';
   imports: [CostCodesModule],
   controllers: [CompanyGroupsController],
   providers: [CompanyGroupsService, CompanyGroupReportService],
+  // For deleting a company: it leaves its group the way an owner would (data-portability).
+  exports: [CompanyGroupsService],
 })
 export class CompanyGroupsModule {}
