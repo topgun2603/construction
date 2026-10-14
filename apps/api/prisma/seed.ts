@@ -6,8 +6,11 @@ import {
   defaultModulesForPlan,
   isoDateToUtcDate,
   expiryAfterMonths,
+  permissionsForSystemRole,
+  systemRoleSeesAllProjects,
   todayInIst,
 } from '@sitebook/shared';
+import { SYSTEM_ROLE_NAMES } from '../src/modules/tenants/tenants.service';
 
 /**
  * Demo data for local development (spec §14): one tenant, two projects, a user for
@@ -58,7 +61,8 @@ async function main(): Promise<void> {
       },
     });
 
-    const users = await createUsers(tx);
+    const roleIds = await createSystemRoles(tx);
+    const users = await createUsers(tx, roleIds);
     const projects = await createProjects(tx);
 
     await assignMembers(tx, users, projects);
@@ -85,10 +89,41 @@ async function main(): Promise<void> {
   });
 }
 
-async function createUsers(tx: Prisma.TransactionClient) {
+/**
+ * The five built-in roles, exactly as sign-up creates them. Without these rows the demo company had
+ * an empty role list: Settings → Roles showed no built-in roles and a custom role had nothing to be
+ * based on, so role editing looked unavailable in the one company everybody tries first.
+ */
+async function createSystemRoles(tx: Prisma.TransactionClient) {
+  const ids = new Map<string, string>();
+  for (const [base, name] of SYSTEM_ROLE_NAMES) {
+    const row = await tx.role.create({
+      data: {
+        tenantId: DEMO_TENANT_ID,
+        name,
+        baseRole: base,
+        permissions: [...permissionsForSystemRole(base)],
+        seesAllProjects: systemRoleSeesAllProjects(base),
+        isSystem: true,
+      },
+      select: { id: true },
+    });
+    ids.set(base, row.id);
+  }
+  return ids;
+}
+
+async function createUsers(tx: Prisma.TransactionClient, roleIds: Map<string, string>) {
   const make = (phone: string, name: string, role: Prisma.UserCreateInput['role']) =>
     tx.user.create({
-      data: { tenantId: DEMO_TENANT_ID, phone, name, role, status: 'active' },
+      data: {
+        tenantId: DEMO_TENANT_ID,
+        phone,
+        name,
+        role,
+        roleId: roleIds.get(role as string) ?? null,
+        status: 'active',
+      },
     });
 
   const [owner, projectManager, supervisor, accounts, client] = await Promise.all([

@@ -24,6 +24,15 @@ export default [
     },
   },
   {
+    // The i18n tooling in scripts/ is command-line Node: it reads process.argv and reports with
+    // console.log by design, so it gets Node's globals and the console rule does not apply.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly', __dirname: 'readonly' },
+    },
+    rules: { 'no-console': 'off' },
+  },
+  {
     ignores: ['.next/**', 'node_modules/**', 'next-env.d.ts'],
   },
 ];
