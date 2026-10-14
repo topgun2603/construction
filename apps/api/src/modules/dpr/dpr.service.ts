@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   isoDateToUtcDate,
   MAX_UPLOAD_BYTES,
-  todayIn,
   utcDateToIsoDate,
   type CreateDprInput,
   type ListDprQuery,
@@ -16,6 +15,7 @@ import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { siteToday } from '../../common/site-clock';
 import { JobQueueService } from '../../jobs/job-queue.service';
 import { VoiceReader } from '../ai/voice-reader.service';
 import { AiGateway } from '../ai/ai-gateway.service';
@@ -95,7 +95,10 @@ export class DprService {
    */
   async create(actor: RequestUser, input: CreateDprInput) {
     await this.access.assertAccess(actor, input.project_id);
-    const reportDate = isoDateToUtcDate(input.report_date);
+    const reportDate = isoDateToUtcDate(
+      input.report_date ??
+        (await siteToday(this.tenantDb.clientFor(actor.tenantId), actor, input.project_id)),
+    );
 
     const view = await this.tenantDb.transaction(actor.tenantId, async (tx) => {
       if (input.client_id) {
@@ -398,7 +401,9 @@ export class DprService {
       transcript: text,
       language,
       draft: {
-        report_date: input.report_date ?? todayIn(actor.timezone),
+        report_date:
+          input.report_date ??
+          (await siteToday(this.tenantDb.clientFor(actor.tenantId), actor, input.project_id)),
         weather: speech.weather,
         work_done: speech.work_done,
         issues: speech.issues,

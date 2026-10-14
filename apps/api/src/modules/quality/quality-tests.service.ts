@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   INDIA_LOCALE,
+  addDays,
+  siteTimeToday,
   QUALITY_CUBE_DEFAULT_AGES,
   QUALITY_TEST_DEFAULT_UNITS,
   QUALITY_TEST_TYPE_LABELS,
@@ -26,6 +28,7 @@ import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb } from '../../common/prisma/tenant-db.service';
+import { siteToday } from '../../common/site-clock';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UploadsService } from '../uploads/uploads.service';
 import {
@@ -208,7 +211,9 @@ export class QualityTestsService {
           data: {
             resultValue: input.result_value,
             result,
-            testedOn: isoDateToUtcDate(input.tested_on ?? todayIn(actor.timezone)),
+            testedOn: isoDateToUtcDate(
+              input.tested_on ?? (await siteToday(tx, actor, row.projectId)),
+            ),
             ...(input.lab_name === undefined ? {} : { labName: input.lab_name }),
             ...(input.report_s3_key === undefined ? {} : { reportS3Key: input.report_s3_key }),
             ...(input.notes === undefined ? {} : { notes: input.notes }),
@@ -270,13 +275,19 @@ export class QualityTestsService {
   async remindTenant(tenantId: string): Promise<{ reminded: number }> {
     const due = await this.tenantDb.transaction(tenantId, async (tx) => {
       const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { timezone: true } });
-      const today = todayIn(tenant?.timezone ?? INDIA_LOCALE.timezone);
-      const rows = await tx.qualityTest.findMany({
+      const company = { timezone: tenant?.timezone ?? INDIA_LOCALE.timezone };
+      const today = todayIn(company.timezone);
+      /*
+       * Due "today" means today at the site (a separate time zone per site). A site can be a day
+       * ahead of the company, so the query reaches a day further and each row is then held to its
+       * own site's date.
+       */
+      const candidates = await tx.qualityTest.findMany({
         where: {
           result: null,
           testedOn: null,
           remindedAt: null,
-          dueOn: { lte: isoDateToUtcDate(today) },
+          dueOn: { lte: isoDateToUtcDate(addDays(today, 1)) },
           project: { deletedAt: null },
         },
         orderBy: [{ dueOn: 'asc' }, { number: 'asc' }],
@@ -290,16 +301,19 @@ export class QualityTestsService {
           ageDays: true,
           dueOn: true,
           recordedById: true,
-          project: { select: { name: true } },
+          project: { select: { name: true, timeZone: true } },
         },
       });
+      const rows = candidates.filter(
+        (row) => utcDateToIsoDate(row.dueOn!) <= siteTimeToday(row.project, company),
+      );
       if (rows.length > 0) {
         await tx.qualityTest.updateMany({
           where: { id: { in: rows.map((row) => row.id) } },
           data: { remindedAt: new Date() },
         });
       }
-      return { rows, today };
+      return { rows, company };
     });
     if (due.rows.length === 0) return { reminded: 0 };
 
@@ -309,7 +323,8 @@ export class QualityTestsService {
     for (const [projectId, rows] of bySite) {
       const lines = rows.slice(0, 5).map((row) => {
         const age = row.ageDays ? `${row.ageDays}-day ` : '';
-        const late = utcDateToIsoDate(row.dueOn!) < due.today ? ` (due ${utcDateToIsoDate(row.dueOn!)})` : '';
+        const siteToday = siteTimeToday(row.project, due.company);
+        const late = utcDateToIsoDate(row.dueOn!) < siteToday ? ` (due ${utcDateToIsoDate(row.dueOn!)})` : '';
         return `${age}${testLabel(row)} · sample ${row.sampleRef}${late}`;
       });
       await this.notifications.notify({

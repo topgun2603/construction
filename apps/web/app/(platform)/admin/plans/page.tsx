@@ -2,6 +2,7 @@ import type { PlanView } from '@sitebook/shared';
 import { platformFetch } from '@/lib/platform-session';
 import { FadeIn } from '@/components/motion';
 import { PlanCatalogue } from './plan-catalogue';
+import { RegionPricing } from './region-pricing';
 import { getT } from '@/lib/i18n-server';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,8 @@ export default async function PlansPage() {
       </div>
 
       <PlanCatalogue plans={items} canManage={me.root} />
+
+      <RegionPricing plans={items} canManage={me.root} />
     </FadeIn>
   );
 }

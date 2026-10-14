@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import type { AttendanceDay, ProjectSummary, Worker } from '@/lib/api-types';
 import { useLanguage } from '@/components/language-provider';
 import { useFormat } from '@/components/format-provider';
+import { SiteZoneHint } from '@/components/site-zone-hint';
 
 type Status = 'present' | 'half_day' | 'absent';
 
@@ -171,9 +172,12 @@ export function RollCall({
           type="date"
           value={date}
           onChange={(event) => navigate({ date: event.target.value })}
+          // A roll call is for a day that has happened — at the site, on its own clock.
+          max={recorded.site_today}
           className="w-[180px]"
           aria-label={t('Attendance date')}
         />
+        <SiteZoneHint zone={recorded.time_zone} className="mb-2.5" />
         {recorded.locked && (
           <Badge tone="blocked">
             <Lock className="size-3" /> {t('Locked by a finalised wage period')}

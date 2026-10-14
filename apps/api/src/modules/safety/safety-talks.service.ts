@@ -14,6 +14,7 @@ import type { RequestUser } from '../../common/auth/request-user';
 import { ProjectAccess } from '../../common/auth/project-access.service';
 import { ApiError } from '../../common/errors/api-error';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
+import { siteActor } from '../../common/site-clock';
 import { UploadsService } from '../uploads/uploads.service';
 import { dayRange } from './safety-incidents.service';
 import { PHOTO_SELECT, addPhotos, assertSafetyPhotoKey, companyToday, namesFor, person, photoView } from './safety-common';
@@ -121,7 +122,9 @@ export class SafetyTalksService {
 
   async create(actor: RequestUser, input: CreateSafetyToolboxTalkInput) {
     await this.access.assertAccess(actor, input.project_id);
-    if (input.talk_date > companyToday(actor)) {
+    // "Not in the future" means at the site: a Dubai site's talk is still today there.
+    const site = await siteActor(this.tenantDb.clientFor(actor.tenantId), actor, input.project_id);
+    if (input.talk_date > companyToday(site)) {
       throw ApiError.validationFailed({ talk_date: input.talk_date }, 'A talk is recorded after it is given');
     }
     const libraryTopic = input.topic_key

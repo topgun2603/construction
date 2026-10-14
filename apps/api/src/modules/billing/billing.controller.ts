@@ -5,12 +5,14 @@ import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import {
   cancelSubscriptionSchema,
+  planBankTransferRequestSchema,
   startSubscriptionSchema,
   type CancelSubscriptionInput,
+  type PlanBankTransferRequestInput,
   type StartSubscriptionInput,
 } from '@sitebook/shared';
 import type { RequestUser } from '../../common/auth/request-user';
-import { CurrentUser, Public, RequiresPermission } from '../../common/decorators';
+import { CurrentUser, Public, RequiresPermission, SessionOnly } from '../../common/decorators';
 import { ApiError } from '../../common/errors/api-error';
 import { zodBody } from '../../common/pipes/zod-validation.pipe';
 import { RazorpayService } from '../../integrations/razorpay.service';
@@ -54,6 +56,34 @@ export class BillingController {
     @Body(zodBody(startSubscriptionSchema)) body: StartSubscriptionInput,
   ) {
     return this.billing.start(user, body);
+  }
+
+  @RequiresPermission('tenant.manage')
+  @Get('plans')
+  @ApiOperation({ summary: 'Plans on sale, priced in this company’s currency (or USD, or contact us)' })
+  plans(@CurrentUser() user: RequestUser) {
+    return this.billing.catalogue(user);
+  }
+
+  @RequiresPermission('tenant.manage')
+  @Get('bank-transfers')
+  @ApiOperation({ summary: 'This company’s bank-transfer invoice requests' })
+  bankTransfers(@CurrentUser() user: RequestUser) {
+    return this.billing.bankTransfers(user);
+  }
+
+  /** Bangladesh and Nepal: an invoice to pay by bank transfer, applied when the money arrives. */
+  @RequiresPermission('tenant.manage')
+  // Asking to pay is what a company whose term has run out most needs to do, so the read-only
+  // rule for expired accounts does not apply. It grants nothing; only the console's "paid" does.
+  @SessionOnly()
+  @Post('bank-transfers')
+  @ApiOperation({ summary: 'Request a bank-transfer invoice for a plan' })
+  requestBankTransfer(
+    @CurrentUser() user: RequestUser,
+    @Body(zodBody(planBankTransferRequestSchema)) body: PlanBankTransferRequestInput,
+  ) {
+    return this.billing.requestBankTransfer(user, body);
   }
 
   @RequiresPermission('tenant.manage')

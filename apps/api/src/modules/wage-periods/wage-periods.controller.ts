@@ -64,6 +64,13 @@ export class WagePeriodsController {
     return this.periods.wpsFile(user, id);
   }
 
+  /** Saudi Arabia's WPS payroll file for Mudad, with whoever cannot be paid through it yet. */
+  @RequiresPermission('wages.pay')
+  @Get(':id/mudad')
+  mudad(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.periods.mudadFile(user, id);
+  }
+
   @RequiresPermission('wages.finalise')
   @Post(':id/finalise')
   @ApiOperation({ summary: 'Freeze the lines and lock attendance for the range' })

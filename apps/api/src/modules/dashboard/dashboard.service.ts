@@ -3,6 +3,7 @@ import {
   addDays,
   attendanceEarning,
   isoDateToUtcDate,
+  siteTimeToday,
   todayIn,
   utcDateToIsoDate,
 } from '@sitebook/shared';
@@ -29,7 +30,6 @@ export class DashboardService {
   async overview(actor: RequestUser) {
     const db = this.tenantDb.clientFor(actor.tenantId);
     const today = todayIn(actor.timezone);
-    const todayUtc = isoDateToUtcDate(today);
     const weekStart = isoDateToUtcDate(addDays(today, -6));
     const fortnightStart = isoDateToUtcDate(addDays(today, -13));
     /*
@@ -58,10 +58,22 @@ export class DashboardService {
         budgetAmount: true,
         startDate: true,
         targetEndDate: true,
+        timeZone: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+
+    /*
+     * Each site's own "today" (a separate time zone per site): a Dubai site of a Mumbai company has
+     * not reached tomorrow at Mumbai's midnight, and its report and headcount are for its own day.
+     * The company-wide windows above — the week, the month, the chart — stay on the company clock.
+     */
+    const siteDay = new Map(projects.map((project) => [project.id, siteTimeToday(project, actor)]));
+    const siteDayUtc = new Map(
+      [...siteDay].map(([id, day]) => [id, isoDateToUtcDate(day).getTime()] as const),
+    );
+    const siteDays = [...new Set(siteDay.values())].map((day) => isoDateToUtcDate(day));
 
     if (projects.length === 0) {
       return {
@@ -94,9 +106,10 @@ export class DashboardService {
 
     const [todayReports, monthAttendance, indents, monthExpenses] = await Promise.all([
       db.dailyReport.findMany({
-        where: { projectId: { in: projectIds }, reportDate: todayUtc, deletedAt: null },
+        where: { projectId: { in: projectIds }, reportDate: { in: siteDays }, deletedAt: null },
         select: {
           projectId: true,
+          reportDate: true,
           status: true,
           submittedAt: true,
           issues: true,
@@ -137,7 +150,11 @@ export class DashboardService {
       }),
     ]);
 
-    const reportByProject = new Map(todayReports.map((report) => [report.projectId, report]));
+    // Only the report for the site's own today; the query may have found a neighbour's date.
+    const siteReports = todayReports.filter(
+      (report) => report.reportDate.getTime() === siteDayUtc.get(report.projectId),
+    );
+    const reportByProject = new Map(siteReports.map((report) => [report.projectId, report]));
 
     const headcountToday = new Map<string, number>();
     const costWeek = new Map<string, bigint>();
@@ -171,7 +188,7 @@ export class DashboardService {
 
       // Headcount counts bodies on site, so a half day still counts as one person.
       if (row.status !== 'absent') {
-        if (row.attendanceDate.getTime() === todayUtc.getTime()) {
+        if (row.attendanceDate.getTime() === siteDayUtc.get(row.projectId)) {
           headcountToday.set(row.projectId, (headcountToday.get(row.projectId) ?? 0) + 1);
           totalHeadcount += 1;
         }
@@ -214,6 +231,9 @@ export class DashboardService {
         budget_amount: project.budgetAmount,
         start_date: project.startDate ? utcDateToIsoDate(project.startDate) : null,
         target_end_date: project.targetEndDate ? utcDateToIsoDate(project.targetEndDate) : null,
+        // The site's own clock, and the day it is on there — the overview hints when it differs.
+        time_zone: project.timeZone,
+        today: siteDay.get(project.id) ?? today,
         dpr_status: report?.status ?? 'missing',
         dpr_submitted_at: report?.submittedAt?.toISOString() ?? null,
         dpr_has_issues: Boolean(report?.issues && report.issues.trim().length > 0),
@@ -309,7 +329,7 @@ export class DashboardService {
         })),
       totals: {
         site_count: projects.length,
-        dprs_in: todayReports.filter((report) => report.status === 'submitted').length,
+        dprs_in: siteReports.filter((report) => report.status === 'submitted').length,
         headcount_today: totalHeadcount,
         labour_cost_month: totalMonth,
         labour_cost_week: totalWeek,

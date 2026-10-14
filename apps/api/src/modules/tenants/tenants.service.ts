@@ -42,6 +42,8 @@ export interface TenantView {
   currency_locked: boolean;
   wps_employer_id: string | null;
   wps_bank_code: string | null;
+  /** Saudi WPS (Mudad): the MHRSD establishment number, "1-123456". */
+  mudad_establishment_id: string | null;
 }
 
 @Injectable()
@@ -190,6 +192,9 @@ export class TenantsService {
           ...(input.logo_url === undefined ? {} : { logoUrl: input.logo_url }),
           ...(input.wps_employer_id === undefined ? {} : { wpsEmployerId: input.wps_employer_id }),
           ...(input.wps_bank_code === undefined ? {} : { wpsBankCode: input.wps_bank_code }),
+          ...(input.mudad_establishment_id === undefined
+            ? {}
+            : { mudadEstablishment: input.mudad_establishment_id }),
           ...tenantLocaleData(input),
         },
         select: selectTenant,
@@ -368,6 +373,7 @@ const selectTenant = {
   status: true,
   wpsEmployerId: true,
   wpsBankCode: true,
+  mudadEstablishment: true,
   ...selectTenantLocale,
 } as const;
 
@@ -380,6 +386,7 @@ type TenantRow = TenantLocaleRow & {
   status: string;
   wpsEmployerId: string | null;
   wpsBankCode: string | null;
+  mudadEstablishment: string | null;
 };
 
 function toView(tenant: TenantRow, currencyLocked = false): TenantView {
@@ -394,6 +401,7 @@ function toView(tenant: TenantRow, currencyLocked = false): TenantView {
     currency_locked: currencyLocked,
     wps_employer_id: tenant.wpsEmployerId,
     wps_bank_code: tenant.wpsBankCode,
+    mudad_establishment_id: tenant.mudadEstablishment,
   };
 }
 

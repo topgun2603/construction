@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { planCodeSchema } from './plan';
 import { MODULES } from '../plans';
 import { tenantLocaleSchema } from '../locale';
+import { MUDAD_ESTABLISHMENT_PATTERN } from '../mudad';
 
 /**
  * `POST /tenants` — onboarding. Authorised by the onboarding token handed back by
@@ -43,6 +44,16 @@ export const updateTenantSchema = z
       .string()
       .trim()
       .regex(/^[0-9]{9}$/, 'a routing code is 9 digits')
+      .nullable()
+      .optional(),
+    /**
+     * Saudi WPS (Mudad): the MHRSD establishment number — labour office id, a dash, the
+     * establishment's sequence ("1-123456") — printed on every payroll file.
+     */
+    mudad_establishment_id: z
+      .string()
+      .trim()
+      .regex(MUDAD_ESTABLISHMENT_PATTERN, 'the establishment number looks like 1-123456')
       .nullable()
       .optional(),
   })

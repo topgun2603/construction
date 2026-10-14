@@ -3,6 +3,8 @@ import { AuthModule } from '../auth/auth.module';
 import { PlatformAdmins } from './platform-admins.service';
 import { PlatformAnalytics } from './platform-analytics.service';
 import { PlatformAuthService } from './platform-auth.service';
+import { PlatformBankTransfersController } from './platform-bank-transfers.controller';
+import { PlatformBankTransfers } from './platform-bank-transfers.service';
 import { PlatformController } from './platform.controller';
 import { PlatformDb } from './platform-db.service';
 import { PlatformGuard } from './platform.guard';
@@ -18,7 +20,7 @@ import { PlatformService } from './platform.service';
  */
 @Module({
   imports: [AuthModule],
-  controllers: [PlatformController],
+  controllers: [PlatformController, PlatformBankTransfersController],
   providers: [
     PlatformDb,
     PlatformAdmins,
@@ -27,6 +29,7 @@ import { PlatformService } from './platform.service';
     PlatformAnalytics,
     PlatformAuthService,
     PlatformGuard,
+    PlatformBankTransfers,
   ],
 })
 export class PlatformModule {}

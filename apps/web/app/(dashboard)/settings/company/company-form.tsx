@@ -71,13 +71,18 @@ export function CompanyForm({ company, canEdit }: { company: CompanySettings; ca
     bank: company.wps_bank_code ?? '',
   });
 
+  // Saudi WPS (Mudad): the MHRSD establishment number on every payroll file.
+  const [establishment, setEstablishment] = useState(company.mudad_establishment_id ?? '');
+
   const locked = company.currency_locked;
   const uae = settings.country === 'AE';
+  const saudi = settings.country === 'SA';
   const changed =
     (Object.keys(settings) as (keyof Settings)[]).some((key) => settings[key] !== company[key]) ||
     (uae &&
       (wps.employer.trim() !== (company.wps_employer_id ?? '') ||
-        wps.bank.trim() !== (company.wps_bank_code ?? '')));
+        wps.bank.trim() !== (company.wps_bank_code ?? ''))) ||
+    (saudi && establishment.trim() !== (company.mudad_establishment_id ?? ''));
 
   const options = useMemo(() => {
     const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
@@ -145,6 +150,8 @@ export function CompanyForm({ company, canEdit }: { company: CompanySettings; ca
         ...(uae
           ? { wps_employer_id: wps.employer.trim() || null, wps_bank_code: wps.bank.trim() || null }
           : {}),
+        // Sent only for a Saudi company; blank clears it.
+        ...(saudi ? { mudad_establishment_id: establishment.trim() || null } : {}),
       });
       if (!result.ok) {
         setError(result.error ?? t('Could not save'));
@@ -294,6 +301,38 @@ export function CompanyForm({ company, canEdit }: { company: CompanySettings; ca
                 maxLength={9}
                 value={wps.bank}
                 onChange={(event) => setWps((current) => ({ ...current, bank: event.target.value }))}
+                disabled={!canEdit}
+              />
+            </Field>
+          </div>
+        </div>
+      )}
+
+      {saudi && (
+        <div className="flex flex-col gap-3 border-t border-line-soft pt-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+              {t('Mudad payroll files')}
+            </span>
+            <span className="text-[13px] text-ink-muted">
+              {t('Printed on every payroll file you upload to Mudad or your bank.')}
+            </span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label={t('MHRSD establishment number')}
+              htmlFor="mudad_establishment_id"
+              optional
+              hint={t('Labour office and sequence, like 1-123456')}
+            >
+              <Input
+                id="mudad_establishment_id"
+                dir="ltr"
+                inputMode="numeric"
+                pattern="[0-9]{1,3}-[0-9]{1,10}"
+                maxLength={14}
+                value={establishment}
+                onChange={(event) => setEstablishment(event.target.value)}
                 disabled={!canEdit}
               />
             </Field>

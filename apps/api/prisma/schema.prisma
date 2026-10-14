@@ -235,6 +235,9 @@ model Tenant {
   /// bank or exchange house that pays the salaries. Both appear in every salary file (SIF).
   wpsEmployerId      String?      @map("wps_employer_id")
   wpsBankCode        String?      @map("wps_bank_code")
+  /// Saudi Wage Protection (Mudad): the MHRSD establishment number — labour office id, a dash,
+  /// then the sequence ("1-123456") — printed on every payroll file.
+  mudadEstablishment String?      @map("mudad_establishment_id")
   /// Procurement's three-way match tolerance, in basis points (200 = 2%).
   matchToleranceBp   Int          @default(200) @map("invoice_match_tolerance_bp")
   status             TenantStatus @default(active)
@@ -401,6 +404,9 @@ model Tenant {
   aiSettings   AiSettings?
   aiUsageDaily AiUsageDaily[]
 
+  // Plans paid by bank transfer
+  planBankTransferInvoices PlanBankTransferInvoice[]
+
   @@map("tenants")
 }
 
@@ -566,6 +572,9 @@ model Project {
   /// plus approved change orders, worked out rather than stored (see `ChangeOrderSiteRevision`).
   contractValue BigInt?       @map("contract_value")
   status        ProjectStatus @default(planning)
+  /// IANA zone the site keeps, when it is not the company's: a Mumbai company's Dubai site rolls
+  /// over to "tomorrow" at Dubai midnight. Null means the company's zone (`siteTimeZone`).
+  timeZone      String?       @map("time_zone")
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
@@ -5186,4 +5195,38 @@ model AiUsageDaily {
 
   @@id([tenantId, day, feature])
   @@map("ai_usage_daily")
+}
+
+/// A plan bought by bank transfer rather than by card (roadmap: Bangladesh and Nepal, where paying
+/// abroad by card is hard). The owner asks for an invoice; the platform team issues it, waits for
+/// the money, and marks it paid from the console — which is what applies the plan. No payment
+/// provider is involved, so nothing here is set from a webhook or from the browser.
+model PlanBankTransferInvoice {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  /// "BT-20261006-7F3A9C"-style, unique across the platform so it can be quoted on a transfer.
+  number           String    @unique
+  /// The plan code asked for. Not a foreign key, like `tenants.plan`.
+  plan             String
+  /// The currency and amount quoted — the catalogue's, copied so a later price change cannot
+  /// rewrite what the customer was asked to pay.
+  currency         String    @db.Char(3)
+  amount           BigInt
+  /// pending | paid | cancelled
+  status           String    @default("pending")
+  requestedBy      String?   @map("requested_by") @db.Uuid
+  note             String?
+  /// The bank's own reference for the transfer, typed by the operator who marked it paid.
+  paymentReference String?   @map("payment_reference")
+  /// The console operator (a phone number) who marked it paid or cancelled it.
+  settledBy        String?   @map("settled_by")
+  paidAt           DateTime? @map("paid_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("plan_bank_transfer_invoices")
 }

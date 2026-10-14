@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import {
+  buildMudadFile,
   buildSif,
   daysBetweenInclusive,
   isoDateToUtcDate,
+  missingMudadDetails,
   missingWpsDetails,
+  mudadBankForIban,
+  mudadSplitPay,
   netPayable,
   utcDateToIsoDate,
   monthlyWageLine,
@@ -19,6 +23,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import { TenantDb, type TenantTx } from '../../common/prisma/tenant-db.service';
 import { JobQueueService } from '../../jobs/job-queue.service';
+import { WorkerDocumentsService } from '../worker-documents/worker-documents.service';
 
 export interface WagePeriodView {
   id: string;
@@ -40,6 +45,8 @@ export class WagePeriodsService {
   constructor(
     private readonly tenantDb: TenantDb,
     private readonly jobs: JobQueueService,
+    /** Reads the Iqama or national ID for the Saudi payroll file. */
+    private readonly documents: WorkerDocumentsService,
   ) {}
 
   /**
@@ -151,6 +158,145 @@ export class WagePeriodsService {
         file_name: sif.fileName,
         content: sif.content,
         included: payable.length,
+      };
+    });
+  }
+
+  /**
+   * Saudi Arabia's WPS payroll file for a finalised period, uploaded through Mudad or the paying
+   * bank — the Saudi counterpart of `wpsFile`, with the same rules: company-level problems block
+   * the file, and workers missing their details are listed rather than silently left out.
+   *
+   * The Iqama or national ID comes from the worker's papers, which are encrypted at rest; reading
+   * them for a file is written to the audit log, as revealing one on screen is.
+   */
+  async mudadFile(actor: RequestUser, id: string) {
+    return this.tenantDb.transaction(actor.tenantId, async (tx) => {
+      const [tenant, period] = await Promise.all([
+        tx.tenant.findUnique({
+          where: { id: actor.tenantId },
+          select: { country: true, currency: true, mudadEstablishment: true },
+        }),
+        tx.wagePeriod.findUnique({
+          where: { id },
+          select: { status: true, periodStart: true, periodEnd: true },
+        }),
+      ]);
+      if (!period) throw ApiError.notFound('Wage period');
+
+      const problems: string[] = [];
+      if (tenant?.country !== 'SA')
+        problems.push('Mudad payroll files are for companies in Saudi Arabia.');
+      if (tenant?.currency !== 'SAR')
+        problems.push('Mudad payroll files are for companies paying in SAR.');
+      if (!tenant?.mudadEstablishment)
+        problems.push('Add the MHRSD establishment number in Settings → Company.');
+      if (period.status === 'open')
+        problems.push('Finalise the period first; an open period can still change.');
+
+      const lines = await tx.wageLine.findMany({
+        where: { wagePeriodId: id, netPayable: { gt: 0n } },
+        orderBy: { worker: { name: 'asc' } },
+        select: {
+          grossAmount: true,
+          fixedAmount: true,
+          netPayable: true,
+          worker: {
+            select: {
+              id: true,
+              name: true,
+              payBasis: true,
+              basicSalary: true,
+              housingAllowance: true,
+              transportAllowance: true,
+              foodAllowance: true,
+              wpsAccount: true,
+            },
+          },
+        },
+      });
+
+      const ids = await this.documents.identityNumbers(
+        tx,
+        lines.map((line) => line.worker.id),
+        ['iqama', 'national_id'],
+      );
+      if (ids === null) {
+        problems.push(
+          'Worker papers are not set up on this deployment, so Iqama numbers cannot be read.',
+        );
+      }
+
+      const details = lines.map((line) => {
+        const idNumber = ids?.get(line.worker.id) ?? null;
+        return {
+          line,
+          idNumber,
+          missing: missingMudadDetails({ idNumber, iban: line.worker.wpsAccount }),
+        };
+      });
+      const missing = details
+        .filter((row) => row.missing.length > 0)
+        .map((row) => ({
+          worker_id: row.line.worker.id,
+          worker_name: row.line.worker.name,
+          missing: row.missing,
+        }));
+      const payable = details.filter((row) => row.missing.length === 0);
+
+      if (problems.length > 0) {
+        return {
+          ready: false,
+          problems,
+          missing,
+          file_name: null,
+          content: null,
+          included: 0,
+          total: '0',
+        };
+      }
+
+      const end = utcDateToIsoDate(period.periodEnd);
+      const file = buildMudadFile({
+        establishment: tenant!.mudadEstablishment!,
+        salaryMonth: end.slice(0, 7),
+        employees: payable.map(({ line, idNumber }) => ({
+          idNumber: idNumber!,
+          name: line.worker.name,
+          bankCode: mudadBankForIban(line.worker.wpsAccount!)!.bic,
+          iban: line.worker.wpsAccount!,
+          ...mudadSplitPay({
+            gross: line.grossAmount,
+            fixed: line.fixedAmount,
+            net: line.netPayable,
+            basicSalary: line.worker.basicSalary,
+            housingAllowance: line.worker.housingAllowance,
+            transportAllowance: line.worker.transportAllowance,
+            foodAllowance: line.worker.foodAllowance,
+            payBasis: line.worker.payBasis,
+          }),
+        })),
+      });
+
+      // Identity numbers left the encrypted column for this file, so the trail says who made it.
+      await tx.auditLog.create({
+        data: {
+          tenantId: actor.tenantId,
+          actorId: actor.userId,
+          action: 'wage_period.mudad_file',
+          entity: 'wage_periods',
+          entityId: id,
+        },
+      });
+
+      return {
+        ready: missing.length === 0,
+        problems,
+        missing,
+        file_name: file.fileName,
+        content: file.content,
+        included: payable.length,
+        total: file.total.toString(),
       };
     });
   }

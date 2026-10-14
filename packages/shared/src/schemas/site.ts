@@ -28,7 +28,8 @@ export const dprPhotoSchema = z.object({
 
 export const createDprSchema = z.object({
   project_id: uuidSchema,
-  report_date: isoDateSchema,
+  /** Left out, the report is for today at the site — on its own clock, not the company's. */
+  report_date: isoDateSchema.optional(),
   weather: z.string().trim().max(120).optional(),
   work_done: z.string().trim().max(4000).optional(),
   issues: z.string().trim().max(4000).optional(),

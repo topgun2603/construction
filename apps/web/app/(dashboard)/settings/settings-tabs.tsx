@@ -24,6 +24,8 @@ const TABS: Array<{ href: string; label: string; permission?: string; ownerOnly?
   { href: '/settings/audit', label: 'Audit log', permission: 'audit.view' },
   // Single sign-on today; two-factor, sessions and IP rules join it as sections of the same page.
   { href: '/settings/security', label: 'Security', ownerOnly: true },
+  // Paying for the plan: priced in the company's currency, or by bank-transfer invoice.
+  { href: '/settings/billing', label: 'Billing', permission: 'tenant.manage' },
 ];
 
 export function SettingsTabs({ permissions = [], role }: { permissions?: string[]; role?: string }) {
